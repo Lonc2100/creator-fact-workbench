@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { CsvPresetProvider, FakeSelfMediaProvider, ManualImportProvider, MediaCrawlerImportProvider, N8nExecutionProvider } from "../src/domain/self-media/providers";
+import { CsvPresetProvider, FakeSelfMediaProvider, ManualImportProvider, MediaCrawlerImportProvider, N8nExecutionProvider, WechatOfficialProvider } from "../src/domain/self-media/providers";
 import { SqliteSelfMediaRepo } from "../src/domain/self-media/repo";
 import { SelfMediaService, generateReview } from "../src/domain/self-media/service";
 
@@ -65,6 +65,26 @@ test("n8n execution provider records workflow source and metrics", () => {
   assert.equal(payload.contents[0].notes, "n8n:平台导出同步:exec-test");
   assert.equal(payload.metrics[0].views, 700);
   assert.ok(payload.warnings?.some((item) => item.includes("exec-test")));
+});
+
+test("wechat official provider reads token and analytics contracts without leaking secrets", async () => {
+  const calls: Array<{ url: string; body?: string }> = [];
+  const fakeFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push({ url, body: typeof init?.body === "string" ? init.body : undefined });
+    if (url.includes("/cgi-bin/token")) return Response.json({ access_token: "test-token", expires_in: 7200 });
+    if (url.includes("/datacube/getarticlesummary")) return Response.json({ list: [{ ref_date: "2026-06-01", title: "测试文章", int_page_read_count: 12, share_count: 2 }] });
+    if (url.includes("/datacube/getusersummary")) return Response.json({ list: [{ ref_date: "2026-06-01", new_user: 1, cancel_user: 0 }] });
+    return Response.json({ errcode: 40013, errmsg: "invalid appid" });
+  }) as typeof fetch;
+  const provider = new WechatOfficialProvider({ appId: "wx-test", appSecret: "secret-test" }, fakeFetch);
+  const token = await provider.getAccessToken();
+  const article = await provider.getArticleSummary(token.accessToken, "2026-06-01", "2026-06-01");
+  const users = await provider.getUserSummary(token.accessToken, "2026-06-01", "2026-06-01");
+  assert.equal(token.expiresIn, 7200);
+  assert.equal(article[0].int_page_read_count, 12);
+  assert.equal(users[0].new_user, 1);
+  assert.ok(calls[0].url.includes("secret=secret-test"));
 });
 
 test("sqlite repo stores imported payloads and logs", async () => {

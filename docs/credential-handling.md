@@ -17,3 +17,4 @@
 
 - `git check-ignore -v .env.local`
 - `rg -n "APP_SECRET|AppSecret|refresh_token|access_token" .`
+- `npm run check:wechat` checks the current public IP and WeChat token connectivity without printing secrets.

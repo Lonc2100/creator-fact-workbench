@@ -18,6 +18,7 @@
     "test:entropy": "node --test tests/entropy-cleanup.test.mjs",
     "test:agent-trajectory": "node --test tests/agent-trajectory.test.mjs",
     "test:smoke": "node scripts/smoke-self-media.mjs",
+    "check:wechat": "node scripts/check-wechat-official.mjs",
     "template:doctor": "node scripts/template-doctor.mjs",
     "verify:harness": "npm run typecheck && npm run context:check && npm run lint:arch && npm run test:structure && npm run test:references && npm run test:ui-harness && npm run test:self-media && npm run test:entropy && npm run test:agent-trajectory && npm run template:doctor",
     "verify:o2": "npm run verify:harness && npm run build && npm run test:smoke",
