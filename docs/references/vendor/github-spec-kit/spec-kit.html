@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>GitHub Spec Kit | Spec Kit Documentation </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="GitHub Spec Kit | Spec Kit Documentation ">
+      
+      
+      <link rel="icon" href="favicon.ico">
+      <link rel="stylesheet" href="public/docfx.min.css">
+      <link rel="stylesheet" href="public/main.css">
+      <meta name="docfx:navrel" content="toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      <meta name="docfx:rel" content="">
+      
+      
+      <meta name="docfx:docurl" content="https://github.com/github/spec-kit/blob/main/docs/index.md/#L1">
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="landing" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="index.html">
+            <img id="logo" class="svg" src="logo.svg" alt="Spec Kit">
+            Spec Kit
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+
+      <div class="content">
+        <div class="actionbar">
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+
+<div class="landing-hero">
+<h1 id="github-spec-kit">GitHub Spec Kit</h1>
+<p><strong>Define what to build before building it — with any AI coding agent.</strong></p>
+<p>Spec Kit is a toolkit for <a href="concepts/sdd.html">Spec-Driven Development</a> (SDD), a methodology that puts specifications at the center of AI-assisted software development. Instead of jumping straight to code, you describe <em>what</em> to build, refine it through structured phases, and let your AI coding agent implement it.</p>
+<p><a href="installation.html" class="btn btn-primary btn-lg">Install Spec Kit</a> 
+<a href="quickstart.html" class="btn btn-outline-primary btn-lg">Quick Start</a></p>
+</div>
+<hr>
+<div class="pillar-grid">
+<div class="pillar-card">
+<h3 id="spec-driven-by-default">Spec-driven by default</h3>
+<p>The core SDD process ships ready to use: <strong>Spec → Plan → Tasks → Implement</strong>.</p>
+<p>Define what to build before building it. Rich templates, quality checklists, and cross-artifact analysis come out of the box. Each phase produces a Markdown artifact that feeds the next — giving your AI coding agent structured context instead of ad-hoc prompts.</p>
+<p><a href="quickstart.html" class="pillar-link">Walk through the workflow →</a></p>
+</div>
+<div class="pillar-card">
+<h3 id="use-any-coding-agent">Use any coding agent</h3>
+<p><span class="pillar-stat">30 integrations</span> — Copilot, Gemini, Codex, Windsurf, Claude, Forge, Kiro, and more. Switch freely between agents with a single command. No lock-in.</p>
+<p>Run <code>specify init</code> with your agent of choice and Spec Kit sets up the right command files, context rules, and directory structures automatically. If your agent isn't listed, the <code>generic</code> integration is an escape hatch for any tool.</p>
+<p><a href="reference/integrations.html" class="pillar-link">See all integrations →</a></p>
+</div>
+<div class="pillar-card">
+<h3 id="make-it-your-own">Make it your own</h3>
+<p><span class="pillar-stat">105 community extensions</span> (60+ authors), <span class="pillar-stat">22 presets</span>, and growing. Tune the core process with presets, extend it with extensions, orchestrate it with workflows, or replace it entirely. Build and publish your own.</p>
+<p>Including entirely different SDD processes:</p>
+<ul>
+<li><strong>AIDE</strong> — 7-step AI-driven engineering lifecycle</li>
+<li><strong>Canon</strong> — baseline-driven workflows (spec-first, code-first, spec-drift)</li>
+<li><strong>Product Forge</strong> — product-management-oriented SDD</li>
+<li><strong>FX→.NET</strong> — end-to-end .NET Framework migration across 7 phases</li>
+<li><strong>MAQA</strong> — multi-agent orchestration with quality assurance gates</li>
+</ul>
+<p><a href="community/presets.html" class="pillar-link">Browse community presets →</a></p>
+</div>
+<div class="pillar-card">
+<h3 id="integrate-into-your-organization">Integrate into your organization</h3>
+<p>Works offline, behind firewalls, and on <strong>Windows, macOS, and Linux</strong>. Host your own extension and preset catalogs so your organization controls what gets installed.</p>
+<p>Community extensions like CI Guard and Architecture Guard add compliance gates and governance that fit the way your team already works.</p>
+<p><a href="installation.html" class="pillar-link">Installation guide →</a>  
+<a href="reference/extensions.html" class="pillar-link">Extensions reference →</a></p>
+</div>
+</div>
+<hr>
+<div class="community-section">
+<h2 id="built-by-the-community">Built by the community</h2>
+<p><strong>200+ contributors</strong> power the Spec Kit ecosystem — from core integrations to entirely new development processes. Anyone can create and publish an extension, preset, or workflow.</p>
+<div class="stats-grid">
+  <div class="stat-item">
+    <span class="stat-number">106K+</span>
+    <span class="stat-label">GitHub stars</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-number">200+</span>
+    <span class="stat-label">Contributors</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-number">30</span>
+    <span class="stat-label">Integrations</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-number">105</span>
+    <span class="stat-label">Extensions</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-number">22</span>
+    <span class="stat-label">Presets</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-number">4</span>
+    <span class="stat-label">Friends projects</span>
+  </div>
+</div>
+<p><a href="community/presets.html">Presets</a> · <a href="community/walkthroughs.html">Walkthroughs</a> · <a href="community/friends.html">Friends</a></p>
+</div>
+<hr>
+<h2 id="explore-the-docs">Explore the docs</h2>
+<div class="nav-cards">
+  <a href="quickstart.html" class="nav-card">
+    <strong>Getting Started</strong>
+    <span>Install, configure, and run your first SDD workflow</span>
+  </a>
+  <a href="reference/overview.html" class="nav-card">
+    <strong>Reference</strong>
+    <span>Core commands, integrations, extensions, presets, and workflows</span>
+  </a>
+  <a href="community/overview.html" class="nav-card">
+    <strong>Community</strong>
+    <span>Extensions, presets, walkthroughs, and friend projects</span>
+  </a>
+  <a href="local-development.html" class="nav-card">
+    <strong>Development</strong>
+    <span>Contribute to Spec Kit</span>
+  </a>
+  <a href="concepts/sdd.html" class="nav-card">
+    <strong>What is SDD?</strong>
+    <span>The philosophy behind Spec-Driven Development</span>
+  </a>
+</div>
+<hr>
+<div class="footer-cta">
+<pre><code class="lang-bash">uvx --from git+https://github.com/github/spec-kit.git
+specify init my-project --integration copilot
+</code></pre>
+<p>Ready to start? Follow the <a href="quickstart.html">Quick Start Guide</a>.</p>
+</div>
+<p class="text-end small text-body-secondary">Last updated: May 27, 2026</p>
+
+</article>
+
+        <div class="contribution d-print-none">
+          <a href="https://github.com/github/spec-kit/blob/main/docs/index.md/#L1" class="edit-link">Edit this page</a>
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          Spec Kit - A specification-driven development toolkit
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

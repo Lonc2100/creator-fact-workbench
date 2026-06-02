@@ -1,0 +1,12 @@
+README.md
+apps/backend/src/api/routes/analytics.controller.ts
+apps/backend/src/api/routes/autopost.controller.ts
+apps/backend/src/api/routes/posts.controller.ts
+apps/backend/src/api/routes/posts.validation.exception.ts
+apps/frontend/README.md
+apps/frontend/src/app/(app)/(preview)/p/[id]/layout.tsx
+apps/frontend/src/app/(app)/(preview)/p/[id]/page.tsx
+apps/frontend/src/app/(app)/(site)/analytics/page.tsx
+apps/frontend/src/components/analytics/analytics.component.tsx
+apps/frontend/src/components/analytics/chart-social.tsx
+apps/frontend/src/components/analytics/chart.tsx

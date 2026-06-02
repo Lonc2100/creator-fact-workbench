@@ -1,0 +1,12 @@
+.claude/README.md
+.claude/plugins/n8n/README.md
+README.md
+docker/images/n8n/README.md
+docker/images/runners/README.md
+packages/@n8n/agents/src/__tests__/integration/batched-tool-execution.test.ts
+packages/@n8n/agents/src/__tests__/integration/concurrent-tool-execution.test.ts
+packages/@n8n/agents/src/runtime/execution-counter.ts
+packages/@n8n/ai-node-sdk/README.md
+packages/@n8n/ai-utilities/README.md
+packages/@n8n/ai-utilities/src/utils/vector-store/createVectorStoreNode/README.md
+packages/@n8n/ai-workflow-builder.ee/evaluations/README.md

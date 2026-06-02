@@ -1,0 +1,12 @@
+api/src/ai/chat/controllers/chat.post.test.ts
+api/src/ai/chat/controllers/chat.post.ts
+api/src/ai/chat/controllers/object.post.test.ts
+api/src/ai/chat/controllers/object.post.ts
+api/src/controllers/dashboards.ts
+api/src/controllers/metrics.ts
+api/src/database/errors/dialects/postgres.ts
+api/src/database/helpers/capabilities/dialects/postgres.ts
+api/src/database/helpers/fn/dialects/postgres.test.ts
+api/src/database/helpers/fn/dialects/postgres.ts
+api/src/database/helpers/fn/json/postgres-json-path.test.ts
+api/src/database/helpers/fn/json/postgres-json-path.ts

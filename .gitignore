@@ -1,0 +1,40 @@
+node_modules/
+.next/
+.local/
+*.tsbuildinfo
+.dev-server-*.log
+.smoke-*.png
+
+# Local env
+.env
+.env.*
+!.env.example
+
+# Build and cache output
+out/
+dist/
+coverage/
+.turbo/
+.vercel/
+playwright-report/
+test-results/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local databases and generated artifacts
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,43 @@
+{
+  "name": "self-media-ai-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 3001",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 3001",
+    "typecheck": "tsc --noEmit",
+    "create:tool": "node scripts/create-tool.mjs",
+    "context:check": "node scripts/context-check.mjs",
+    "lint:arch": "node scripts/harness-lint.mjs",
+    "test:structure": "node --test tests/harness-structure.test.mjs",
+    "test:references": "node --test tests/vendor-references.test.mjs",
+    "test:ui-harness": "node --test tests/ui-harness.test.mjs",
+    "test:self-media": "node --import tsx --test tests/self-media-contract.test.ts",
+    "test:entropy": "node --test tests/entropy-cleanup.test.mjs",
+    "test:agent-trajectory": "node --test tests/agent-trajectory.test.mjs",
+    "test:smoke": "node scripts/smoke-self-media.mjs",
+    "template:doctor": "node scripts/template-doctor.mjs",
+    "verify:harness": "npm run typecheck && npm run context:check && npm run lint:arch && npm run test:structure && npm run test:references && npm run test:ui-harness && npm run test:self-media && npm run test:entropy && npm run test:agent-trajectory && npm run template:doctor",
+    "verify:o2": "npm run verify:harness && npm run build && npm run test:smoke",
+    "verify": "npm run verify:harness"
+  },
+  "dependencies": {
+    "lucide-react": "^1.17.0",
+    "next": "^15.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.0",
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "playwright-core": "^1.60.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.7.3"
+  }
+}

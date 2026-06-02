@@ -1,0 +1,7 @@
+This is a self-media AI backend management workbench rooted at D:\codex work\自媒体创作\Data Collection and Background Analysis.
+
+Ignore canvas-workbench requirements and files from D:\codex work\desk work.
+
+The fixed implementation route is Types -> Config -> Repo -> Providers -> Service -> Runtime -> UI.
+
+Before building, read docs/context/index.md, ARCHITECTURE.md, docs/architecture/current-stage.md, docs/spec-governance.md, docs/task-board.md, and docs/agent-playbook.md.
