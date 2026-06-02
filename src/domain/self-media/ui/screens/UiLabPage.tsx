@@ -1,3 +1,5 @@
+"use client";
+
 import type { DashboardSnapshot } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";

@@ -35,6 +35,7 @@ Current score: 98 / 100
 - `verify:o2` now validates the publish-to-review backend fact chain.
 - `Self-media UI Harness` now has architecture docs, page boundaries, Mixpost/Metabase visual tokens, reusable UI layers, `/ui-lab`, separated routes, and UI boundary tests.
 - `verify:o2` passed on 2026-06-02 after UI Harness integration.
+- `CALENDAR-003`, `EDITOR-001`, and `REVIEW-004` now pass O2: content editor saves platform version fields, calendar drag reschedules through API, reviews are saved, and action items progress from the UI.
 
 ## Improve Next
 
@@ -46,3 +47,4 @@ Current score: 98 / 100
 - Add real sub-agent execution only after trajectory checks remain stable for another phase.
 - Continue visual polish from screenshots; current UI is a structured first pass, not final art direction.
 - Track Next/PostCSS moderate audit advisory without applying npm's invalid downgrade suggestion.
+- Add month navigation, manual action-item creation, review detail route, and media asset records after the current interaction model is reviewed.

@@ -301,7 +301,9 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   padding: 0 12px;
+  border: 0;
   border-radius: var(--sm-radius-pill);
+  background: transparent;
   color: var(--sm-text-muted);
   font-size: 13px;
   font-weight: 750;
@@ -439,14 +441,23 @@ button:disabled {
   background: rgba(255, 250, 242, 0.76);
 }
 
+.calendar-grid.is-month-view {
+  min-height: 860px;
+}
+
 .calendar-day {
   min-width: 0;
   border-right: 1px solid var(--sm-border);
   background: rgba(255, 250, 242, 0.54);
+  transition: background 160ms ease;
 }
 
 .calendar-day:last-child {
   border-right: 0;
+}
+
+.calendar-day.is-over {
+  background: rgba(226, 239, 255, 0.82);
 }
 
 .calendar-day header {
@@ -477,6 +488,13 @@ button:disabled {
   border-radius: var(--sm-radius-md);
   background: #fffdf8;
   padding: 11px;
+  cursor: grab;
+  touch-action: none;
+  z-index: 1;
+}
+
+.calendar-card:active {
+  cursor: grabbing;
 }
 
 .calendar-card-meta,
@@ -554,6 +572,18 @@ button:disabled {
   gap: 9px;
 }
 
+.editable-checklist {
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-md);
+  background: #fffdf8;
+  padding: 12px;
+}
+
+.editable-checklist input {
+  width: 16px;
+  height: 16px;
+}
+
 .check-dot {
   width: 20px;
   height: 20px;
@@ -579,6 +609,17 @@ button:disabled {
 .soft-warning p,
 .inspector-note p {
   margin: 6px 0 0;
+}
+
+.operation-message {
+  margin: 0 0 14px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-pill);
+  background: rgba(255, 250, 242, 0.78);
+  color: var(--sm-text-muted);
+  padding: 9px 13px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .table-wrap {
@@ -609,6 +650,19 @@ button:disabled {
   display: block;
 }
 
+.sm-table tr {
+  cursor: pointer;
+}
+
+.sm-table tr.is-selected-row {
+  background: rgba(226, 239, 255, 0.62);
+}
+
+.content-main-stack {
+  display: grid;
+  gap: 14px;
+}
+
 .detail-stack,
 .version-card-list,
 .form-grid,
@@ -627,6 +681,15 @@ button:disabled {
   border-radius: var(--sm-radius-md);
   background: rgba(255, 253, 248, 0.78);
   padding: 12px;
+}
+
+.version-mini-card {
+  cursor: pointer;
+}
+
+.version-mini-card.is-selected-card {
+  border-color: rgba(39, 118, 216, 0.42);
+  background: var(--sm-info-soft);
 }
 
 .version-mini-card > div {
@@ -878,6 +941,10 @@ button:disabled {
   gap: 10px;
   border-bottom: 1px solid var(--sm-border);
   padding-bottom: 10px;
+}
+
+.action-buttons {
+  margin-top: 8px;
 }
 
 .history-row {

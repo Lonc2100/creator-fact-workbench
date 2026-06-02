@@ -33,6 +33,10 @@ The Orchestrator owns task state. Workers, Explorers, and Auditors report throug
 | UI-H1 | UI Harness | Add Tailwind + CSS variable visual foundation with Mixpost/Metabase direction | Worker | Done | `docs/product-specs/ui-harness-001.md` | `npm run build` | Passed 2026-06-02 |
 | UI-H2 | UI Harness | Add primitives, components, patterns, and `/ui-lab` component state page | Worker | Done | `docs/product-specs/ui-harness-001.md` | `npm run test:ui-harness` | Passed 2026-06-02 |
 | UI-H3 | UI Harness | Split one mixed workbench into page-boundary routes | Worker | Done | `docs/ui-harness/PAGE_BOUNDARIES.md` | `npm run test:smoke` | Passed 2026-06-02 |
+| CALENDAR-003 | Publish | Drag-and-drop publish calendar with week/month views and filters | Calendar Worker | Done | `docs/product-specs/calendar-editor-001.md` | `npm run test:smoke` | Passed 2026-06-02 |
+| EDITOR-001 | Content | Platform version editor for title/body/script/cover/schedule/checklist | Editor Worker | Done | `docs/product-specs/calendar-editor-001.md` | `npm run test:smoke` | Passed 2026-06-02 |
+| REVIEW-004 | Review | Save weekly/monthly reviews and advance action item status | Review Worker | Done | `docs/product-specs/review-actions-001.md` | `npm run test:smoke` | Passed 2026-06-02 |
+| AUD-006 | Quality | Audit editor/calendar/review boundaries and O2 evidence | Auditor | Done | `docs/handoffs/AUD-006-editor-calendar-review-report.md` | `npm run verify:o2` | Passed 2026-06-02 |
 
 ## State Rules
 

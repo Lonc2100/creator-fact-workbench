@@ -55,3 +55,23 @@ test("non-screen UI layers do not fetch or import backend layers", () => {
     assert.doesNotMatch(content, /from\s+["'][^"']*(repo|service|providers|config)[^"']*["']/, `${file} must not import backend layers`);
   }
 });
+
+test("page boundaries keep calendar, import, and review workflows separated", () => {
+  const calendar = read("src/domain/self-media/ui/screens/CalendarPage.tsx");
+  const reviews = read("src/domain/self-media/ui/screens/ReviewsPage.tsx");
+  const importPage = read("src/domain/self-media/ui/screens/ImportPage.tsx");
+  assert.doesNotMatch(calendar, /Diff 预览|周复盘报告|EvidenceReviewReport|ImportDiffTable/, "calendar page must not mix import diff or review report");
+  assert.doesNotMatch(reviews, /PublishCalendar|publish-calendar|Diff 预览|ImportDiffTable/, "review page must not include calendar drag area or import diff");
+  assert.doesNotMatch(importPage, /PublishCalendar|EvidenceReviewReport|周复盘报告/, "import page must stay focused on import preview and runs");
+});
+
+test("interactive UI patterns expose callbacks instead of owning persistence", () => {
+  const calendarPattern = read("src/domain/self-media/ui/patterns/PublishCalendar.tsx");
+  const contentPattern = read("src/domain/self-media/ui/patterns/ContentManagement.tsx");
+  const reviewPattern = read("src/domain/self-media/ui/patterns/EvidenceReviewReport.tsx");
+  assert.match(calendarPattern, /onReschedule/);
+  assert.match(contentPattern, /onSave/);
+  assert.match(contentPattern, /onStatusPatch/);
+  assert.match(reviewPattern, /onActionStatus/);
+  for (const source of [calendarPattern, contentPattern, reviewPattern]) assert.doesNotMatch(source, /\bfetch\s*\(/);
+});

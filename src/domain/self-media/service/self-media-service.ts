@@ -465,10 +465,14 @@ export class SelfMediaService {
     if (input.status && input.status !== version.status && !platformVersionTransitions[version.status].includes(input.status)) throw new Error(`非法平台版本状态流转：${version.status} -> ${input.status}`);
     const updated: ContentPlatformVersion = {
       ...version,
+      title: input.title ?? version.title,
+      body: input.body ?? version.body,
+      script: input.script ?? version.script,
+      coverNote: input.coverNote ?? version.coverNote,
       status: input.status ?? version.status,
       scheduledAt: input.scheduledAt ?? version.scheduledAt,
       publishedAt: input.publishedAt ?? (input.status === "published" ? new Date().toISOString() : version.publishedAt),
-      failureReason: input.failureReason,
+      failureReason: input.failureReason ?? version.failureReason,
       nextAction: input.nextAction ?? version.nextAction,
       checklist: { ...version.checklist, ...(input.checklist ?? {}) },
       updatedAt: new Date().toISOString()

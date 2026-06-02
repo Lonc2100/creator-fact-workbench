@@ -406,6 +406,10 @@ export interface ContentPlatformVersionRequest {
 export interface PlatformVersionPatchRequest {
   id: string;
   status?: PlatformVersionStatus;
+  title?: string;
+  body?: string;
+  script?: string;
+  coverNote?: string;
   scheduledAt?: string;
   publishedAt?: string;
   failureReason?: string;

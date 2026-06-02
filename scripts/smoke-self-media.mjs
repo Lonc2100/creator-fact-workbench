@@ -234,6 +234,55 @@ try {
     const bodyText = await page.locator("body").innerText();
     if (!bodyText.includes(expectedText)) throw new Error(`Expected ${expectedText} on ${route}`);
   }
+
+  await page.goto(`${server.baseUrl}/content`, { waitUntil: "networkidle" });
+  await page.locator('[data-testid="platform-version-editor"]').waitFor({ timeout: 10000 });
+  const editedTitle = `O2编辑器保存-${Date.now()}`;
+  await page.locator('[data-testid="version-title-input"]').fill(editedTitle);
+  await page.locator('[data-testid="version-body-input"]').fill("从内容页直接编辑平台版本正文。");
+  await page.locator('[data-testid="version-script-input"]').fill("开头给结论，中段给证据，结尾给行动。");
+  await page.locator('[data-testid="version-cover-input"]').fill("封面展示 CreatorFact 工作台。");
+  await page.locator('[data-testid="save-platform-version"]').click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="content-operation-message"]')?.textContent?.includes("平台版本已保存"), null, { timeout: 10000 });
+  const contentMessage = await page.locator('[data-testid="content-operation-message"]').innerText();
+  if (!contentMessage.includes("平台版本已保存")) throw new Error(`Content editor save did not report success: ${contentMessage}`);
+  const editedDashboard = await page.evaluate(async () => (await fetch("/api/self-media/dashboard")).json());
+  if (!editedDashboard.platformVersions.some((item) => item.title === editedTitle && item.body.includes("内容页直接编辑"))) throw new Error("Edited platform version was not persisted.");
+
+  await page.goto(`${server.baseUrl}/calendar`, { waitUntil: "networkidle" });
+  await page.locator('[data-testid="publish-calendar"]').waitFor({ timeout: 10000 });
+  const firstCard = page.locator("[data-calendar-card='true']").first();
+  const cardCount = await page.locator("[data-calendar-card='true']").count();
+  if (cardCount === 0) throw new Error("Calendar has no draggable platform version cards.");
+  const draggedVersionId = await firstCard.getAttribute("data-platform-version-id");
+  const currentDate = await firstCard.evaluate((node) => node.closest("[data-calendar-date]")?.getAttribute("data-calendar-date"));
+  const targetDay = page.locator(`[data-calendar-date]:not([data-calendar-date='${currentDate}'])`).last();
+  const targetDate = await targetDay.getAttribute("data-calendar-date");
+  if (!draggedVersionId || !targetDate) throw new Error("Calendar drag target was not discoverable.");
+  await firstCard.scrollIntoViewIfNeeded();
+  await targetDay.scrollIntoViewIfNeeded();
+  const sourceBox = await firstCard.boundingBox();
+  const targetBox = await targetDay.boundingBox();
+  if (!sourceBox || !targetBox) throw new Error("Calendar drag boxes were not available.");
+  await page.mouse.move(sourceBox.x + sourceBox.width / 2, sourceBox.y + Math.min(sourceBox.height / 2, 36));
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + Math.min(targetBox.height / 2, 88), { steps: 16 });
+  await page.mouse.up();
+  await page.waitForFunction(() => document.querySelector('[data-testid="calendar-operation-message"]')?.textContent?.includes("排期已保存"), null, { timeout: 15000 });
+  const draggedDashboard = await page.evaluate(async () => (await fetch("/api/self-media/dashboard")).json());
+  const draggedVersion = draggedDashboard.platformVersions.find((item) => item.id === draggedVersionId);
+  if (!draggedVersion?.scheduledAt?.startsWith(targetDate)) throw new Error(`Dragged version did not move to ${targetDate}: ${draggedVersion?.scheduledAt}`);
+
+  await page.goto(`${server.baseUrl}/reviews`, { waitUntil: "networkidle" });
+  await page.locator('[data-testid="save-review-button"]').click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="review-operation-message"]')?.textContent?.includes("已保存"), null, { timeout: 10000 });
+  const actionButton = page.locator("[data-action-item-id] button", { hasText: "进行中" }).first();
+  await actionButton.click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="review-operation-message"]')?.textContent?.includes("行动项已更新"), null, { timeout: 10000 });
+  const reviewDashboard = await page.evaluate(async () => (await fetch("/api/self-media/dashboard")).json());
+  if (!reviewDashboard.savedReviews.some((item) => item.period === "weekly")) throw new Error("Review UI did not save a weekly review.");
+  if (!reviewDashboard.actionItems.some((item) => item.status === "doing")) throw new Error("Review UI did not advance an action item.");
+
   if (httpFailures.length) throw new Error(`HTTP failures: ${httpFailures.join(" | ")}`);
   if (consoleErrors.length) throw new Error(`Console errors: ${consoleErrors.join(" | ")}`);
   const after = await page.evaluate(async () => (await fetch("/api/self-media/dashboard")).json());
@@ -253,6 +302,10 @@ try {
         savedReview: reviewResult.body.review.id,
         actionItem: actionUpdate.body.actionItem.id,
         automationRun: automationResult.body.run.id,
+        uiEditedVersion: editedTitle,
+        uiDraggedVersion: draggedVersionId,
+        uiSavedReview: true,
+        uiAdvancedAction: true,
         queueChecked: Boolean(nextStatus)
       },
       null,

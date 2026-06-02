@@ -326,6 +326,22 @@ test("calendar filters by platform and status from platform versions", () => {
   }
 });
 
+test("platform version patch updates scheduledAt in calendar results", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-calendar-patch-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const created = service.upsertPlatformVersion({ contentId: "calendar-patch-content", platform: "douyin", title: "拖拽排期测试", scheduledAt: "2026-06-03T09:00:00.000Z", status: "scheduled" });
+    service.patchPlatformVersion({ id: created.version.id, scheduledAt: "2026-06-05T09:00:00.000Z" });
+    const calendarItem = service.calendar({ view: "week" }).find((item) => item.platformVersionId === created.version.id);
+    assert.equal(calendarItem?.scheduledAt, "2026-06-05T09:00:00.000Z");
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("saved review stores action items and evidence-backed insights", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-saved-review-"));
   let repo: SqliteSelfMediaRepo | undefined;
@@ -342,6 +358,24 @@ test("saved review stores action items and evidence-backed insights", async () =
     assert.ok(saved.review.insights.some((item) => item.evidenceRefs.length > 0));
     const updated = service.updateActionItem({ id: saved.actionItems[0].id, status: "doing", nextAction: "今天完成" });
     assert.equal(updated.actionItem.status, "doing");
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("monthly review save and action status update are visible in dashboard", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-monthly-review-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    await service.dashboard();
+    const saved = service.saveReview({ period: "monthly" });
+    const updated = service.updateActionItem({ id: saved.actionItems[0].id, status: "done", nextAction: "月度动作已完成" });
+    const snapshot = await service.dashboard();
+    assert.ok(snapshot.savedReviews.some((item) => item.id === saved.review.id && item.period === "monthly"));
+    assert.ok(snapshot.actionItems.some((item) => item.id === updated.actionItem.id && item.status === "done"));
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });

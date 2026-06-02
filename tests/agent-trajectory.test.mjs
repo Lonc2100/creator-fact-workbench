@@ -8,7 +8,7 @@ function read(path) {
 
 test("current phase has task board rows, specs, handoffs, and auditor evidence", () => {
   const taskBoard = read("docs/task-board.md");
-  for (const id of ["CONNECTOR-001", "PUBLISH-001", "O2-SMOKE", "AGENT-TRAJECTORY-AUDIT", "PREVIEW-001", "IDEA-001", "CONTENT-001", "PUBLISH-002", "REVIEW-003", "LEAD-001", "V15-MODEL-001", "V15-API-001", "V15-O2-001"]) {
+  for (const id of ["CONNECTOR-001", "PUBLISH-001", "O2-SMOKE", "AGENT-TRAJECTORY-AUDIT", "PREVIEW-001", "IDEA-001", "CONTENT-001", "PUBLISH-002", "REVIEW-003", "LEAD-001", "V15-MODEL-001", "V15-API-001", "V15-O2-001", "CALENDAR-003", "EDITOR-001", "REVIEW-004"]) {
     assert.ok(taskBoard.includes(`| ${id} |`), `${id} is missing from task board`);
     assert.match(taskBoard, new RegExp(`${id}.*Done`), `${id} is not marked Done`);
   }
@@ -23,6 +23,8 @@ test("current phase has task board rows, specs, handoffs, and auditor evidence",
     "docs/product-specs/review-003.md",
     "docs/product-specs/lead-001.md",
     "docs/product-specs/v1.5-publish-data-loop.md",
+    "docs/product-specs/calendar-editor-001.md",
+    "docs/product-specs/review-actions-001.md",
     "docs/handoffs/CONNECTOR-001-explorer-notes.md",
     "docs/handoffs/CONNECTOR-001-worker-handoff.md",
     "docs/handoffs/AUD-002-connector-publish-o2-report.md",
@@ -30,7 +32,13 @@ test("current phase has task board rows, specs, handoffs, and auditor evidence",
     "docs/handoffs/AUD-003-v1-mainline-report.md",
     "docs/handoffs/V1.5-explorer-notes.md",
     "docs/handoffs/V1.5-worker-handoff.md",
-    "docs/handoffs/AUD-004-v1.5-backend-report.md"
+    "docs/handoffs/AUD-004-v1.5-backend-report.md",
+    "docs/handoffs/CALENDAR-003-explorer-notes.md",
+    "docs/handoffs/CALENDAR-003-worker-handoff.md",
+    "docs/handoffs/EDITOR-001-worker-handoff.md",
+    "docs/handoffs/REVIEW-004-explorer-notes.md",
+    "docs/handoffs/REVIEW-004-worker-handoff.md",
+    "docs/handoffs/AUD-006-editor-calendar-review-report.md"
   ]) {
     assert.ok(existsSync(file), `${file} missing`);
   }
