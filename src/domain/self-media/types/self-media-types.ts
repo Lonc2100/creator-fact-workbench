@@ -2,7 +2,7 @@ export type Platform = "douyin" | "xiaohongshu" | "wechat" | "video_account" | "
 
 export type ContentStatus = "idea" | "draft" | "scheduled" | "published" | "reviewed";
 
-export type ImportSource = "manual" | "csv" | "json" | "fake" | "mediacrawler" | "n8n";
+export type ImportSource = "manual" | "csv" | "json" | "fake" | "mediacrawler" | "n8n" | "wechat_official" | "douyin_creator_center" | "xiaohongshu_creator_center" | "video_account_creator_center" | "bilibili_creator_center";
 
 export type CsvImportPreset = "generic" | "douyin" | "xiaohongshu" | "wechat" | "video_account" | "bilibili";
 
@@ -19,6 +19,14 @@ export type ImportDiffKind = "new" | "update" | "duplicate" | "conflict" | "inva
 export type ReviewActionStatus = "todo" | "doing" | "done" | "dropped";
 
 export type AutomationRunStatus = "pending" | "running" | "success" | "failed" | "retrying";
+
+export type ImportOperationKind = "import" | "platform_preview" | "platform_save" | "platform_save_smoke" | "manual_snapshot" | "seed" | "sync";
+
+export interface ImportProvenanceMetadata {
+  isTestFixture?: boolean;
+  operationKind?: ImportOperationKind;
+  trustedScopeEligible?: boolean;
+}
 
 export interface PlatformAccount {
   id: string;
@@ -38,6 +46,10 @@ export interface ContentItem {
   publishedAt?: string;
   scheduledAt?: string;
   notes?: string;
+  userExcludedFromTrustedScope?: boolean;
+  trustedScopeOverride?: "include" | "exclude";
+  trustedScopeUpdatedAt?: string;
+  trustedScopeUpdatedBy?: string;
 }
 
 export interface PlatformChecklist {
@@ -86,6 +98,12 @@ export interface PublishRecord {
   status: "published" | "failed" | "blocked" | "confirmed";
   happenedAt: string;
   note?: string;
+  platformPostId?: string;
+  platformUrl?: string;
+  confirmationSource?: "manual" | "provider" | "import";
+  providerRunId?: string;
+  confirmedBy?: string;
+  idempotencyKey?: string;
   traceId: string;
 }
 
@@ -116,7 +134,430 @@ export interface MetricSnapshot {
   followersDelta: number;
   source: ImportSource | "manual";
   importRunId?: string;
+  provenance?: ImportProvenanceMetadata;
   updatedAt: string;
+}
+
+export interface AccountMetricSnapshot {
+  id: string;
+  platform: Platform;
+  source: ImportSource | "manual";
+  date: string;
+  views: number;
+  likes: number;
+  comments: number;
+  saves: number;
+  shares: number;
+  followersDelta: number;
+  rawEvidenceRef: string;
+  importRunId?: string;
+  updatedAt: string;
+}
+
+export interface MetricSnapshotSourceGroup {
+  source: ImportSource | "manual";
+  platform: Platform | "mixed";
+  snapshotCount: number;
+  contentCount: number;
+  importRunCount: number;
+  views: number;
+  likes: number;
+  comments: number;
+  saves: number;
+  shares: number;
+  followersDelta: number;
+  engagement: number;
+  latestSnapshotDate?: string;
+  latestImportRunId?: string;
+  includedInReview: boolean;
+}
+
+export interface MetricSnapshotPlatformGroup {
+  platform: Platform;
+  snapshotCount: number;
+  contentCount: number;
+  sourceCount: number;
+  sources: Array<ImportSource | "manual">;
+  views: number;
+  likes: number;
+  comments: number;
+  saves: number;
+  shares: number;
+  followersDelta: number;
+  engagement: number;
+  latestSnapshotDate?: string;
+  includedInReview: boolean;
+}
+
+export interface AccountMetricGroup {
+  platform: Platform;
+  source: ImportSource | "manual";
+  date: string;
+  snapshotCount: number;
+  views: number;
+  likes: number;
+  comments: number;
+  saves: number;
+  shares: number;
+  followersDelta: number;
+  engagement: number;
+  latestImportRunId?: string;
+  includedInContentReview: false;
+}
+
+export type PostImportActionSuggestionType = "reuse_high_performer" | "review_low_engagement" | "platform_priority" | "bilibili_archives_content" | "data_health_anomaly";
+
+export interface PostImportActionEvidence {
+  platform: Platform;
+  contentId?: string;
+  source?: ImportSource | "manual";
+  metricSnapshotId?: string;
+  importRunId?: string;
+}
+
+export interface PostImportActionSuggestion {
+  id: string;
+  type: PostImportActionSuggestionType;
+  priority: "high" | "medium" | "low";
+  title: string;
+  summary: string;
+  nextAction: string;
+  evidence: PostImportActionEvidence[];
+  convertedToActionItem?: boolean;
+  actionItemId?: string;
+}
+
+export interface RealDataScopeSourceSummary {
+  source: ImportSource | "manual" | "review_metric";
+  contentCount: number;
+  metricCount: number;
+  metricSnapshotCount: number;
+  importRunCount: number;
+  views: number;
+}
+
+export interface RealDataScopeSummary {
+  defaultScope: "trusted_real_creator_center";
+  trustedSources: Extract<ImportSource, "douyin_creator_center" | "xiaohongshu_creator_center" | "video_account_creator_center" | "bilibili_creator_center">[];
+  isDefaultDashboardTrusted: boolean;
+  trustedContentCount: number;
+  trustedMetricCount: number;
+  trustedMetricSnapshotCount: number;
+  trustedImportRunCount: number;
+  excludedContentCount: number;
+  excludedMetricCount: number;
+  excludedMetricSnapshotCount: number;
+  excludedImportRunCount: number;
+  allContentCount: number;
+  allMetricCount: number;
+  allMetricSnapshotCount: number;
+  allImportRunCount: number;
+  userExcludedContentCount: number;
+  userExcludedMetricSnapshotCount: number;
+  excludedSources: RealDataScopeSourceSummary[];
+}
+
+export interface TrustedScopeCurationItem {
+  contentId: string;
+  title: string;
+  platform: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+  source: Extract<ImportSource, "douyin_creator_center" | "xiaohongshu_creator_center" | "video_account_creator_center" | "bilibili_creator_center">;
+  userExcludedFromTrustedScope: boolean;
+  trustedScopeOverride?: "include" | "exclude";
+  includedInTrustedScope: boolean;
+  snapshotCount: number;
+  views: number;
+  engagement: number;
+  latestSnapshotDate?: string;
+}
+
+export interface TrustedScopeCurationSummary {
+  items: TrustedScopeCurationItem[];
+  trustedCandidateContentCount: number;
+  activeContentCount: number;
+  userExcludedContentCount: number;
+  userExcludedMetricSnapshotCount: number;
+}
+
+export type ContentWorkbenchOriginKind = "trusted_creator_center" | "local_draft" | "action_item_generated" | "idea_converted" | "manual_import" | "external_untrusted" | "unknown_local";
+
+export interface ContentWorkbenchContentRow {
+  content: ContentItem;
+  platformVersions: ContentPlatformVersion[];
+  queueItems: PublishQueueItem[];
+  actionItems: ReviewActionItem[];
+  sourceKinds: Array<ImportSource | "manual" | "local_workflow" | "unknown">;
+  originKind: ContentWorkbenchOriginKind;
+  originLabel: string;
+  includedInTrustedDashboardReview: boolean;
+  dashboardReviewLabel: "进入运营看板" | "不进运营看板";
+  dashboardReviewReason: string;
+  trustedMetricSnapshotCount: number;
+  localMetricSnapshotCount: number;
+  latestSnapshotDate?: string;
+}
+
+export interface ContentWorkbenchSnapshot {
+  generatedAt: string;
+  contents: ContentItem[];
+  contentRows: ContentWorkbenchContentRow[];
+  platformVersions: ContentPlatformVersion[];
+  queue: PublishQueueItem[];
+  publishRecords: PublishRecord[];
+  actionItems: ReviewActionItem[];
+  ideas: TopicIdea[];
+  metricSnapshots: MetricSnapshot[];
+  trustedScopeCuration: TrustedScopeCurationSummary;
+  trustedOperatingStatus: TrustedOperatingStatus;
+  summary: {
+    allContentCount: number;
+    platformVersionCount: number;
+    queueCount: number;
+    publishRecordCount: number;
+    actionGeneratedDraftCount: number;
+    ideaConvertedDraftCount: number;
+    manualImportedContentCount: number;
+    externalUntrustedContentCount: number;
+    trustedDashboardContentCount: number;
+    notInTrustedDashboardContentCount: number;
+    draftContentCount: number;
+  };
+}
+
+export interface DataFreshnessTimelineView {
+  latestRealCaptureAt?: string | null;
+  latestSmokeAt?: string | null;
+  latestAuditAt?: string | null;
+  realCaptureAgeHours?: number | null;
+  smokeAgeHours?: number | null;
+  realCaptureIsStale?: boolean | null;
+  smokeIsStale?: boolean | null;
+  staleAfterHours?: number | null;
+}
+
+export type RealCaptureFreshnessStatus = "fresh" | "stale" | "missing" | "unknown";
+
+export interface PlatformAssistedRefreshCommands {
+  manualStep: string;
+  preview: string;
+  save: string;
+  health: string;
+  freshness: string;
+  audit: string;
+  gate: string;
+}
+
+export interface TrustedDashboardAuditView {
+  reportPath: string;
+  exists: boolean;
+  status: "pass" | "fail" | "missing" | "error";
+  generatedAt?: string | null;
+  dashboardInput?: string | null;
+  trustedContentCount: number;
+  trustedMetricSnapshotCount: number;
+  views: number;
+  engagement: number;
+  mismatchCount: number;
+  mismatches: string[];
+  freshness?: DataFreshnessTimelineView;
+  message?: string;
+}
+
+export interface TrustedOperatingStatus {
+  defaultScope: "trusted_real_creator_center";
+  profile: "dirty" | "clean";
+  profileLabel: string;
+  seedMode: "demo" | "off";
+  auditCommand: string;
+  trustedContentCount: number;
+  trustedMetricSnapshotCount: number;
+  views: number;
+  engagement: number;
+  isDefaultDashboardTrusted: boolean;
+  audit: TrustedDashboardAuditView;
+}
+
+export interface TrustedWeeklyReportSummary {
+  generatedAt: string;
+  defaultScope: "trusted_real_creator_center";
+  localEvidencePath: string;
+  redactedSummaryPath: string;
+  exportGuidance: string;
+  trustedContentCount: number;
+  trustedMetricSnapshotCount: number;
+  views: number;
+  engagement: number;
+  bestPlatform: Platform;
+  platformOverview: Array<{
+    platform: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+    contentCount: number;
+    metricSnapshotCount: number;
+    views: number;
+    engagement: number;
+    viewShare: number;
+    engagementRate: number;
+  }>;
+  freshness: DataFreshnessTimelineView & {
+    realCaptureStaleCount: number;
+    sourceMismatchCount: number;
+  };
+  excluded: {
+    excludedContentCount: number;
+    excludedMetricSnapshotCount: number;
+    userExcludedContentCount: number;
+    excludedSourceCount: number;
+  };
+  redaction: {
+    contentTitlesIncluded: false;
+    accountMetricsIncluded: false;
+    captureDetailsIncluded: false;
+  };
+}
+
+export interface TrustedWeeklySafeReport {
+  task: "SAFE-WEEKLY-REPORT-UI-EXPORT-036";
+  generatedAt: string;
+  defaultScope: "trusted_real_creator_center";
+  source: "trusted_dashboard_review";
+  exportGuidance: string;
+  localEvidencePath: string;
+  safeApiPath: string;
+  totals: {
+    trustedContentCount: number;
+    trustedMetricSnapshotCount: number;
+    views: number;
+    engagement: number;
+    bestPlatform: Platform;
+  };
+  platformOverview: TrustedWeeklyReportSummary["platformOverview"];
+  topContentPerformance: Array<{
+    rank: number;
+    platform: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+    views: number;
+    engagement: number;
+    engagementRate: number;
+    latestSnapshotDate?: string;
+  }>;
+  lowInteractionPerformance: Array<{
+    rank: number;
+    platform: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+    views: number;
+    engagement: number;
+    engagementRate: number;
+    latestSnapshotDate?: string;
+  }>;
+  freshness: TrustedWeeklyReportSummary["freshness"];
+  excluded: TrustedWeeklyReportSummary["excluded"];
+  recommendationTypes: Array<{
+    type: PostImportActionSuggestionType;
+    priority: "high" | "medium" | "low";
+    evidenceCount: number;
+  }>;
+  redaction: TrustedWeeklyReportSummary["redaction"];
+  consistencyChecks: Record<string, boolean>;
+}
+
+export interface TrustedWeeklySafeReportResponse {
+  report: TrustedWeeklySafeReport;
+  markdown: string;
+}
+
+export interface DailyPlatformOpsGateStepView {
+  exists: boolean;
+  status: "pass" | "fail" | "missing" | "error";
+  label: string;
+  passed?: boolean | null;
+  durationMs?: number | null;
+  summaryStatus?: string | null;
+  blockingReasons: string[];
+  warnings: string[];
+  freshness?: DataFreshnessTimelineView;
+}
+
+export interface DailyPlatformOpsGateTrustedAuditView extends DailyPlatformOpsGateStepView {
+  trustedContentCount: number;
+  trustedMetricSnapshotCount: number;
+  views: number;
+  engagement: number;
+  mismatchCount: number;
+  mismatches: string[];
+  dashboardInput?: string | null;
+  latestAuditAt?: string | null;
+}
+
+export interface DailyPlatformOpsGateView {
+  reportPath: string;
+  exists: boolean;
+  status: "pass" | "fail" | "missing" | "error";
+  passed?: boolean | null;
+  generatedAt?: string | null;
+  completedAllSteps?: boolean | null;
+  blockingReasons: string[];
+  warnings: string[];
+  freshness: DataFreshnessTimelineView;
+  healthGate: DailyPlatformOpsGateStepView;
+  trustedAudit: DailyPlatformOpsGateTrustedAuditView;
+  message?: string;
+}
+
+export interface DailySelfMediaOpsStepView {
+  key: "local_server_health_preflight" | "platform_data_health" | "real_capture_freshness" | "trusted_weekly_safe" | "trusted_dashboard_audit" | "daily_platform_ops_gate";
+  label: string;
+  status: "pass" | "fail" | "missing" | "error";
+  passed?: boolean | null;
+  exitCode?: number | null;
+  durationMs?: number | null;
+  command?: string | null;
+  reportPath?: string | null;
+  summaryStatus?: string | null;
+}
+
+export interface DailySelfMediaOpsPreflightView {
+  enabled: boolean;
+  status: "disabled" | "pass" | "fail" | "missing" | "error";
+  passed?: boolean | null;
+  preferredDashboardUrl?: string | null;
+  healthyPorts: number[];
+  apiReadyPorts: number[];
+  safeWeeklyReadyPorts: number[];
+  trustedDataReadyPorts: number[];
+  pageReadyPorts: number[];
+  staleOrOldRoutePorts: number[];
+}
+
+export interface DailySelfMediaOpsView {
+  reportPath: string;
+  exists: boolean;
+  status: "pass" | "warn" | "fail" | "missing" | "error";
+  passed?: boolean | null;
+  generatedAt?: string | null;
+  command: string;
+  defaultDashboardUrl: string;
+  fallbackDashboardUrlHint: string;
+  stepCount: number;
+  plannedStepCount: number;
+  completedAllSteps?: boolean | null;
+  blockingReasons: string[];
+  warnings: string[];
+  nextActions: string[];
+  preflightHealth: DailySelfMediaOpsPreflightView;
+  steps: DailySelfMediaOpsStepView[];
+  safeWeeklyRedactedPaths: {
+    json: string;
+    markdown: string;
+  };
+  scope: {
+    serialExecution: boolean | null;
+    noCollection: boolean | null;
+    browserOpened: boolean | null;
+    platformLoginOpened: boolean | null;
+    databaseDeletion: boolean | null;
+    wechatPaused: boolean | null;
+    bilibiliAccountMetricsSaved: boolean | null;
+    commandOutputStored: boolean | null;
+    trustedWeeklyRedactedOnly: boolean | null;
+  };
+  message?: string;
 }
 
 export interface TopicIdea {
@@ -178,6 +619,106 @@ export interface ImportRun {
   errorMessage?: string;
   traceId?: string;
   warnings?: string[];
+  provenance?: ImportProvenanceMetadata;
+}
+
+export interface PlatformImportStatus {
+  source: Extract<ImportSource, "douyin_creator_center" | "xiaohongshu_creator_center" | "video_account_creator_center" | "bilibili_creator_center">;
+  platform: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+  label: string;
+  latestRunId?: string;
+  latestRunAt?: string;
+  latestSource?: ImportSource;
+  latestStatus: ImportRun["status"] | "never";
+  importedCount: number;
+  contentCount: number;
+  metricCount: number;
+  enteredDashboardReview: boolean;
+  lastMessage?: string;
+}
+
+export type PlatformReadinessStage = "closed_loop" | "preview_ready" | "discovery_only" | "paused";
+
+export interface PlatformReadinessStatus {
+  platform: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili" | "wechat">;
+  label: string;
+  stage: PlatformReadinessStage;
+  stageLabel: string;
+  discoveryStatus: string;
+  mappingStatus: string;
+  saveStatus: string;
+  dashboardReviewStatus: string;
+  operationsStatus: string;
+  evidenceFile: string;
+  nextStep: string;
+  source?: Extract<ImportSource, "douyin_creator_center" | "xiaohongshu_creator_center" | "video_account_creator_center" | "bilibili_creator_center" | "wechat_official">;
+  latestRunAt?: string;
+  latestStatus?: ImportRun["status"] | "never";
+  contentCount: number;
+  metricCount: number;
+  enteredDashboardReview: boolean;
+}
+
+export type PlatformImportOperationPlatform = "douyin" | "xiaohongshu" | "video-account" | "bilibili";
+
+export type PlatformImportOperationAction = "preview" | "save" | "save_smoke";
+
+export interface PlatformImportOperationCapability {
+  key: PlatformImportOperationPlatform;
+  platform: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+  label: string;
+  source: Extract<ImportSource, "douyin_creator_center" | "xiaohongshu_creator_center" | "video_account_creator_center" | "bilibili_creator_center">;
+  discoverCommand: string;
+  previewEnabled: boolean;
+  saveEnabled: boolean;
+  saveSmokeEnabled: boolean;
+  disabledReason?: string;
+  nextHandoff?: string;
+}
+
+export interface PlatformImportOperationRequest {
+  action: PlatformImportOperationAction;
+  platform?: PlatformImportOperationPlatform | "all";
+}
+
+export interface PlatformImportOperationSummary {
+  platform: PlatformImportOperationPlatform;
+  source: Extract<ImportSource, "douyin_creator_center" | "xiaohongshu_creator_center" | "video_account_creator_center" | "bilibili_creator_center">;
+  label: string;
+  contentCount: number;
+  metricCount: number;
+  warnings: string[];
+  runId: string;
+  passed: boolean;
+  errorMessage?: string;
+  rawDir?: string;
+  discoverCommand?: string;
+  provenance?: ImportProvenanceMetadata;
+}
+
+export interface OperationHistory {
+  id: string;
+  actor: "local_user" | "system";
+  action: PlatformImportOperationAction;
+  platform: PlatformImportOperationPlatform;
+  source: Extract<ImportSource, "douyin_creator_center" | "xiaohongshu_creator_center" | "video_account_creator_center" | "bilibili_creator_center">;
+  status: "success" | "failed" | "disabled";
+  contentCount: number;
+  metricCount: number;
+  warningCount: number;
+  warningSummary: string;
+  runId: string;
+  provenance?: ImportProvenanceMetadata;
+  createdAt: string;
+}
+
+export interface PlatformImportOperationResult {
+  action: PlatformImportOperationAction;
+  platform: PlatformImportOperationPlatform | "all";
+  runId: string;
+  passed: boolean;
+  summaries: PlatformImportOperationSummary[];
+  warnings: string[];
 }
 
 export type PublishQueueStatus = "draft" | "needs_review" | "queued" | "scheduled" | "publishing" | "published" | "failed" | "blocked";
@@ -241,12 +782,20 @@ export interface EvidenceInsight {
 export interface ReviewActionItem {
   id: string;
   reviewId?: string;
+  sourceSuggestionId?: string;
+  suggestionType?: PostImportActionSuggestionType;
   title: string;
   status: ReviewActionStatus;
   priority: "high" | "medium" | "low";
   relatedType?: EvidenceRef["type"];
   relatedId?: string;
   nextAction?: string;
+  evidence?: PostImportActionEvidence[];
+  contentDraftId?: string;
+  platformVersionId?: string;
+  publishQueueItemId?: string;
+  contentWorkflowStatus?: "draft_created" | "scheduled";
+  contentWorkflowUpdatedAt?: string;
   updatedAt: string;
 }
 
@@ -298,6 +847,67 @@ export interface AuditRecord {
   createdAt: string;
 }
 
+export type PlatformDataHealthStatus = "ok" | "warn" | "error" | "missing";
+
+export interface PlatformDataHealthCheckView {
+  exists: boolean;
+  status: Exclude<PlatformDataHealthStatus, "missing">;
+  generatedAt?: string | null;
+  isStale?: boolean | null;
+  sourceMatches?: boolean | null;
+  source?: string | null;
+}
+
+export interface PlatformDataHealthPlatformView {
+  platform: "douyin" | "xiaohongshu" | "video-account" | "bilibili";
+  label: string;
+  status: Exclude<PlatformDataHealthStatus, "missing">;
+  realCaptureStatus: RealCaptureFreshnessStatus;
+  rawCaptureCount: number;
+  rawStatus: Exclude<PlatformDataHealthStatus, "missing">;
+  rawLatestModifiedAt?: string | null;
+  mappingPreview: PlatformDataHealthCheckView & { contentCount?: number | null; metricCount?: number | null; previewOnly?: boolean | null; saved?: boolean | null };
+  saveSmoke: PlatformDataHealthCheckView & { passed?: boolean | null; contentCount?: number | null; metricCount?: number | null };
+  latestGeneratedAt?: string | null;
+  freshness: DataFreshnessTimelineView;
+  nextAction: string;
+  commands: PlatformAssistedRefreshCommands;
+  warnings: string[];
+}
+
+export interface PlatformDataHealthView {
+  reportPath: string;
+  exists: boolean;
+  status: PlatformDataHealthStatus;
+  generatedAt?: string | null;
+  staleAfterHours?: number | null;
+  summary: {
+    platformCount: number;
+    okCount: number;
+    warnCount: number;
+    errorCount: number;
+    missingCount: number;
+    staleCount: number;
+    realCaptureStaleCount: number;
+    sourceMismatchCount: number;
+    bilibiliPreviewOnlyOk: boolean | null;
+    freshness: DataFreshnessTimelineView;
+  };
+  platforms: PlatformDataHealthPlatformView[];
+  bilibiliAccount: {
+    status: Exclude<PlatformDataHealthStatus, "missing">;
+    latestGeneratedAt?: string | null;
+    accountPreview: PlatformDataHealthCheckView & {
+      candidateCount?: number | null;
+      previewOnly?: boolean | null;
+      saved?: boolean | null;
+      previewOnlyOk?: boolean | null;
+    };
+    warnings: string[];
+  } | null;
+  message?: string;
+}
+
 export interface DashboardSnapshot {
   generatedAt: string;
   accounts: PlatformAccount[];
@@ -309,11 +919,27 @@ export interface DashboardSnapshot {
   contacts: Contact[];
   leads: MonetizationLead[];
   imports: ImportRun[];
+  operationHistory: OperationHistory[];
+  platformImportStatuses: PlatformImportStatus[];
+  platformImportOperationCapabilities: PlatformImportOperationCapability[];
+  platformReadinessStatuses: PlatformReadinessStatus[];
+  platformDataHealth: PlatformDataHealthView;
+  realDataScope: RealDataScopeSummary;
+  trustedOperatingStatus: TrustedOperatingStatus;
+  trustedWeeklySummary: TrustedWeeklyReportSummary;
+  dailyPlatformOpsGate: DailyPlatformOpsGateView;
+  dailySelfMediaOps: DailySelfMediaOpsView;
+  trustedScopeCuration: TrustedScopeCurationSummary;
   queue: PublishQueueItem[];
   platformVersions: ContentPlatformVersion[];
   calendarItems: PublishCalendarItem[];
   publishRecords: PublishRecord[];
   metricSnapshots: MetricSnapshot[];
+  metricSourceGroups: MetricSnapshotSourceGroup[];
+  metricPlatformGroups: MetricSnapshotPlatformGroup[];
+  accountMetricSnapshots: AccountMetricSnapshot[];
+  accountMetricGroups: AccountMetricGroup[];
+  postImportActionSuggestions: PostImportActionSuggestion[];
   savedReviews: SavedReview[];
   actionItems: ReviewActionItem[];
   automationRuns: AutomationRun[];
@@ -333,6 +959,7 @@ export interface ProviderImportPayload {
   contacts?: Contact[];
   leads?: MonetizationLead[];
   warnings?: string[];
+  provenance?: ImportProvenanceMetadata;
 }
 
 export interface WorkbenchError {
@@ -340,6 +967,12 @@ export interface WorkbenchError {
   message: string;
   traceId: string;
   cause?: string;
+}
+
+export interface ContentTrustScopePatchRequest {
+  contentId: string;
+  userExcludedFromTrustedScope: boolean;
+  actor?: string;
 }
 
 export interface ImportRequest {
@@ -376,6 +1009,31 @@ export interface ImportPreviewItem {
   reason?: string;
 }
 
+export type ImportMappingConfidence = "confirmed_official" | "mature_reference" | "draft_realistic" | "confirmed_sampled";
+
+export interface RealImportPreviewRow {
+  rowNumber: number;
+  platform: Platform;
+  normalized: {
+    id?: string;
+    title?: string;
+    publishedAt?: string;
+    capturedAt?: string;
+    views?: number;
+    likes?: number;
+    comments?: number;
+    saves?: number;
+    shares?: number;
+    followersDelta?: number;
+  };
+  nativeMetrics: Record<string, unknown>;
+  rawFields: Record<string, unknown>;
+  mappingConfidence: ImportMappingConfidence;
+  warnings: string[];
+  previewDedupeKey: string;
+  canConfirmSave: boolean;
+}
+
 export interface ImportPreviewResult {
   traceId: string;
   source: ImportSource;
@@ -387,6 +1045,7 @@ export interface ImportPreviewResult {
   diff: ImportPreviewItem[];
   warnings: string[];
   items: ImportPreviewItem[];
+  realPreviewRows?: RealImportPreviewRow[];
 }
 
 export interface ContentPlatformVersionRequest {
@@ -403,6 +1062,27 @@ export interface ContentPlatformVersionRequest {
   checklist?: Partial<PlatformChecklist>;
 }
 
+export interface ContentDraftReviewRequest {
+  contentId: string;
+  platformVersionId?: string;
+  publishQueueItemId?: string;
+  title?: string;
+  body?: string;
+  topic?: string;
+  scheduledAt?: string;
+  status?: PlatformVersionStatus;
+  nextAction?: string;
+  checklist?: Partial<PlatformChecklist>;
+}
+
+export interface ContentDraftReviewResult {
+  content: ContentItem;
+  platformVersion: ContentPlatformVersion;
+  queue?: PublishQueueItem;
+  actionItem?: ReviewActionItem;
+  traceId: string;
+}
+
 export interface PlatformVersionPatchRequest {
   id: string;
   status?: PlatformVersionStatus;
@@ -415,6 +1095,27 @@ export interface PlatformVersionPatchRequest {
   failureReason?: string;
   nextAction?: string;
   checklist?: Partial<PlatformChecklist>;
+}
+
+export interface ConfirmPlatformVersionPublishRequest {
+  platformVersionId: string;
+  status: "published" | "failed" | "blocked";
+  happenedAt?: string;
+  note?: string;
+  failureReason?: string;
+  platformPostId?: string;
+  platformUrl?: string;
+  confirmationSource?: "manual" | "provider" | "import";
+  providerRunId?: string;
+  confirmedBy?: string;
+  idempotencyKey?: string;
+}
+
+export interface ConfirmPlatformVersionPublishResult {
+  version: ContentPlatformVersion;
+  publishRecord: PublishRecord;
+  traceId: string;
+  idempotent: boolean;
 }
 
 export interface CalendarQuery {
@@ -433,16 +1134,36 @@ export interface MetricSnapshotRequest {
   shares?: number;
   followersDelta?: number;
   source?: ImportSource | "manual";
+  provenance?: ImportProvenanceMetadata;
 }
 
 export interface SaveReviewRequest {
   period: "weekly" | "monthly";
 }
 
+export interface ActionItemFromSuggestionRequest {
+  suggestionId: string;
+}
+
 export interface ActionItemPatchRequest {
   id: string;
   status: ReviewActionStatus;
   nextAction?: string;
+}
+
+export interface ActionItemToContentRequest {
+  id: string;
+  platform?: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+  scheduledAt?: string;
+}
+
+export interface ActionItemToContentResult {
+  actionItem: ReviewActionItem;
+  content: ContentItem;
+  platformVersion: ContentPlatformVersion;
+  queue: PublishQueueItem;
+  traceId: string;
+  idempotent: boolean;
 }
 
 export interface LeadPatchRequest {
@@ -456,6 +1177,43 @@ export interface AutomationRunRequest {
   status?: AutomationRunStatus;
   source?: ImportSource | "manual";
   errorMessage?: string;
+}
+
+export interface WechatArticleSummaryRow {
+  ref_date: string;
+  msgid?: string;
+  title?: string;
+  int_page_read_user?: number;
+  int_page_read_count?: number;
+  ori_page_read_user?: number;
+  ori_page_read_count?: number;
+  share_user?: number;
+  share_count?: number;
+  add_to_fav_user?: number;
+  add_to_fav_count?: number;
+}
+
+export interface WechatUserSummaryRow {
+  ref_date: string;
+  user_source?: number;
+  new_user?: number;
+  cancel_user?: number;
+}
+
+export interface WechatOfficialSyncRequest {
+  beginDate: string;
+  endDate: string;
+  accountId?: string;
+}
+
+export interface WechatOfficialSyncResult {
+  importResult: ImportResult;
+  articleRows: number;
+  userRows: number;
+  contentIds: string[];
+  snapshotIds: string[];
+  traceId: string;
+  warnings: string[];
 }
 
 export interface IdeaCreateRequest {

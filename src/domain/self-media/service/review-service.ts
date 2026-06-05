@@ -11,6 +11,36 @@ function bestPlatform(metrics: PlatformMetric[]): Platform {
   return [...totals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "other";
 }
 
+const reviewPlatformOrder: Platform[] = ["douyin", "xiaohongshu", "video_account", "bilibili"];
+const reviewPlatformLabels: Record<Platform, string> = {
+  douyin: "抖音",
+  xiaohongshu: "小红书",
+  wechat: "公众号",
+  video_account: "视频号",
+  bilibili: "B站",
+  other: "其它"
+};
+
+function platformContributionRows(metrics: PlatformMetric[]) {
+  const totalViews = sum(metrics, "views");
+  return reviewPlatformOrder.map((platform) => {
+    const related = metrics.filter((metric) => metric.platform === platform);
+    const views = sum(related, "views");
+    const engagement = sum(related, "likes") + sum(related, "comments") + sum(related, "saves") + sum(related, "shares");
+    const contentCount = new Set(related.map((metric) => metric.contentId)).size;
+    const note = platform === "bilibili" ? "archives 内容级指标" : "内容级指标";
+    return {
+      platform,
+      label: reviewPlatformLabels[platform],
+      views,
+      engagement,
+      contentCount,
+      share: totalViews > 0 ? Math.round((views / totalViews) * 1000) / 10 : 0,
+      note
+    };
+  });
+}
+
 interface ReviewContext {
   ideas?: TopicIdea[];
   queue?: PublishQueueItem[];
@@ -52,7 +82,7 @@ function buildActions(context: ReviewContext = {}): ReviewAction[] {
   const leadAction = (context.leads ?? []).find((lead) => lead.status === "follow_up" || lead.status === "new");
   return [
     { id: "action-post-cadence", title: "下周至少发布 4 条轻量内容", owner: "creator", priority: "high" },
-    { id: "action-import-metrics", title: "导入抖音、小红书、公众号、视频号后台数据", owner: "creator", priority: "high" },
+    { id: "action-import-metrics", title: "导入抖音、小红书、视频号、B站内容级后台数据", owner: "creator", priority: "high" },
     { id: "action-follow-leads", title: leadAction ? `跟进线索：${leadAction.nextAction}` : "跟进线下社群潜在线索并沉淀联系人记录", owner: "agent", priority: "medium" }
   ];
 }
@@ -64,6 +94,7 @@ export function generateReview(period: "weekly" | "monthly", contents: ContentIt
   const totalLikes = sum(metrics, "likes");
   const totalEngagement = totalLikes + sum(metrics, "comments") + sum(metrics, "saves") + sum(metrics, "shares");
   const platform = bestPlatform(metrics);
+  const platformRows = platformContributionRows(metrics);
   const insights = buildInsights(contents, metrics, context);
   const actions = buildActions(context);
   const queued = (context.queue ?? []).filter((item) => ["queued", "scheduled"].includes(item.status)).length;
@@ -83,6 +114,12 @@ export function generateReview(period: "weekly" | "monthly", contents: ContentIt
     `- 当前优势平台：${platform}`,
     `- 已排期内容：${queued}`,
     `- 活跃变现线索：${activeLeads}`,
+    "",
+    "## 四平台内容级贡献",
+    ...platformRows.map((row) => `- ${row.label}：曝光 ${row.views}，互动 ${row.engagement}，内容 ${row.contentCount}，占比 ${row.share}%（${row.note}）。`),
+    "",
+    "## 账号级趋势边界",
+    "- AccountMetricSnapshot 单独作为账号趋势展示，不计入内容数、总曝光、总互动或当前优势平台。",
     "",
     "## 洞察",
     ...insights.map((item) => `- ${item.title}：${item.recommendation}`),

@@ -4,3 +4,7 @@ export * from "./csv-preset-provider";
 export * from "./mediacrawler-import-provider";
 export * from "./n8n-execution-provider";
 export * from "./wechat-official-provider";
+export * from "./douyin-personal-provider";
+export * from "./xiaohongshu-personal-provider";
+export * from "./video-account-personal-provider";
+export * from "./bilibili-personal-provider";

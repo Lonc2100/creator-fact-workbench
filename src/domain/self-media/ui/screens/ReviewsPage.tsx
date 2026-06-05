@@ -6,13 +6,26 @@ import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { EvidenceReviewReport } from "../patterns/EvidenceReviewReport";
 import { Button } from "../primitives/Button";
-import { Tabs } from "../primitives/Tabs";
+
+const periodCopy = {
+  weekly: {
+    label: "周复盘",
+    cadence: "本周运营回看",
+    description: "围绕本周内容、发布记录、指标快照和线索跟进，沉淀下一轮行动。"
+  },
+  monthly: {
+    label: "月复盘",
+    cadence: "本月经营复盘",
+    description: "拉长时间窗口看平台势能、内容资产、变现线索和可复用经验。"
+  }
+} satisfies Record<"weekly" | "monthly", { label: string; cadence: string; description: string }>;
 
 export function ReviewsPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [current, setCurrent] = useState(snapshot);
   const [period, setPeriod] = useState<"weekly" | "monthly">("weekly");
-  const [message, setMessage] = useState("复盘基于内部内容、平台版本、指标快照和线索生成。");
+  const [message, setMessage] = useState("复盘默认只基于可信真实创作者中心内容级数据生成。");
   const [busy, setBusy] = useState(false);
+  const selectedCopy = periodCopy[period];
 
   async function refreshDashboard() {
     const response = await fetch("/api/self-media/dashboard");
@@ -61,12 +74,20 @@ export function ReviewsPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   return (
     <AppShell active="/reviews">
       <PageHeader
-        eyebrow="Evidence inspired"
+        eyebrow="经营复盘"
         title="周月复盘"
-        description="复盘是可沉淀的运营记录：报告、证据 refs、行动项和下轮计划。"
-        actions={<Button data-testid="save-review-button" disabled={busy} onClick={saveReview} variant="primary">生成并保存复盘</Button>}
+        description="默认只看可信真实四平台内容级数据，先读结论、指标、证据和行动项。"
+        actions={<Button data-testid="save-review-button" disabled={busy} onClick={saveReview} variant="primary">保存{selectedCopy.label}</Button>}
       />
-      <Tabs activeId={period} items={[{ id: "weekly", label: "周复盘" }, { id: "monthly", label: "月复盘" }]} onSelect={(id) => setPeriod(id as "weekly" | "monthly")} />
+      <div className="route-card-grid review-mode-grid" aria-label="复盘入口">
+        {(["weekly", "monthly"] as const).map((item) => (
+          <button className="route-card" key={item} onClick={() => setPeriod(item)} type="button" aria-pressed={period === item}>
+            <span>{periodCopy[item].cadence}</span>
+            <strong>{periodCopy[item].label}</strong>
+            <span>{periodCopy[item].description}</span>
+          </button>
+        ))}
+      </div>
       <p className="operation-message" data-testid="review-operation-message">{message}</p>
       <EvidenceReviewReport onActionStatus={updateAction} period={period} snapshot={current} />
     </AppShell>

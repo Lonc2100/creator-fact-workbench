@@ -1,8 +1,9 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { workbenchDbPath } from "../config";
+import { resolveWorkbenchDbPath } from "../config";
 import type {
+  AccountMetricSnapshot,
   AuditRecord,
   AutomationRun,
   CompetitorProfile,
@@ -49,7 +50,7 @@ function rowsToEntities<T>(rows: unknown[]): T[] {
 export class SqliteSelfMediaRepo {
   private readonly db: DatabaseSync;
 
-  constructor(dbPath = workbenchDbPath) {
+  constructor(dbPath = resolveWorkbenchDbPath()) {
     const absolute = path.resolve(process.cwd(), dbPath);
     mkdirSync(path.dirname(absolute), { recursive: true });
     this.db = new DatabaseSync(absolute);
@@ -140,7 +141,8 @@ export class SqliteSelfMediaRepo {
       importedCount: payload.contents.length + payload.metrics.length + (payload.ideas?.length ?? 0),
       startedAt: now(),
       finishedAt: now(),
-      warnings: payload.warnings
+      warnings: payload.warnings,
+      provenance: payload.provenance
     };
     for (const item of payload.contents) this.upsertEntity("contents", item.id, item);
     for (const item of payload.metrics) this.upsertEntity("metrics", item.id, item);
@@ -207,6 +209,14 @@ export class SqliteSelfMediaRepo {
 
   listMetricSnapshots() {
     return this.listEntities<MetricSnapshot>("metricSnapshots");
+  }
+
+  upsertAccountMetricSnapshot(snapshot: AccountMetricSnapshot) {
+    this.upsertEntity("accountMetricSnapshots", snapshot.id, snapshot);
+  }
+
+  listAccountMetricSnapshots() {
+    return this.listEntities<AccountMetricSnapshot>("accountMetricSnapshots");
   }
 
   listSavedReviews() {
