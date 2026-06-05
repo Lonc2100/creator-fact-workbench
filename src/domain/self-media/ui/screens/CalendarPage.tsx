@@ -67,8 +67,8 @@ function formatShortDate(date: Date) {
   return date.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
 }
 
-function rangeLabel(items: DashboardSnapshot["calendarItems"], view: "week" | "month") {
-  const anchor = anchorDateForItems(items);
+function rangeLabel(items: DashboardSnapshot["calendarItems"], view: "week" | "month", preferredAnchor?: Date) {
+  const anchor = preferredAnchor ?? anchorDateForItems(items);
   if (view === "month") return `${anchor.getFullYear()}-${String(anchor.getMonth() + 1).padStart(2, "0")}`;
   const start = mondayOf(anchor);
   const end = new Date(start);
@@ -339,6 +339,8 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
   }, [currentWorkbench.contentRows, currentWorkbench.queue, platform, query, status, visibleVersionIds]);
   const selectableVersionIds = useMemo(() => new Set([...visibleVersionIds, ...pendingSchedulingItems.map((item) => item.platformVersionId)]), [pendingSchedulingItems, visibleVersionIds]);
   const selected = currentWorkbench.platformVersions.find((item) => item.id === selectedId && selectableVersionIds.has(item.id)) ?? currentWorkbench.platformVersions.find((item) => selectableVersionIds.has(item.id));
+  const selectedAnchorDate = selected?.scheduledAt ? new Date(selected.scheduledAt) : undefined;
+  const calendarAnchorDate = selectedAnchorDate && !Number.isNaN(selectedAnchorDate.getTime()) ? selectedAnchorDate : undefined;
   const platformFilters = scope === "all_local" ? diagnosticPlatformFilters : operatingPlatformFilters;
   const statusFilters = scope === "all_local" ? diagnosticStatusFilters : operatingStatusFilters;
 
@@ -440,7 +442,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
         <Tabs className="calendar-view-tabs" activeId={view} items={[{ id: "week", label: "本周" }, { id: "month", label: "本月" }]} onSelect={(id) => setView(id === "month" ? "month" : "week")} />
         <div className="calendar-range-control" aria-label="当前日期范围">
           <button disabled type="button" aria-label="上一个周期"><ChevronLeft aria-hidden="true" size={16} /></button>
-          <span><CalendarDays aria-hidden="true" size={15} />{rangeLabel(visibleItems, view)}</span>
+          <span><CalendarDays aria-hidden="true" size={15} />{rangeLabel(visibleItems, view, calendarAnchorDate)}</span>
           <button disabled type="button" aria-label="下一个周期"><ChevronRight aria-hidden="true" size={16} /></button>
         </div>
         <label className="calendar-status-filter">
@@ -473,6 +475,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
       {message && <p className="operation-message calendar-operation-message" data-testid="calendar-operation-message">{message}</p>}
       <div className="calendar-layout">
         <PublishCalendar
+          anchorDate={calendarAnchorDate}
           items={visibleItems}
           onReschedule={scheduleVersion}
           onSelect={(id) => {
@@ -502,7 +505,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
           <button className="calendar-inspector-close" onClick={() => setInspectorOpen(false)} type="button" aria-label="关闭平台版本详情">
             <X aria-hidden="true" size={18} />
           </button>
-          <PlatformVersionInspector onConfirmPublish={confirmPublish} version={selected} />
+          <PlatformVersionInspector onConfirmPublish={confirmPublish} onReschedule={scheduleVersion} version={selected} />
         </div>
       )}
     </AppShell>

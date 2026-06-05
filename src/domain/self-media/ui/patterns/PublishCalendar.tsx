@@ -79,6 +79,17 @@ function formatShortDate(value: Date) {
   return value.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
 }
 
+function localDateTime(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 16);
+}
+
+function isoFromLocal(value: string) {
+  return value ? new Date(value).toISOString() : undefined;
+}
+
 function displayTitle(rawTitle: string) {
   const withoutIds = rawTitle
     .replace(/^O2\s*/i, "")
@@ -128,7 +139,9 @@ function formatSlot(hour: number) {
 function groupCalendarCards(items: PublishCalendarItem[]) {
   const groups = new Map<string, CalendarCardGroup>();
   for (const item of items) {
-    const key = item.contentId || item.platformVersionId;
+    const scheduled = new Date(item.scheduledAt);
+    const scheduleKey = Number.isNaN(scheduled.getTime()) ? "unscheduled" : `${dateKey(scheduled)}-${formatShortTime(item.scheduledAt)}`;
+    const key = `${item.contentId || item.platformVersionId}:${scheduleKey}`;
     const current = groups.get(key);
     if (!current) {
       groups.set(key, { id: key, item, items: [item], platforms: [item.platform] });
@@ -329,6 +342,7 @@ function DroppableCalendarTimeCell({
 export function PublishCalendar({
   items,
   view = "week",
+  anchorDate,
   onSelect,
   onReschedule,
   showEmptySlots = false,
@@ -336,13 +350,14 @@ export function PublishCalendar({
 }: {
   items: PublishCalendarItem[];
   view?: CalendarGridView;
+  anchorDate?: Date;
   onSelect?: (platformVersionId: string) => void;
   onReschedule?: (input: { platformVersionId: string; scheduledAt: string }) => void;
   showEmptySlots?: boolean;
   pendingItems?: PendingScheduleDraftItem[];
 }) {
   const [mounted, setMounted] = useState(false);
-  const firstDate = anchorDateForItems(items);
+  const firstDate = anchorDate ?? anchorDateForItems(items);
   const displayDates = daysForView(view, firstDate);
   const dates = displayDates.map(dateKey);
   const cardGroups = groupCalendarCards(items);
@@ -466,11 +481,19 @@ export function PublishCalendar({
 
 export function PlatformVersionInspector({
   version,
+  onReschedule,
   onConfirmPublish
 }: {
   version?: ContentPlatformVersion;
+  onReschedule?: (input: { platformVersionId: string; scheduledAt: string }) => Promise<void>;
   onConfirmPublish?: (status: "published" | "failed") => Promise<void>;
 }) {
+  const [scheduledAt, setScheduledAt] = useState(localDateTime(version?.scheduledAt));
+
+  useEffect(() => {
+    setScheduledAt(localDateTime(version?.scheduledAt));
+  }, [version?.id, version?.scheduledAt]);
+
   if (!version) {
     return <EmptyState title="选择一个排期" description="从日历中选择平台版本，查看状态、检查项和下一步动作。" />;
   }
@@ -495,6 +518,32 @@ export function PlatformVersionInspector({
       <div className="inspector-row">
         <span>发布时间</span>
         <strong>{formatDateTime(version.scheduledAt ?? version.publishedAt)}</strong>
+      </div>
+      <div className="rounded-[var(--sm-radius-md)] border border-[var(--sm-border)] bg-[#fffdf8] p-3">
+        <div className="checklist-head">
+          <strong>修改排期时间</strong>
+          <span>人工排期</span>
+        </div>
+        <div className="inline-stack mt-2">
+          <input
+            className="sm-input"
+            data-testid="calendar-reschedule-input"
+            onChange={(event) => setScheduledAt(event.target.value)}
+            type="datetime-local"
+            value={scheduledAt}
+          />
+          <Button
+            data-testid="calendar-reschedule-save"
+            disabled={!onReschedule || !scheduledAt || version.status === "published"}
+            onClick={() => {
+              const next = isoFromLocal(scheduledAt);
+              if (next) void onReschedule?.({ platformVersionId: version.id, scheduledAt: next });
+            }}
+            variant="secondary"
+          >
+            保存排期时间
+          </Button>
+        </div>
       </div>
       <div className="rounded-[var(--sm-radius-md)] border border-[var(--sm-border)] bg-[#fffdf8] p-3">
         <div className="checklist-head">

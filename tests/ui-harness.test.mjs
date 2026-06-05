@@ -152,6 +152,11 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarPattern, /calendar-confirm-publish/);
   assert.match(calendarPattern, /人工发布确认/);
   assert.match(calendarPattern, /只记录人工结果，便于复盘排期/);
+  assert.match(calendarPattern, /calendar-reschedule-input/);
+  assert.match(calendarPattern, /calendar-reschedule-save/);
+  assert.match(calendarPattern, /修改排期时间/);
+  assert.match(calendarPattern, /保存排期时间/);
+  assert.match(calendarPattern, /scheduleKey/);
   assert.match(calendarPattern, /PendingScheduleQueue/);
   assert.match(calendarPattern, /calendar-pending-schedule-queue/);
   assert.match(calendarPattern, /calendar-pending-draft-card/);
@@ -171,6 +176,8 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /versionId/);
   assert.match(calendarScreen, /clear_future_schedules/);
   assert.match(calendarScreen, /calendar-clear-future-schedules/);
+  assert.match(calendarScreen, /calendarAnchorDate/);
+  assert.match(calendarScreen, /anchorDate=\{calendarAnchorDate\}/);
   assert.match(calendarScreen, /新增未来排期/);
   assert.match(calendarScreen, /平台指标仍以创作者中心数据为准/);
   assert.match(calendarScreen, /publishRecords/);

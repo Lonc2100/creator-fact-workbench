@@ -142,7 +142,11 @@ function latestPublishRecord(records: PublishRecord[]) {
 }
 
 function versionCalendarHref(versionId: string) {
-  return `/calendar?versionId=${encodeURIComponent(versionId)}#publish-ledger`;
+  return `/calendar?versionId=${encodeURIComponent(versionId)}`;
+}
+
+function versionLedgerHref(versionId: string) {
+  return `${versionCalendarHref(versionId)}#publish-ledger`;
 }
 
 export function ContentDetail({
@@ -215,7 +219,7 @@ export function ContentDetail({
                 <p className="sm-eyebrow">发布历史 · 只读</p>
                 <h3>本内容发布历史</h3>
               </div>
-              <a className="sm-button sm-button-secondary" href={selected[0] ? versionCalendarHref(selected[0].id) : "/calendar#publish-ledger"}>打开日历台账</a>
+              <a className="sm-button sm-button-secondary" href={selected[0] ? versionLedgerHref(selected[0].id) : "/calendar#publish-ledger"}>打开日历台账</a>
             </div>
             <div className="table-wrap">
               <table className="sm-table content-publish-history-table">
