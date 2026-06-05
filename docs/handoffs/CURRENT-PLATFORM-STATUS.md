@@ -39,9 +39,31 @@ Residual worktree risk after 053:
 - Bilibili account diagnostics and browser/UI E2E helpers should be grouped as diagnostic/archive or explicitly promoted by a future task.
 - `.local/**`, `.agents/**`, `.codex/**`, and `.trellis/**` remain excluded from this release closure.
 
+## 058 Creator Business Loop Baseline
+
+Current creator operating baseline as of 2026-06-06:
+
+| Bundle | Commit | Status | Handoff |
+| --- | --- | --- | --- |
+| Creator operating loop v2 | `10d9883 feat(self-media): add creator operating loop` | Done | `MAINLINE-CREATOR-OPERATING-LOOP-V2-055-worker-handoff.md` |
+| Creator loop live hardening | `b44038b fix(self-media): harden creator operating loop` | Done | `MAINLINE-CREATOR-LOOP-LIVE-WALKTHROUGH-056-worker-handoff.md` |
+| Creator copilot discussion | `affa5b1 feat(self-media): add creator copilot discussion` | Done | `MAINLINE-CREATOR-COPILOT-DISCUSSION-057-worker-handoff.md` |
+| Creator business loop acceptance | `pending docs commit` | Done | `MAINLINE-CREATOR-BUSINESS-LOOP-ACCEPTANCE-058-worker-handoff.md` |
+
+Creator business loop is now the accepted mainline path:
+
+- `/content`: rough new-video idea -> creator discussion -> optional adjustment/regeneration -> four platform drafts for Douyin, Xiaohongshu, Video Account, and Bilibili.
+- Draft outputs include title, body/copy, tags, cover note, platform advice, and platform incentive/creative-tag suggestions marked as requiring manual confirmation.
+- Saving creates one content item plus four platform versions and queue rows; optional future time enters `/calendar`.
+- `/calendar`: future schedules are visible, schedule time can be edited manually, and future schedules can be cleared without deleting content, publish records, or metric snapshots.
+- `/import`: manual latest-data refresh remains the explicit four-platform capture/sync entry; preview/save are user-triggered and local/manual, not platform callbacks.
+- `/import`: scheduled refresh setting is a runbook/status panel only. It does not imply a daemon, silent platform login, or stored cookie/token/header/raw payload.
+- Boundaries remain unchanged: WeChat Official Account/backend paused; Bilibili account-level metrics remain preview-only diagnostics and are not durable content totals.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
+- Creator business loop is closed for daily use: idea -> discussion -> four-platform drafts -> save -> future schedule -> edit schedule -> clear future schedule -> manual data refresh.
 - Closed loop means: logged-in/local capture evidence -> mapping preview -> explicit save -> content/platform version/metric snapshot -> dashboard/review visibility -> import operations smoke.
 - WeChat Official Account / backend is paused. Do not resume WeChat backend discovery, mapping, sync, or public-account backend work unless the user explicitly reopens that scope.
 - Bilibili content save is approved for archives/work metrics only.

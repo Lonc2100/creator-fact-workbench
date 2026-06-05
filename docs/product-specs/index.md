@@ -14,6 +14,7 @@ This index separates active release scope from paused or diagnostic-only work. D
 - [BILIBILI-PERSONAL-V0](./bilibili-personal-v0.md)
 - Daily operator runbook: [self-media-daily-ops](../runbooks/self-media-daily-ops.md)
 - Current release/status entrypoint: [CURRENT-PLATFORM-STATUS](../handoffs/CURRENT-PLATFORM-STATUS.md)
+- Creator business loop baseline: [055 operating loop](../handoffs/MAINLINE-CREATOR-OPERATING-LOOP-V2-055-worker-handoff.md), [056 live hardening](../handoffs/MAINLINE-CREATOR-LOOP-LIVE-WALKTHROUGH-056-worker-handoff.md), [057 copilot discussion](../handoffs/MAINLINE-CREATOR-COPILOT-DISCUSSION-057-worker-handoff.md), [058 acceptance](../handoffs/MAINLINE-CREATOR-BUSINESS-LOOP-ACCEPTANCE-058-worker-handoff.md)
 
 ## Active Supporting Specs
 
@@ -33,6 +34,10 @@ This index separates active release scope from paused or diagnostic-only work. D
 - [Package/tooling foundation 050](../handoffs/MAINLINE-PACKAGE-TOOLING-FOUNDATION-050-worker-handoff.md)
 - [Operator UI data-only completion 051](../handoffs/MAINLINE-OPERATOR-UI-DATA-ONLY-COMPLETION-051-worker-handoff.md)
 - [Daily ops reliability 052](../handoffs/MAINLINE-DAILY-OPS-RELIABILITY-052-worker-handoff.md)
+- [Creator operating loop 055](../handoffs/MAINLINE-CREATOR-OPERATING-LOOP-V2-055-worker-handoff.md)
+- [Creator loop live hardening 056](../handoffs/MAINLINE-CREATOR-LOOP-LIVE-WALKTHROUGH-056-worker-handoff.md)
+- [Creator copilot discussion 057](../handoffs/MAINLINE-CREATOR-COPILOT-DISCUSSION-057-worker-handoff.md)
+- [Creator business loop acceptance 058](../handoffs/MAINLINE-CREATOR-BUSINESS-LOOP-ACCEPTANCE-058-worker-handoff.md)
 
 ## Paused / Diagnostic-Only
 
