@@ -28,6 +28,7 @@ test("Self-media UI Harness source documents and routes exist", () => {
     "docs/ui-harness/REFERENCE_MANIFEST.md",
     "src/app/calendar/page.tsx",
     "src/app/content/page.tsx",
+    "src/app/api/self-media/creator-drafts/route.ts",
     "src/app/import/page.tsx",
     "src/app/dashboard/page.tsx",
     "src/app/reviews/page.tsx",
@@ -98,8 +99,14 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentPattern, /运营内容列表/);
   assert.match(contentPattern, /dashboardReviewLabel/);
   assert.match(contentPattern, /originLabel/);
+  assert.match(contentPattern, /标签建议/);
+  assert.match(contentPattern, /platformAdvice/);
   assert.match(contentScreen, /action: "review_draft"/);
   assert.match(contentScreen, /action: "confirm_publish"/);
+  assert.match(contentScreen, /creator-new-video-panel/);
+  assert.match(contentScreen, /\/api\/self-media\/creator-drafts/);
+  assert.match(contentScreen, /生成并保存四平台版本/);
+  assert.match(contentScreen, /平台激励\/创作标签均为建议/);
   assert.match(contentScreen, /ContentWorkbenchSnapshot/);
   assert.match(contentScreen, /\/api\/self-media\/content-workbench/);
   assert.match(contentScreen, /默认运营视图/);
@@ -162,6 +169,9 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarRoute, /getSelfMediaContentWorkbench/);
   assert.match(calendarRoute, /<CalendarPage snapshot=\{snapshot\} workbench=\{workbench\}/);
   assert.match(calendarScreen, /versionId/);
+  assert.match(calendarScreen, /clear_future_schedules/);
+  assert.match(calendarScreen, /calendar-clear-future-schedules/);
+  assert.match(calendarScreen, /新增未来排期/);
   assert.match(calendarScreen, /平台指标仍以创作者中心数据为准/);
   assert.match(calendarScreen, /publishRecords/);
   assert.doesNotMatch(calendarScreen, /providerRunId:|platformUrl:|platformPostId:/);
@@ -261,6 +271,11 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /默认只看四平台真实导入动作、最近导入结果和数据新鲜度/);
   assert.match(importPage, /function PlatformDataHealthPanel/);
   assert.match(importPage, /function PlatformImportStatusPanel/);
+  assert.match(importPage, /手动抓取最新数据/);
+  assert.match(importPage, /manual-refresh-boundary/);
+  assert.match(importPage, /定时抓取设定/);
+  assert.match(importPage, /scheduled-refresh-setting/);
+  assert.match(importPage, /不是平台自动回调/);
   assert.match(importPage, /import-advanced-diagnostics/);
   assert.match(importPage, /高级诊断与手动导入/);
   assert.match(importPage, /OperationHistoryTable history=\{history\}/);

@@ -203,6 +203,8 @@ export function ContentDetail({
                 </div>
                 <strong>{version.title}</strong>
                 <p>{operatorText(version.coverNote || version.body, "等待补齐正文和封面备注。")}</p>
+                {version.tags?.length ? <small>标签建议：{version.tags.map((tag) => `#${tag}`).join(" ")}</small> : null}
+                {version.platformAdvice ? <small>{version.platformAdvice}</small> : null}
               </article>
             ))}
             {selected.length === 0 && <p className="muted">还没有平台版本。下一步应从内容页创建平台版本，再进入发布日历。</p>}

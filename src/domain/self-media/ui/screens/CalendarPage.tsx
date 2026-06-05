@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ConfirmPlatformVersionPublishRequest, ContentWorkbenchSnapshot, DashboardSnapshot, Platform, PlatformVersionPatchRequest, PlatformVersionStatus, PublishQueueItem } from "../../types";
 import { AppShell } from "../components/AppShell";
@@ -407,6 +407,23 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
     }
   }
 
+  async function clearFutureSchedules() {
+    setMessage("正在清空未来排期...");
+    try {
+      const response = await fetch("/api/self-media/calendar", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "clear_future_schedules" })
+      });
+      const result = await response.json() as { clearedPlatformVersionCount?: number; clearedQueueCount?: number; preservedPublishRecordCount?: number; preservedMetricSnapshotCount?: number; errorMessage?: string };
+      if (!response.ok) throw new Error(result.errorMessage ?? "清空未来排期失败");
+      await refreshDashboard();
+      setMessage(`已清空未来排期：${result.clearedPlatformVersionCount ?? 0} 个平台稿件、${result.clearedQueueCount ?? 0} 个队列项；历史发布记录 ${result.preservedPublishRecordCount ?? 0} 条和指标快照 ${result.preservedMetricSnapshotCount ?? 0} 条保留。`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "清空未来排期失败");
+    }
+  }
+
   return (
     <AppShell active="/calendar">
       <PageHeader
@@ -446,6 +463,12 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
             {statusFilters.map((item) => <option key={item} value={item}>{item === "all" ? "全部状态" : platformVersionStatusLabels[item]}</option>)}
           </select>
         </label>
+        <a className="sm-button sm-button-primary calendar-new-button" href="/content#new-video">
+          <Plus aria-hidden="true" size={15} />新增未来排期
+        </a>
+        <Button data-testid="calendar-clear-future-schedules" onClick={clearFutureSchedules} variant="danger">
+          <Trash2 aria-hidden="true" size={15} />清空未来排期
+        </Button>
       </div>
       {message && <p className="operation-message calendar-operation-message" data-testid="calendar-operation-message">{message}</p>}
       <div className="calendar-layout">

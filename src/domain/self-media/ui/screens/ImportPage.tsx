@@ -352,8 +352,8 @@ function PlatformImportOperationStrip({ capabilities, onDashboardRefresh }: { ca
               {!item.saveEnabled && <span>{item.disabledReason ?? "暂未开放保存"}</span>}
             </div>
             <div className="platform-import-operation-actions">
-              <Button onClick={() => runOperation("preview", item.key)} disabled={isSmokeRunning || platformRunning || !item.previewEnabled} variant="ghost">{runningKeys.includes(`${item.key}:preview`) ? "预览中" : "预览"}</Button>
-              <Button onClick={() => runOperation("save", item.key)} disabled={saveDisabled} variant="secondary">{runningKeys.includes(`${item.key}:save`) ? "保存中" : item.saveEnabled ? "保存" : "待开放"}</Button>
+              <Button onClick={() => runOperation("preview", item.key)} disabled={isSmokeRunning || platformRunning || !item.previewEnabled} variant="ghost">{runningKeys.includes(`${item.key}:preview`) ? "预览中" : "预览最新本地抓取"}</Button>
+              <Button onClick={() => runOperation("save", item.key)} disabled={saveDisabled} variant="secondary">{runningKeys.includes(`${item.key}:save`) ? "同步中" : item.saveEnabled ? "保存本地同步" : "待开放"}</Button>
             </div>
           </div>
           );
@@ -803,10 +803,11 @@ function TrustedAuditPanel({ status }: { status: DashboardSnapshot["trustedOpera
 function PlatformImportStatusPanel({ capabilities, history, statuses, onDashboardRefresh }: { capabilities: PlatformImportOperationCapability[]; history: DashboardSnapshot["operationHistory"]; statuses: PlatformImportStatus[]; onDashboardRefresh: (snapshot: DashboardSnapshot) => void }) {
   return (
     <Panel
-      title="四平台导入"
-      eyebrow="预览、保存与最近结果"
+      title="手动抓取最新数据"
+      eyebrow="四平台本地同步"
       action={<Button onClick={() => window.location.reload()} variant="ghost">刷新当前页面数据</Button>}
     >
+      <p className="muted" data-testid="manual-refresh-boundary">这是本地手动抓取/同步入口，不是平台自动回调；公众号/WeChat 后端仍暂停，B站账号指标保持 preview-only，不写入 durable totals。</p>
       <div className="platform-import-status-summary">
         <span><b>{statuses.filter((item) => item.latestStatus === "success").length}</b> 平台已成功</span>
         <span><b>{formatNumber(statuses.reduce((sum, item) => sum + item.contentCount, 0))}</b> 内容入库</span>
@@ -858,6 +859,25 @@ function PlatformImportStatusPanel({ capabilities, history, statuses, onDashboar
           </tbody>
         </table>
       </div>
+    </Panel>
+  );
+}
+
+function ScheduledRefreshSettingPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
+  const preflight = snapshot.dailySelfMediaOps.preflightHealth;
+  const freshness = snapshot.platformDataHealth.summary.freshness;
+  return (
+    <Panel
+      title="定时抓取设定"
+      eyebrow="本地计划说明"
+      action={<span className="sm-badge sm-badge-info">{snapshot.dailySelfMediaOps.exists ? dailySelfMediaOpsStatusLabels[snapshot.dailySelfMediaOps.status] : "未运行"}</span>}
+    >
+      <div className="platform-import-status-summary" data-testid="scheduled-refresh-setting">
+        <span><b>{preflight.enabled ? "已显式检查" : "未启用后台守护"}</b> 当前模式</span>
+        <span><b>{freshness.latestRealCaptureAt ? formatDateTime(freshness.latestRealCaptureAt) : "暂无"}</b> 最近真实采集</span>
+        <span><b>{freshness.realCaptureIsStale === false ? "可用" : freshness.realCaptureIsStale === true ? "需更新" : "待确认"}</b> 下次运行状态</span>
+      </div>
+      <p className="muted">第一版只提供本机计划和人工确认入口；不静默自动登录，不保存敏感登录材料。具体命令保留在高级诊断区，默认运营视图只看状态。</p>
     </Panel>
   );
 }
@@ -921,6 +941,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       <div className="import-page-stack">
         <PlatformDataHealthPanel health={currentSnapshot.platformDataHealth} />
         <PlatformImportStatusPanel capabilities={currentSnapshot.platformImportOperationCapabilities} history={currentSnapshot.operationHistory} statuses={currentSnapshot.platformImportStatuses} onDashboardRefresh={setCurrentSnapshot} />
+        <ScheduledRefreshSettingPanel snapshot={currentSnapshot} />
         <details className="analytics-data-section import-advanced-diagnostics" data-testid="import-advanced-diagnostics">
           <summary>
             <span>

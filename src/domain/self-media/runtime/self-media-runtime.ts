@@ -12,6 +12,7 @@ import type {
   ContentDraftReviewRequest,
   ContentTrustScopePatchRequest,
   ContentPlatformVersionRequest,
+  CreatorVideoIdeaRequest,
   CsvImportPreset,
   IdeaCreateRequest,
   IdeaStatusRequest,
@@ -422,6 +423,11 @@ export async function convertSelfMediaIdeaToContent(input: IdeaToContentRequest)
   return service.convertIdeaToContent(input);
 }
 
+export async function createSelfMediaCreatorVideoDraft(input: CreatorVideoIdeaRequest) {
+  const service = new SelfMediaService();
+  return service.createCreatorVideoDraft(input);
+}
+
 export async function createSelfMediaLead(input: LeadCreateRequest) {
   const service = new SelfMediaService();
   return service.createLead(input);
@@ -451,6 +457,11 @@ export async function getSelfMediaCalendar(input: CalendarQuery) {
   const service = new SelfMediaService();
   await service.ensureSeedData();
   return service.calendar(input);
+}
+
+export async function clearSelfMediaFutureSchedules() {
+  const service = new SelfMediaService();
+  return service.clearFutureSchedules();
 }
 
 export async function upsertSelfMediaMetricSnapshot(input: MetricSnapshotRequest) {

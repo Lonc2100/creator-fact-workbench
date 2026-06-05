@@ -11,6 +11,7 @@ import type {
   AutomationRun,
   AutomationRunRequest,
   CalendarQuery,
+  ClearFutureScheduleResult,
   ConfirmPlatformVersionPublishRequest,
   ConfirmPlatformVersionPublishResult,
   ContentDraftReviewRequest,
@@ -22,6 +23,9 @@ import type {
   ContentPlatformVersionRequest,
   ContentItem,
   CsvImportPreset,
+  CreatorPlatformDraft,
+  CreatorVideoDraftResult,
+  CreatorVideoIdeaRequest,
   DailySelfMediaOpsStepView,
   DailySelfMediaOpsView,
   DailyPlatformOpsGateStepView,
@@ -180,6 +184,88 @@ function buildAccountMetricGroups(accountMetricSnapshots: AccountMetricSnapshot[
 
 const closedLoopContentPlatforms = ["douyin", "xiaohongshu", "video_account", "bilibili"] as const;
 const trustedRealCreatorCenterSources = ["douyin_creator_center", "xiaohongshu_creator_center", "video_account_creator_center", "bilibili_creator_center"] as const;
+
+const creatorPlatformDraftLabels: Record<typeof closedLoopContentPlatforms[number], string> = {
+  douyin: "抖音",
+  xiaohongshu: "小红书",
+  video_account: "视频号",
+  bilibili: "B站"
+};
+
+const creatorPlatformDraftAdvice: Record<typeof closedLoopContentPlatforms[number], { hook: string; body: string; cover: string; advice: string; tags: string[] }> = {
+  douyin: {
+    hook: "3 秒钩子",
+    body: "短句、强节奏、先给结论，再给 2-3 个画面点。",
+    cover: "大字标题 + 真人/关键画面，突出冲突或结果。",
+    advice: "建议按短视频强钩子改写；创作标签/平台激励只作为选题提示，发布前需人工确认官方后台。",
+    tags: ["短视频", "AI创作", "效率提升"]
+  },
+  xiaohongshu: {
+    hook: "痛点 + 结果",
+    body: "正文适合拆成步骤、清单和个人体验，语气更像给朋友的经验贴。",
+    cover: "封面用清晰主题词和对比结果，适合图文首屏检查。",
+    advice: "建议按搜索和收藏场景改写；创作标签/平台激励仅为建议，需人工确认实时官方活动。",
+    tags: ["经验分享", "自媒体", "AI工具"]
+  },
+  video_account: {
+    hook: "观点开场",
+    body: "适合更可信的口播结构：观点、案例、行动建议，保留个人表达。",
+    cover: "封面强调人物、观点和可信场景，避免过度标题党。",
+    advice: "建议按私域传播和信任建设改写；创作标签/平台激励仅供人工复核。",
+    tags: ["视频号", "观点表达", "创作者日常"]
+  },
+  bilibili: {
+    hook: "问题定义",
+    body: "适合更完整的结构：背景、过程、方法、结果，可保留脚本和章节感。",
+    cover: "封面突出主题、方法和结果，可加系列编号。",
+    advice: "建议按中长视频/知识记录改写；创作标签/平台激励不是实时官方信息，需人工确认。",
+    tags: ["知识记录", "AI工作流", "创作复盘"]
+  }
+};
+
+function compactLines(values: Array<string | undefined>) {
+  return values.map((value) => value?.trim()).filter((value): value is string => Boolean(value));
+}
+
+function normalizeCreatorTitle(value: string) {
+  return value.trim().replace(/\s+/g, " ").slice(0, 80);
+}
+
+function buildCreatorPlatformDrafts(input: CreatorVideoIdeaRequest): CreatorPlatformDraft[] {
+  const title = normalizeCreatorTitle(input.title || input.topic);
+  const topic = normalizeCreatorTitle(input.topic || title);
+  const brief = input.brief.trim();
+  const scriptNotes = input.scriptNotes?.trim();
+  const materialNotes = input.materialNotes?.trim();
+  if (!title || !topic || !brief) throw new Error("新视频需要标题、主题和大致内容。");
+
+  return closedLoopContentPlatforms.map((platform) => {
+    const config = creatorPlatformDraftAdvice[platform];
+    const label = creatorPlatformDraftLabels[platform];
+    const platformTitle = platform === "bilibili"
+      ? `${topic}：${title}`
+      : platform === "xiaohongshu"
+        ? `${title}｜${topic}`
+        : title;
+    const tags = [...new Set([topic, ...config.tags].map((item) => item.replace(/^#/, "").trim()).filter(Boolean))].slice(0, 6);
+    const body = compactLines([
+      `${config.hook}：${brief}`,
+      scriptNotes ? `脚本备注：${scriptNotes}` : undefined,
+      materialNotes ? `素材备注：${materialNotes}` : undefined,
+      `表达结构：${config.body}`,
+      `标签建议：${tags.map((tag) => `#${tag}`).join(" ")}`,
+      "平台激励/创作标签：仅为本地建议，发布前需人工在平台后台确认。"
+    ]).join("\n");
+    return {
+      platform,
+      title: platformTitle.slice(0, platform === "bilibili" ? 90 : 60),
+      body,
+      tags,
+      coverNote: `${label}封面备注：${config.cover}`,
+      platformAdvice: config.advice
+    };
+  });
+}
 
 function isTrustedRealCreatorCenterSource(source: ImportSource | "manual" | "review_metric") {
   return trustedRealCreatorCenterSources.includes(source as typeof trustedRealCreatorCenterSources[number]);
@@ -1354,7 +1440,7 @@ function buildContentWorkbenchRows(input: {
       const hasExternalUntrustedSource = snapshots.some((snapshot) => !isTrustedRealCreatorCenterSource(snapshot.source) && snapshot.source !== "manual");
       const ideaConverted = content.id.startsWith("content-from-") && [...ideaIds].some((ideaId) => content.id.startsWith(`content-from-${ideaId}-`));
       const actionGenerated = actionItems.some((item) => item.contentDraftId === content.id) || content.id.startsWith("content-from-action-");
-      const draftLike = content.status === "idea" || content.status === "draft" || platformVersions.some((version) => version.status === "draft" || version.status === "needs_review" || version.status === "blocked");
+      const draftLike = content.status === "idea" || content.status === "draft" || content.status === "scheduled" || platformVersions.some((version) => version.status === "draft" || version.status === "needs_review" || version.status === "scheduled" || version.status === "blocked") || queueItems.some((item) => item.status === "draft" || item.status === "needs_review" || item.status === "queued" || item.status === "scheduled");
       const includedInTrustedDashboardReview = trustedSnapshots.length > 0;
       const latestSnapshotDate = snapshots
         .map((snapshot) => snapshot.snapshotDate)
@@ -2219,6 +2305,72 @@ export class SelfMediaService {
     return { idea: updatedIdea, content, queue, traceId };
   }
 
+  createCreatorVideoDraft(input: CreatorVideoIdeaRequest): CreatorVideoDraftResult {
+    const traceId = createTraceId("creator-video");
+    const drafts = buildCreatorPlatformDrafts(input);
+    const now = new Date().toISOString();
+    const contentId = `content-creator-${stableHash(`${input.title}|${input.topic}|${input.brief}|${Date.now()}`)}`;
+    const scheduledAt = input.scheduledAt?.trim() || undefined;
+    const status: PlatformVersionStatus = scheduledAt ? "scheduled" : "needs_review";
+    const content: ContentItem = {
+      id: contentId,
+      title: normalizeCreatorTitle(input.title),
+      platform: "douyin",
+      status: scheduledAt ? "scheduled" : "draft",
+      format: "short_video",
+      topic: normalizeCreatorTitle(input.topic),
+      scheduledAt,
+      notes: compactLines([
+        "creator_draft:local_rule_v1",
+        input.brief,
+        input.scriptNotes ? `scriptNotes:${input.scriptNotes}` : undefined,
+        input.materialNotes ? `materialNotes:${input.materialNotes}` : undefined,
+        "平台激励/创作标签为本地建议，发布前需人工确认。"
+      ]).join("\n")
+    };
+    this.repo.upsertEntity("contents", content.id, content);
+
+    const platformVersions: ContentPlatformVersion[] = [];
+    const queueItems: PublishQueueItem[] = [];
+    for (const draft of drafts) {
+      const queue: PublishQueueItem = {
+        id: `queue-${content.id}-${draft.platform}`,
+        contentId: content.id,
+        platform: draft.platform,
+        status: scheduledAt ? "scheduled" : "needs_review",
+        scheduledAt: scheduledAt ?? defaultActionScheduleAt(),
+        nextAction: scheduledAt ? "按排期做人工发布前检查；不会自动发布。" : "确认脚本、封面和平台标签后再进入日历排期。",
+        updatedAt: now
+      };
+      this.repo.upsertEntity("queue", queue.id, queue);
+      const version = this.upsertPlatformVersion({
+        contentId: content.id,
+        platform: draft.platform,
+        title: draft.title,
+        body: draft.body,
+        script: input.scriptNotes,
+        coverNote: draft.coverNote,
+        tags: draft.tags,
+        platformAdvice: draft.platformAdvice,
+        scheduledAt,
+        status,
+        nextAction: queue.nextAction,
+        checklist: { title: true, platformFit: true, script: Boolean(input.scriptNotes), cover: Boolean(input.materialNotes), humanConfirmed: false }
+      }).version;
+      platformVersions.push(version);
+      queueItems.push(queue);
+    }
+    writeLog(this.repo, {
+      level: "info",
+      event: "self_media.creator_video_draft_created",
+      scope: "service",
+      message: `Created creator video draft ${content.id} with four platform versions.`,
+      traceId,
+      data: { contentId: content.id, platformVersionCount: platformVersions.length, scheduledAt }
+    });
+    return { content, platformVersions, queueItems, drafts, traceId };
+  }
+
   createLead(input: LeadCreateRequest) {
     const traceId = createTraceId("lead");
     const lead: MonetizationLead = {
@@ -2296,6 +2448,8 @@ export class SelfMediaService {
       body: input.body ?? existing?.body ?? "",
       script: input.script ?? existing?.script ?? "",
       coverNote: input.coverNote ?? existing?.coverNote ?? "",
+      tags: input.tags ?? existing?.tags,
+      platformAdvice: input.platformAdvice ?? existing?.platformAdvice,
       scheduledAt: input.scheduledAt ?? existing?.scheduledAt,
       publishedAt: existing?.publishedAt,
       status: input.status ?? existing?.status ?? "draft",
@@ -2360,6 +2514,8 @@ export class SelfMediaService {
       body: input.body ?? version.body,
       script: input.script ?? version.script,
       coverNote: input.coverNote ?? version.coverNote,
+      tags: input.tags ?? version.tags,
+      platformAdvice: input.platformAdvice ?? version.platformAdvice,
       status: input.status ?? version.status,
       scheduledAt: input.scheduledAt ?? version.scheduledAt,
       publishedAt: version.publishedAt,
@@ -2372,6 +2528,71 @@ export class SelfMediaService {
     this.syncWorkflowRecordsFromVersion(updated, { nextAction: updated.nextAction });
     writeLog(this.repo, { level: "info", event: "self_media.platform_version_status", scope: "service", message: `Platform version ${updated.id} moved to ${updated.status}.`, traceId, data: { id: updated.id, status: updated.status } });
     return { version: updated, traceId };
+  }
+
+  clearFutureSchedules(now = new Date()): ClearFutureScheduleResult {
+    const traceId = createTraceId("calendar-clear");
+    const nowTime = now.getTime();
+    let clearedPlatformVersionCount = 0;
+    let clearedQueueCount = 0;
+
+    for (const version of this.repo.listPlatformVersions()) {
+      const scheduledTime = version.scheduledAt ? new Date(version.scheduledAt).getTime() : 0;
+      const isFuture = scheduledTime > nowTime;
+      const isDraftSchedule = version.status === "scheduled" || version.status === "needs_review" || version.status === "draft";
+      if (!isFuture || !isDraftSchedule || version.publishedAt || version.status === "published" || version.status === "failed") continue;
+      const updated: ContentPlatformVersion = {
+        ...version,
+        status: "needs_review",
+        scheduledAt: undefined,
+        nextAction: "未来排期已清空，请重新选择发布时间后再进入日历。",
+        updatedAt: new Date().toISOString()
+      };
+      this.repo.upsertEntity("platformVersions", updated.id, updated);
+      this.syncWorkflowRecordsFromVersion(updated, { nextAction: updated.nextAction });
+      clearedPlatformVersionCount += 1;
+    }
+
+    for (const queue of this.repo.listQueue()) {
+      const scheduledTime = new Date(queue.scheduledAt).getTime();
+      const isFuture = scheduledTime > nowTime;
+      const isDraftQueue = queue.status === "queued" || queue.status === "scheduled" || queue.status === "needs_review" || queue.status === "draft";
+      if (!isFuture || !isDraftQueue) continue;
+      const updated: PublishQueueItem = {
+        ...queue,
+        status: "needs_review",
+        scheduledAt: now.toISOString(),
+        nextAction: "未来排期已清空，等待重新选择发布时间。",
+        updatedAt: new Date().toISOString()
+      };
+      this.repo.upsertEntity("queue", updated.id, updated);
+      clearedQueueCount += 1;
+    }
+
+    const contentIdsToRecheck = new Set([
+      ...this.repo.listPlatformVersions().map((version) => version.contentId),
+      ...this.repo.listQueue().map((queue) => queue.contentId)
+    ]);
+    for (const contentId of contentIdsToRecheck) {
+      const content = this.repo.getEntity<ContentItem>("contents", contentId);
+      if (!content) continue;
+      const futureScheduledVersion = this.repo.listPlatformVersions().some((version) => version.contentId === content.id && version.scheduledAt && new Date(version.scheduledAt).getTime() > nowTime && version.status === "scheduled");
+      if (!futureScheduledVersion && content.scheduledAt && new Date(content.scheduledAt).getTime() > nowTime && content.status === "scheduled") {
+        this.repo.upsertEntity("contents", content.id, { ...content, status: "draft", scheduledAt: undefined });
+      }
+    }
+
+    const preservedPublishRecordCount = this.repo.listPublishRecords().length;
+    const preservedMetricSnapshotCount = this.repo.listMetricSnapshots().length;
+    writeLog(this.repo, {
+      level: "info",
+      event: "self_media.future_schedules_cleared",
+      scope: "service",
+      message: `Cleared ${clearedPlatformVersionCount} future platform schedules and ${clearedQueueCount} queue schedules.`,
+      traceId,
+      data: { clearedPlatformVersionCount, clearedQueueCount, preservedPublishRecordCount, preservedMetricSnapshotCount }
+    });
+    return { clearedPlatformVersionCount, clearedQueueCount, preservedPublishRecordCount, preservedMetricSnapshotCount, traceId };
   }
 
   confirmPlatformVersionPublish(input: ConfirmPlatformVersionPublishRequest): ConfirmPlatformVersionPublishResult {

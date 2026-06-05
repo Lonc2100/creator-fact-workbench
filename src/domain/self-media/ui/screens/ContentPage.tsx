@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, ContentPlatformVersionRequest, ContentStatus, ContentWorkbenchContentRow, ContentWorkbenchOriginKind, ContentWorkbenchSnapshot, Platform, PlatformVersionPatchRequest, PlatformVersionStatus } from "../../types";
+import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, ContentPlatformVersionRequest, ContentStatus, ContentWorkbenchContentRow, ContentWorkbenchOriginKind, ContentWorkbenchSnapshot, CreatorVideoDraftResult, Platform, PlatformVersionPatchRequest, PlatformVersionStatus } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
@@ -131,6 +131,111 @@ function filterRows(rows: ContentWorkbenchContentRow[], filters: { query: string
       if (filters.sort === "trusted_asc") return Number(a.includedInTrustedDashboardReview) - Number(b.includedInTrustedDashboardReview) || rowUpdatedAt(b) - rowUpdatedAt(a);
       return rowUpdatedAt(b) - rowUpdatedAt(a);
     });
+}
+
+function isoFromLocalDateTime(value: string) {
+  return value ? new Date(value).toISOString() : undefined;
+}
+
+function CreatorVideoPanel({
+  onCreated
+}: {
+  onCreated: (result: CreatorVideoDraftResult) => Promise<void>;
+}) {
+  const [title, setTitle] = useState("");
+  const [topic, setTopic] = useState("");
+  const [brief, setBrief] = useState("");
+  const [scriptNotes, setScriptNotes] = useState("");
+  const [materialNotes, setMaterialNotes] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [result, setResult] = useState<CreatorVideoDraftResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("输入一个大概想法，就能生成抖音、小红书、视频号、B站四个平台版本。");
+
+  async function createDraft() {
+    setBusy(true);
+    setMessage("正在生成并保存四平台草稿...");
+    try {
+      const response = await fetch("/api/self-media/creator-drafts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          title,
+          topic,
+          brief,
+          scriptNotes: scriptNotes || undefined,
+          materialNotes: materialNotes || undefined,
+          scheduledAt: isoFromLocalDateTime(scheduledAt)
+        })
+      });
+      const body = await response.json() as CreatorVideoDraftResult & { errorMessage?: string };
+      if (!response.ok) throw new Error(body.errorMessage ?? "新视频生成失败");
+      setResult(body);
+      await onCreated(body);
+      setMessage(body.content.scheduledAt ? "四平台版本已保存，并已进入日历排期。" : "四平台版本已保存，等待人工确认发布时间。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "新视频生成失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Panel
+      title="新视频"
+      eyebrow="创作者工作流"
+      action={<span className="sm-badge sm-badge-info">本地规则生成</span>}
+    >
+      <div className="form-grid creator-video-form" id="new-video" data-testid="creator-new-video-panel">
+        <label>
+          <span>标题方向</span>
+          <input className="sm-input" data-testid="creator-video-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：我用 AI 做了一条短片复盘" />
+        </label>
+        <label>
+          <span>主题</span>
+          <input className="sm-input" data-testid="creator-video-topic" value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="例如：AI短片 / 自媒体复盘 / 工具教程" />
+        </label>
+        <label>
+          <span>未来发布时间</span>
+          <input className="sm-input" data-testid="creator-video-scheduled-at" type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />
+        </label>
+        <label>
+          <span>大致内容</span>
+          <textarea className="sm-input" data-testid="creator-video-brief" value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="写几句话就行：想表达什么、给谁看、希望观众做什么。" />
+        </label>
+        <label>
+          <span>脚本备注</span>
+          <textarea className="sm-input" value={scriptNotes} onChange={(event) => setScriptNotes(event.target.value)} placeholder="可选：口播结构、关键台词、镜头顺序。" />
+        </label>
+        <label>
+          <span>素材备注</span>
+          <textarea className="sm-input" value={materialNotes} onChange={(event) => setMaterialNotes(event.target.value)} placeholder="可选：已有素材、封面方向、不能漏的信息。" />
+        </label>
+        <div className="inline-stack">
+          <Button data-testid="creator-video-generate" disabled={busy} onClick={createDraft} variant="primary">生成并保存四平台版本</Button>
+          <a className="sm-button sm-button-secondary" href="/calendar">去日历排期</a>
+        </div>
+        <p className="muted">{message}</p>
+        <p className="muted">平台激励/创作标签均为建议，需发布前人工确认；不会调用外部 LLM key，也不会自动发布。</p>
+      </div>
+      {result && (
+        <div className="platform-import-operation-summaries creator-video-result" data-testid="creator-video-result">
+          {result.drafts.map((draft) => (
+            <article className="is-passed" key={draft.platform}>
+              <header>
+                <PlatformBadge compact platform={draft.platform} />
+                <span className="sm-badge sm-badge-success">已保存</span>
+              </header>
+              <strong>{draft.title}</strong>
+              <p>{draft.body}</p>
+              <p>{draft.coverNote}</p>
+              <p>{draft.platformAdvice}</p>
+            </article>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
 }
 
 function TrustedScopeCurationPanel({
@@ -270,7 +375,20 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
 
   async function refreshDashboard() {
     const response = await fetch("/api/self-media/content-workbench");
-    setCurrent((await response.json()) as ContentWorkbenchSnapshot);
+    const next = (await response.json()) as ContentWorkbenchSnapshot;
+    setCurrent(next);
+    return next;
+  }
+
+  async function handleCreatorDraftCreated(result: CreatorVideoDraftResult) {
+    setSelectedContentId(result.content.id);
+    setSelectedVersionId(result.platformVersions[0]?.id);
+    setSourceFilter("local_draft");
+    setStatusFilter(result.content.scheduledAt ? "version:scheduled" : "all");
+    setSort("updated_desc");
+    const next = await refreshDashboard();
+    if (!next.contentRows.some((row) => row.content.id === result.content.id)) setMessage("新视频已保存，但当前筛选未显示；切换到全部本地/诊断可查看。");
+    else setMessage("新视频已保存为内容和四个平台版本，可继续编辑或去日历查看排期。");
   }
 
   async function patchTrustedScope(contentId: string, excluded: boolean) {
@@ -378,6 +496,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
         }
       />
       <p className="operation-message" data-testid="content-operation-message">{message}</p>
+      <CreatorVideoPanel onCreated={handleCreatorDraftCreated} />
       <WorkbenchSummaryPanel snapshot={current} />
       <TrustedScopeCurationPanel snapshot={current} onToggle={patchTrustedScope} />
       <Panel title="内容列表筛选" eyebrow="默认运营视图">

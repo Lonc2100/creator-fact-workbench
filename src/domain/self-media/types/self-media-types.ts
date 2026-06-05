@@ -68,6 +68,8 @@ export interface ContentPlatformVersion {
   body: string;
   script: string;
   coverNote: string;
+  tags?: string[];
+  platformAdvice?: string;
   scheduledAt?: string;
   publishedAt?: string;
   status: PlatformVersionStatus;
@@ -1056,10 +1058,38 @@ export interface ContentPlatformVersionRequest {
   body?: string;
   script?: string;
   coverNote?: string;
+  tags?: string[];
+  platformAdvice?: string;
   scheduledAt?: string;
   status?: PlatformVersionStatus;
   nextAction?: string;
   checklist?: Partial<PlatformChecklist>;
+}
+
+export interface CreatorVideoIdeaRequest {
+  title: string;
+  topic: string;
+  brief: string;
+  scriptNotes?: string;
+  materialNotes?: string;
+  scheduledAt?: string;
+}
+
+export interface CreatorPlatformDraft {
+  platform: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+  title: string;
+  body: string;
+  tags: string[];
+  coverNote: string;
+  platformAdvice: string;
+}
+
+export interface CreatorVideoDraftResult {
+  content: ContentItem;
+  platformVersions: ContentPlatformVersion[];
+  queueItems: PublishQueueItem[];
+  drafts: CreatorPlatformDraft[];
+  traceId: string;
 }
 
 export interface ContentDraftReviewRequest {
@@ -1090,6 +1120,8 @@ export interface PlatformVersionPatchRequest {
   body?: string;
   script?: string;
   coverNote?: string;
+  tags?: string[];
+  platformAdvice?: string;
   scheduledAt?: string;
   publishedAt?: string;
   failureReason?: string;
@@ -1122,6 +1154,14 @@ export interface CalendarQuery {
   view?: CalendarView;
   platform?: Platform;
   status?: PlatformVersionStatus;
+}
+
+export interface ClearFutureScheduleResult {
+  clearedPlatformVersionCount: number;
+  clearedQueueCount: number;
+  preservedPublishRecordCount: number;
+  preservedMetricSnapshotCount: number;
+  traceId: string;
 }
 
 export interface MetricSnapshotRequest {

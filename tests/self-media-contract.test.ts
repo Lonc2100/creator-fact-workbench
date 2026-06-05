@@ -5392,6 +5392,76 @@ test("platform version upsert is idempotent per content and platform", () => {
   }
 });
 
+test("creator video idea creates four platform drafts and optional schedule", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-creator-video-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const result = service.createCreatorVideoDraft({
+      title: "AI短片复盘怎么做",
+      topic: "AI短片复盘",
+      brief: "用一条真实短片拆解选题、脚本和封面。",
+      scriptNotes: "开头先给结论，再讲三个步骤。",
+      materialNotes: "保留时间线截图和最终成片画面。",
+      scheduledAt: "2026-06-08T12:00:00.000Z"
+    });
+    assert.equal(result.platformVersions.length, 4);
+    assert.deepEqual(new Set(result.platformVersions.map((item) => item.platform)), new Set(["douyin", "xiaohongshu", "video_account", "bilibili"]));
+    assert.equal(result.queueItems.length, 4);
+    assert.ok(result.drafts.every((draft) => draft.tags.length > 0 && draft.coverNote && /人工/.test(draft.platformAdvice)));
+    assert.ok(repo.listContents().some((item) => item.id === result.content.id && item.status === "scheduled"));
+    assert.ok(repo.listPlatformVersions().every((item) => item.contentId !== result.content.id || item.status === "scheduled"));
+    const workbench = await service.contentWorkbench();
+    assert.ok(workbench.contentRows.some((row) => row.content.id === result.content.id && row.originKind === "local_draft"));
+    assert.ok(service.calendar().some((item) => item.contentId === result.content.id && item.scheduledAt === "2026-06-08T12:00:00.000Z"));
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("clear future schedules preserves publish records and metric snapshots", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-clear-future-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const future = service.createCreatorVideoDraft({
+      title: "未来排期清空测试",
+      topic: "排期",
+      brief: "验证清空只影响未来草稿排期。",
+      scheduledAt: "2026-06-08T12:00:00.000Z"
+    });
+    const historical = service.upsertPlatformVersion({ contentId: "published-content", platform: "douyin", title: "历史发布", status: "needs_review" });
+    service.patchPlatformVersion({ id: historical.version.id, status: "scheduled", scheduledAt: "2026-06-01T09:00:00.000Z" });
+    service.confirmPlatformVersionPublish({
+      platformVersionId: historical.version.id,
+      status: "published",
+      happenedAt: "2026-06-01T10:00:00.000Z",
+      confirmationSource: "manual"
+    });
+    service.upsertMetricSnapshot({
+      platformVersionId: historical.version.id,
+      snapshotDate: "2026-06-02",
+      views: 100,
+      source: "douyin_creator_center"
+    });
+    const cleared = service.clearFutureSchedules(new Date("2026-06-05T00:00:00.000Z"));
+    assert.equal(cleared.clearedPlatformVersionCount, 4);
+    assert.equal(cleared.clearedQueueCount, 4);
+    assert.equal(cleared.preservedPublishRecordCount, 1);
+    assert.equal(cleared.preservedMetricSnapshotCount, 1);
+    assert.ok(repo.listPlatformVersions().filter((item) => item.contentId === future.content.id).every((item) => item.status === "needs_review" && !item.scheduledAt));
+    assert.equal(repo.listPublishRecords().length, 1);
+    assert.equal(repo.listMetricSnapshots().length, 1);
+    assert.equal(repo.listPlatformVersions().find((item) => item.id === historical.version.id)?.status, "published");
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("saved review stores action items and evidence-backed insights", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-saved-review-"));
   let repo: SqliteSelfMediaRepo | undefined;
