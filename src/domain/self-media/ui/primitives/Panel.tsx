@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { cx } from "../foundations/cx";
 
-interface PanelProps {
+interface PanelProps extends HTMLAttributes<HTMLElement> {
   title?: string;
   eyebrow?: string;
   action?: ReactNode;
@@ -9,9 +9,9 @@ interface PanelProps {
   children: ReactNode;
 }
 
-export function Panel({ title, eyebrow, action, className, children }: PanelProps) {
+export function Panel({ title, eyebrow, action, className, children, ...sectionProps }: PanelProps) {
   return (
-    <section className={cx("sm-panel", className)}>
+    <section {...sectionProps} className={cx("sm-panel", className)}>
       {(title || eyebrow || action) && (
         <div className="sm-panel-head">
           <div>

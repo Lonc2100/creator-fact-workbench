@@ -121,6 +121,23 @@ function publishRecordStatusLabel(status: DashboardSnapshot["publishRecords"][nu
   return labels[status];
 }
 
+function isActiveContentPlatform(platform: DashboardSnapshot["publishRecords"][number]["platform"]) {
+  return platform === "douyin" || platform === "xiaohongshu" || platform === "video_account" || platform === "bilibili";
+}
+
+function isPausedWechatActionItem(item: ReviewActionItem) {
+  const text = [
+    item.title,
+    item.nextAction,
+    item.relatedType,
+    item.relatedId,
+    item.platformVersionId,
+    item.publishQueueItemId,
+    ...(item.evidence ?? []).map((evidence) => evidence.platform)
+  ].filter(Boolean).join(" ");
+  return /(公众号|微信后台|wechat|wechat_official)/i.test(text);
+}
+
 function buildDailyChecklistRows(snapshot: DashboardSnapshot): DailyChecklistRow[] {
   const preflight = snapshot.dailySelfMediaOps.preflightHealth;
   const pageReady3200 = preflight.pageReadyPorts.includes(3200);
@@ -129,12 +146,14 @@ function buildDailyChecklistRows(snapshot: DashboardSnapshot): DailyChecklistRow
   const healthOk = pageReady3200 && apiReady3200 && trustedDataReady3200;
   const latestRealCaptureAt = snapshot.platformDataHealth.summary.freshness.latestRealCaptureAt;
   const realCaptureStaleCount = snapshot.platformDataHealth.summary.realCaptureStaleCount;
-  const activeActions = snapshot.actionItems.filter((item) => !["done", "dropped"].includes(item.status));
+  const activeActions = snapshot.actionItems.filter((item) => !isPausedWechatActionItem(item) && !["done", "dropped"].includes(item.status));
   const highActions = activeActions.filter((item) => item.priority === "high").length;
   const reviewDrafts = snapshot.platformVersions.filter((item) => item.status === "draft" || item.status === "needs_review");
   const scheduledVersions = snapshot.platformVersions.filter((item) => item.status === "scheduled");
   const scheduledCalendarItems = snapshot.calendarItems.filter((item) => item.status === "scheduled");
-  const latestRecord = [...snapshot.publishRecords].sort((a, b) => new Date(b.happenedAt).getTime() - new Date(a.happenedAt).getTime())[0];
+  const latestRecord = [...snapshot.publishRecords]
+    .filter((record) => isActiveContentPlatform(record.platform))
+    .sort((a, b) => new Date(b.happenedAt).getTime() - new Date(a.happenedAt).getTime())[0];
 
   return [
     {
@@ -224,7 +243,10 @@ function buildDailyChecklistRows(snapshot: DashboardSnapshot): DailyChecklistRow
 function DailyOperatingChecklistPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
   const rows = buildDailyChecklistRows(snapshot);
   const blockingRows = rows.filter((row) => row.tone === "danger" || row.tone === "warning").length;
-  const recentRecords = [...snapshot.publishRecords].sort((a, b) => new Date(b.happenedAt).getTime() - new Date(a.happenedAt).getTime()).slice(0, 3);
+  const recentRecords = [...snapshot.publishRecords]
+    .filter((record) => isActiveContentPlatform(record.platform))
+    .sort((a, b) => new Date(b.happenedAt).getTime() - new Date(a.happenedAt).getTime())
+    .slice(0, 3);
 
   return (
     <Panel
@@ -454,7 +476,7 @@ function accountMetricSourceLabel(source: DashboardSnapshot["accountMetricGroups
 }
 
 function AccountMetricTrendPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
-  const groups = snapshot.accountMetricGroups.slice(0, 6);
+  const groups = snapshot.accountMetricGroups.filter((group) => isActiveContentPlatform(group.platform)).slice(0, 6);
   const totals = groups.reduce(
     (current, group) => ({
       views: current.views + group.views,
@@ -750,9 +772,10 @@ function ActionTasksOperatingPanel({
   onActionStatus: (item: ReviewActionItem, status: ReviewActionItem["status"]) => Promise<void>;
   onActionToContent: (item: ReviewActionItem) => Promise<void>;
 }) {
-  const items = filteredActionItems(snapshot.actionItems, statusFilter, sourceFilter);
-  const activeCount = snapshot.actionItems.filter((item) => !["done", "dropped"].includes(item.status)).length;
-  const postImportCount = snapshot.actionItems.filter((item) => item.sourceSuggestionId).length;
+  const operatorActionItems = snapshot.actionItems.filter((item) => !isPausedWechatActionItem(item));
+  const items = filteredActionItems(operatorActionItems, statusFilter, sourceFilter);
+  const activeCount = operatorActionItems.filter((item) => !["done", "dropped"].includes(item.status)).length;
+  const postImportCount = operatorActionItems.filter((item) => item.sourceSuggestionId).length;
   return (
     <Panel
       className="action-tasks-operating-panel"
