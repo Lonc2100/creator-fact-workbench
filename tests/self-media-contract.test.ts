@@ -5421,6 +5421,43 @@ test("creator video idea creates four platform drafts and optional schedule", as
   }
 });
 
+test("creator copilot discusses rough idea, regenerates, and saves scheduled four platform drafts", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-creator-copilot-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const first = service.createCreatorVideoDiscussion({
+      brief: "想拍一条讲我怎么用 AI 把一周自媒体数据变成选题和脚本的短视频。",
+      materialNotes: "有看板截图和一张排期表。"
+    });
+    assert.equal(first.drafts.length, 4);
+    assert.ok(first.idea.title);
+    assert.ok(first.analysis.direction.includes(first.idea.topic));
+    assert.ok(first.platformDifferences.every((item) => /人工确认/.test(item.manualCheck)));
+    assert.ok(first.drafts.every((draft) => /需.*人工确认/.test(draft.incentiveTagAdvice)));
+    assert.equal(repo.listContents().length, 0);
+
+    const regenerated = service.createCreatorVideoDiscussion({
+      ...first.idea,
+      revisionPrompt: "面向新手，语气轻松，控制在 60 秒以内。",
+      scheduledAt: "2026-06-09T12:30:00.000Z"
+    });
+    assert.ok(regenerated.analysis.tone.includes("轻松"));
+    assert.ok(regenerated.analysis.duration.includes("60") || regenerated.analysis.duration.includes("90"));
+    assert.ok(regenerated.drafts.some((draft) => draft.body.includes("本轮调整")));
+
+    const saved = service.createCreatorVideoDraft(regenerated.idea);
+    assert.equal(saved.platformVersions.length, 4);
+    assert.ok(saved.content.notes.includes("creator_copilot_discussion:local_rule_v1"));
+    assert.ok(repo.listPlatformVersions().every((item) => item.contentId !== saved.content.id || item.status === "scheduled"));
+    assert.ok(service.calendar().some((item) => item.contentId === saved.content.id && item.scheduledAt === "2026-06-09T12:30:00.000Z"));
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("clear future schedules preserves publish records and metric snapshots", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-clear-future-"));
   let repo: SqliteSelfMediaRepo | undefined;

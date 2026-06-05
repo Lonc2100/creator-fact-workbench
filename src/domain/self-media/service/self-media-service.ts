@@ -24,6 +24,8 @@ import type {
   ContentItem,
   CsvImportPreset,
   CreatorPlatformDraft,
+  CreatorVideoDiscussionRequest,
+  CreatorVideoDiscussionResult,
   CreatorVideoDraftResult,
   CreatorVideoIdeaRequest,
   DailySelfMediaOpsStepView,
@@ -192,34 +194,42 @@ const creatorPlatformDraftLabels: Record<typeof closedLoopContentPlatforms[numbe
   bilibili: "B站"
 };
 
-const creatorPlatformDraftAdvice: Record<typeof closedLoopContentPlatforms[number], { hook: string; body: string; cover: string; advice: string; tags: string[] }> = {
+const creatorPlatformDraftAdvice: Record<typeof closedLoopContentPlatforms[number], { hook: string; body: string; cover: string; advice: string; tags: string[]; focus: string; format: string }> = {
   douyin: {
     hook: "3 秒钩子",
     body: "短句、强节奏、先给结论，再给 2-3 个画面点。",
     cover: "大字标题 + 真人/关键画面，突出冲突或结果。",
     advice: "建议按短视频强钩子改写；创作标签/平台激励只作为选题提示，发布前需人工确认官方后台。",
-    tags: ["短视频", "AI创作", "效率提升"]
+    tags: ["短视频", "AI创作", "效率提升"],
+    focus: "用一个强结果或反差开场，先让观众愿意停留。",
+    format: "15-60 秒竖屏口播/演示，前三秒给结论。"
   },
   xiaohongshu: {
     hook: "痛点 + 结果",
     body: "正文适合拆成步骤、清单和个人体验，语气更像给朋友的经验贴。",
     cover: "封面用清晰主题词和对比结果，适合图文首屏检查。",
     advice: "建议按搜索和收藏场景改写；创作标签/平台激励仅为建议，需人工确认实时官方活动。",
-    tags: ["经验分享", "自媒体", "AI工具"]
+    tags: ["经验分享", "自媒体", "AI工具"],
+    focus: "把问题、结果和可收藏步骤说清楚，适合搜索和复看。",
+    format: "图文/短视频均可，正文保留清单感和个人体验。"
   },
   video_account: {
     hook: "观点开场",
     body: "适合更可信的口播结构：观点、案例、行动建议，保留个人表达。",
     cover: "封面强调人物、观点和可信场景，避免过度标题党。",
     advice: "建议按私域传播和信任建设改写；创作标签/平台激励仅供人工复核。",
-    tags: ["视频号", "观点表达", "创作者日常"]
+    tags: ["视频号", "观点表达", "创作者日常"],
+    focus: "先给可信观点，再讲一个能被转发给朋友的具体例子。",
+    format: "45-120 秒口播，语气稳一点，强调经验和行动建议。"
   },
   bilibili: {
     hook: "问题定义",
     body: "适合更完整的结构：背景、过程、方法、结果，可保留脚本和章节感。",
     cover: "封面突出主题、方法和结果，可加系列编号。",
     advice: "建议按中长视频/知识记录改写；创作标签/平台激励不是实时官方信息，需人工确认。",
-    tags: ["知识记录", "AI工作流", "创作复盘"]
+    tags: ["知识记录", "AI工作流", "创作复盘"],
+    focus: "把问题讲完整，保留方法论、过程证据和复盘价值。",
+    format: "3-8 分钟中长视频，适合分章节或系列化。"
   }
 };
 
@@ -231,13 +241,65 @@ function normalizeCreatorTitle(value: string) {
   return value.trim().replace(/\s+/g, " ").slice(0, 80);
 }
 
-function buildCreatorPlatformDrafts(input: CreatorVideoIdeaRequest): CreatorPlatformDraft[] {
-  const title = normalizeCreatorTitle(input.title || input.topic);
-  const topic = normalizeCreatorTitle(input.topic || title);
-  const brief = input.brief.trim();
+function firstCreatorLine(value: string) {
+  return value.split(/[\n。！？!?]/).map((item) => item.trim()).find(Boolean) ?? "";
+}
+
+function inferCreatorTopic(value: string) {
+  if (/AI|智能体|自动化|工作流/i.test(value)) return "AI创作工作流";
+  if (/复盘|踩坑|失败|经验/.test(value)) return "创作复盘";
+  if (/教程|方法|步骤|工具/.test(value)) return "工具教程";
+  if (/日常|生活|记录/.test(value)) return "创作者日常";
+  return "自媒体创作";
+}
+
+function inferCreatorDiscussionSignals(value: string) {
+  const audience = /新手|小白|刚开始|入门/.test(value)
+    ? "刚开始做内容的新手创作者"
+    : /老板|团队|公司|运营/.test(value)
+      ? "需要做内容经营的小团队"
+      : "想提高内容效率的个人创作者";
+  const tone = /轻松|口语|幽默|朋友/.test(value)
+    ? "轻松口语，像和朋友讲经验"
+    : /专业|严肃|深度|方法论/.test(value)
+      ? "专业克制，突出方法和证据"
+      : "直接、可信、有一点个人复盘感";
+  const duration = /30秒|半分钟|很短|短一点/.test(value)
+    ? "30 秒内"
+    : /3分钟|5分钟|中长|长一点/.test(value)
+      ? "3-5 分钟"
+      : "60-90 秒";
+  return { audience, tone, duration };
+}
+
+function normalizeCreatorIdeaInput(input: CreatorVideoIdeaRequest | CreatorVideoDiscussionRequest): CreatorVideoIdeaRequest {
+  const brief = input.brief?.trim();
+  if (!brief) throw new Error("创作讨论需要先输入视频大意。");
+  const seed = `${input.title ?? ""} ${input.topic ?? ""} ${brief} ${input.revisionPrompt ?? ""}`;
+  const fallbackTitle = firstCreatorLine(brief) || "新视频想法";
+  const title = normalizeCreatorTitle(input.title || fallbackTitle);
+  const topic = normalizeCreatorTitle(input.topic || inferCreatorTopic(seed));
+  return {
+    title,
+    topic,
+    brief,
+    scriptNotes: input.scriptNotes?.trim() || undefined,
+    materialNotes: input.materialNotes?.trim() || undefined,
+    scheduledAt: input.scheduledAt?.trim() || undefined,
+    revisionPrompt: input.revisionPrompt?.trim() || undefined,
+    copilotAnalysis: "creator_copilot_discussion:local_rule_v1"
+  };
+}
+
+function buildCreatorPlatformDrafts(input: CreatorVideoIdeaRequest | CreatorVideoDiscussionRequest): CreatorPlatformDraft[] {
+  const normalized = normalizeCreatorIdeaInput(input);
+  const title = normalized.title;
+  const topic = normalized.topic;
+  const brief = normalized.brief.trim();
   const scriptNotes = input.scriptNotes?.trim();
   const materialNotes = input.materialNotes?.trim();
-  if (!title || !topic || !brief) throw new Error("新视频需要标题、主题和大致内容。");
+  const revisionPrompt = normalized.revisionPrompt;
+  const signals = inferCreatorDiscussionSignals(`${brief} ${scriptNotes ?? ""} ${materialNotes ?? ""} ${revisionPrompt ?? ""}`);
 
   return closedLoopContentPlatforms.map((platform) => {
     const config = creatorPlatformDraftAdvice[platform];
@@ -248,13 +310,16 @@ function buildCreatorPlatformDrafts(input: CreatorVideoIdeaRequest): CreatorPlat
         ? `${title}｜${topic}`
         : title;
     const tags = [...new Set([topic, ...config.tags].map((item) => item.replace(/^#/, "").trim()).filter(Boolean))].slice(0, 6);
+    const incentiveTagAdvice = "平台激励/创作标签建议：仅为本地内容策划建议，需发布前人工确认平台后台和实时官方活动。";
     const body = compactLines([
       `${config.hook}：${brief}`,
+      revisionPrompt ? `本轮调整：${revisionPrompt}` : undefined,
       scriptNotes ? `脚本备注：${scriptNotes}` : undefined,
       materialNotes ? `素材备注：${materialNotes}` : undefined,
       `表达结构：${config.body}`,
+      `语气/受众/时长：${signals.tone}；面向${signals.audience}；建议${signals.duration}。`,
       `标签建议：${tags.map((tag) => `#${tag}`).join(" ")}`,
-      "平台激励/创作标签：仅为本地建议，发布前需人工在平台后台确认。"
+      incentiveTagAdvice
     ]).join("\n");
     return {
       platform,
@@ -262,9 +327,54 @@ function buildCreatorPlatformDrafts(input: CreatorVideoIdeaRequest): CreatorPlat
       body,
       tags,
       coverNote: `${label}封面备注：${config.cover}`,
-      platformAdvice: config.advice
+      platformAdvice: config.advice,
+      incentiveTagAdvice
     };
   });
+}
+
+function buildCreatorVideoDiscussion(input: CreatorVideoDiscussionRequest): CreatorVideoDiscussionResult {
+  const idea = normalizeCreatorIdeaInput(input);
+  const signals = inferCreatorDiscussionSignals(`${idea.brief} ${idea.scriptNotes ?? ""} ${idea.materialNotes ?? ""} ${idea.revisionPrompt ?? ""}`);
+  const adjustment = idea.revisionPrompt ? `本轮按“${idea.revisionPrompt}”重新收束。` : "第一轮先确认选题角度、受众和平台差异。";
+  const drafts = buildCreatorPlatformDrafts(idea);
+  return {
+    idea,
+    analysis: {
+      direction: `${idea.topic}方向：用“${idea.title}”作为主线，先给观众一个明确收益，再用过程或案例证明。${adjustment}`,
+      audience: signals.audience,
+      tone: signals.tone,
+      duration: signals.duration,
+      structure: [
+        "开场先说观众能得到什么，避免只讲工具或过程。",
+        "中段保留 2-3 个可拍画面或步骤，便于四个平台各自改写。",
+        "结尾给一个轻行动：收藏、评论问题、或等下一条复盘。"
+      ],
+      risks: [
+        "平台激励/创作标签不是实时官方信息，需人工确认。",
+        "保存后只进入人工排期和工作台，不会自动发布。"
+      ]
+    },
+    platformDifferences: closedLoopContentPlatforms.map((platform) => ({
+      platform,
+      focus: creatorPlatformDraftAdvice[platform].focus,
+      format: creatorPlatformDraftAdvice[platform].format,
+      adjustment: idea.revisionPrompt ? `按本轮调整重写标题、正文和标签：${idea.revisionPrompt}` : "先按平台默认内容消费场景改写。",
+      manualCheck: "创作标签/平台活动/激励均需人工确认，不视为实时官方承诺。"
+    })),
+    drafts,
+    publishPlan: {
+      scheduledAt: idea.scheduledAt,
+      planSummary: idea.scheduledAt ? "保存后四个平台版本会进入日历排期，等待人工发布前检查。" : "可先保存为待审草稿，再到日历选择未来发布时间。",
+      checklist: [
+        "确认标题、封面、标签与平台调性。",
+        "人工确认平台创作标签/激励活动。",
+        "发布前手动检查素材、脚本和评论引导。"
+      ]
+    },
+    revisionPrompt: idea.revisionPrompt,
+    traceId: createTraceId("creator-copilot")
+  };
 }
 
 function isTrustedRealCreatorCenterSource(source: ImportSource | "manual" | "review_metric") {
@@ -2305,26 +2415,33 @@ export class SelfMediaService {
     return { idea: updatedIdea, content, queue, traceId };
   }
 
+  createCreatorVideoDiscussion(input: CreatorVideoDiscussionRequest): CreatorVideoDiscussionResult {
+    return buildCreatorVideoDiscussion(input);
+  }
+
   createCreatorVideoDraft(input: CreatorVideoIdeaRequest): CreatorVideoDraftResult {
     const traceId = createTraceId("creator-video");
-    const drafts = buildCreatorPlatformDrafts(input);
+    const normalized = normalizeCreatorIdeaInput(input);
+    const drafts = buildCreatorPlatformDrafts(normalized);
     const now = new Date().toISOString();
-    const contentId = `content-creator-${stableHash(`${input.title}|${input.topic}|${input.brief}|${Date.now()}`)}`;
-    const scheduledAt = input.scheduledAt?.trim() || undefined;
+    const contentId = `content-creator-${stableHash(`${normalized.title}|${normalized.topic}|${normalized.brief}|${Date.now()}`)}`;
+    const scheduledAt = normalized.scheduledAt;
     const status: PlatformVersionStatus = scheduledAt ? "scheduled" : "needs_review";
     const content: ContentItem = {
       id: contentId,
-      title: normalizeCreatorTitle(input.title),
+      title: normalized.title,
       platform: "douyin",
       status: scheduledAt ? "scheduled" : "draft",
       format: "short_video",
-      topic: normalizeCreatorTitle(input.topic),
+      topic: normalized.topic,
       scheduledAt,
       notes: compactLines([
         "creator_draft:local_rule_v1",
-        input.brief,
-        input.scriptNotes ? `scriptNotes:${input.scriptNotes}` : undefined,
-        input.materialNotes ? `materialNotes:${input.materialNotes}` : undefined,
+        normalized.copilotAnalysis,
+        normalized.brief,
+        normalized.revisionPrompt ? `revisionPrompt:${normalized.revisionPrompt}` : undefined,
+        normalized.scriptNotes ? `scriptNotes:${normalized.scriptNotes}` : undefined,
+        normalized.materialNotes ? `materialNotes:${normalized.materialNotes}` : undefined,
         "平台激励/创作标签为本地建议，发布前需人工确认。"
       ]).join("\n")
     };
@@ -2348,14 +2465,14 @@ export class SelfMediaService {
         platform: draft.platform,
         title: draft.title,
         body: draft.body,
-        script: input.scriptNotes,
+        script: normalized.scriptNotes,
         coverNote: draft.coverNote,
         tags: draft.tags,
         platformAdvice: draft.platformAdvice,
         scheduledAt,
         status,
         nextAction: queue.nextAction,
-        checklist: { title: true, platformFit: true, script: Boolean(input.scriptNotes), cover: Boolean(input.materialNotes), humanConfirmed: false }
+        checklist: { title: true, platformFit: true, script: Boolean(normalized.scriptNotes), cover: Boolean(normalized.materialNotes), humanConfirmed: false }
       }).version;
       platformVersions.push(version);
       queueItems.push(queue);

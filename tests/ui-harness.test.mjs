@@ -105,6 +105,10 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /action: "confirm_publish"/);
   assert.match(contentScreen, /creator-new-video-panel/);
   assert.match(contentScreen, /\/api\/self-media\/creator-drafts/);
+  assert.match(contentScreen, /action: "discuss"/);
+  assert.match(contentScreen, /creator-copilot-discussion/);
+  assert.match(contentScreen, /分析并生成讨论稿/);
+  assert.match(contentScreen, /按调整重新生成/);
   assert.match(contentScreen, /生成并保存四平台版本/);
   assert.match(contentScreen, /平台激励\/创作标签均为建议/);
   assert.match(contentScreen, /ContentWorkbenchSnapshot/);

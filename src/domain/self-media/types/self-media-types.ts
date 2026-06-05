@@ -1073,6 +1073,8 @@ export interface CreatorVideoIdeaRequest {
   scriptNotes?: string;
   materialNotes?: string;
   scheduledAt?: string;
+  revisionPrompt?: string;
+  copilotAnalysis?: string;
 }
 
 export interface CreatorPlatformDraft {
@@ -1082,6 +1084,49 @@ export interface CreatorPlatformDraft {
   tags: string[];
   coverNote: string;
   platformAdvice: string;
+  incentiveTagAdvice: string;
+}
+
+export interface CreatorVideoDiscussionRequest {
+  title?: string;
+  topic?: string;
+  brief: string;
+  scriptNotes?: string;
+  materialNotes?: string;
+  scheduledAt?: string;
+  revisionPrompt?: string;
+  previousAnalysis?: string;
+}
+
+export interface CreatorPlatformDifference {
+  platform: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+  focus: string;
+  format: string;
+  adjustment: string;
+  manualCheck: string;
+}
+
+export interface CreatorPublishPlan {
+  scheduledAt?: string;
+  planSummary: string;
+  checklist: string[];
+}
+
+export interface CreatorVideoDiscussionResult {
+  idea: CreatorVideoIdeaRequest;
+  analysis: {
+    direction: string;
+    audience: string;
+    tone: string;
+    duration: string;
+    structure: string[];
+    risks: string[];
+  };
+  platformDifferences: CreatorPlatformDifference[];
+  drafts: CreatorPlatformDraft[];
+  publishPlan: CreatorPublishPlan;
+  revisionPrompt?: string;
+  traceId: string;
 }
 
 export interface CreatorVideoDraftResult {

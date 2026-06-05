@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, ContentPlatformVersionRequest, ContentStatus, ContentWorkbenchContentRow, ContentWorkbenchOriginKind, ContentWorkbenchSnapshot, CreatorVideoDraftResult, Platform, PlatformVersionPatchRequest, PlatformVersionStatus } from "../../types";
+import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, ContentPlatformVersionRequest, ContentStatus, ContentWorkbenchContentRow, ContentWorkbenchOriginKind, ContentWorkbenchSnapshot, CreatorVideoDiscussionResult, CreatorVideoDraftResult, Platform, PlatformVersionPatchRequest, PlatformVersionStatus } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
@@ -148,25 +148,56 @@ function CreatorVideoPanel({
   const [scriptNotes, setScriptNotes] = useState("");
   const [materialNotes, setMaterialNotes] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [revisionPrompt, setRevisionPrompt] = useState("");
+  const [discussion, setDiscussion] = useState<CreatorVideoDiscussionResult | null>(null);
   const [result, setResult] = useState<CreatorVideoDraftResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("输入一个大概想法，就能生成抖音、小红书、视频号、B站四个平台版本。");
+  const [busy, setBusy] = useState<"discuss" | "save" | null>(null);
+  const [message, setMessage] = useState("输入一个大概想法，先和本地创作助手讨论，再保存四平台版本。");
 
-  async function createDraft() {
-    setBusy(true);
-    setMessage("正在生成并保存四平台草稿...");
+  function creatorDraftPayload(extra?: { action?: "discuss" }) {
+    return {
+      action: extra?.action,
+      title: title || discussion?.idea.title,
+      topic: topic || discussion?.idea.topic,
+      brief,
+      scriptNotes: scriptNotes || undefined,
+      materialNotes: materialNotes || undefined,
+      scheduledAt: isoFromLocalDateTime(scheduledAt),
+      revisionPrompt: revisionPrompt || undefined,
+      previousAnalysis: discussion?.analysis.direction
+    };
+  }
+
+  async function discussDraft(regenerating = false) {
+    setBusy("discuss");
+    setMessage(regenerating ? "正在按调整要求重新生成讨论稿..." : "正在分析方向并生成四平台讨论稿...");
     try {
       const response = await fetch("/api/self-media/creator-drafts", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          title,
-          topic,
-          brief,
-          scriptNotes: scriptNotes || undefined,
-          materialNotes: materialNotes || undefined,
-          scheduledAt: isoFromLocalDateTime(scheduledAt)
-        })
+        body: JSON.stringify(creatorDraftPayload({ action: "discuss" }))
+      });
+      const body = await response.json() as CreatorVideoDiscussionResult & { errorMessage?: string };
+      if (!response.ok) throw new Error(body.errorMessage ?? "创作讨论生成失败");
+      setDiscussion(body);
+      if (!title) setTitle(body.idea.title);
+      if (!topic) setTopic(body.idea.topic);
+      setMessage(regenerating ? "已按调整要求重新生成，可继续修改或保存。" : "讨论稿已生成，可调整方向后重新生成，也可以直接保存。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "创作讨论生成失败");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function createDraft() {
+    setBusy("save");
+    setMessage("正在保存四平台草稿...");
+    try {
+      const response = await fetch("/api/self-media/creator-drafts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(creatorDraftPayload())
       });
       const body = await response.json() as CreatorVideoDraftResult & { errorMessage?: string };
       if (!response.ok) throw new Error(body.errorMessage ?? "新视频生成失败");
@@ -176,13 +207,13 @@ function CreatorVideoPanel({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "新视频生成失败");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
   return (
     <Panel
-      title="新视频"
+      title="创作讨论"
       eyebrow="创作者工作流"
       action={<span className="sm-badge sm-badge-info">本地规则生成</span>}
     >
@@ -204,6 +235,10 @@ function CreatorVideoPanel({
           <textarea className="sm-input" data-testid="creator-video-brief" value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="写几句话就行：想表达什么、给谁看、希望观众做什么。" />
         </label>
         <label>
+          <span>调整方向/语气/时长/受众</span>
+          <textarea className="sm-input" data-testid="creator-copilot-revision" value={revisionPrompt} onChange={(event) => setRevisionPrompt(event.target.value)} placeholder="可选：例如面向新手、语气更轻松、控制在 60 秒、少讲工具多讲结果。" />
+        </label>
+        <label>
           <span>脚本备注</span>
           <textarea className="sm-input" value={scriptNotes} onChange={(event) => setScriptNotes(event.target.value)} placeholder="可选：口播结构、关键台词、镜头顺序。" />
         </label>
@@ -212,12 +247,67 @@ function CreatorVideoPanel({
           <textarea className="sm-input" value={materialNotes} onChange={(event) => setMaterialNotes(event.target.value)} placeholder="可选：已有素材、封面方向、不能漏的信息。" />
         </label>
         <div className="inline-stack">
-          <Button data-testid="creator-video-generate" disabled={busy} onClick={createDraft} variant="primary">生成并保存四平台版本</Button>
+          <Button data-testid="creator-copilot-generate" disabled={Boolean(busy)} onClick={() => discussDraft(false)} variant="primary">分析并生成讨论稿</Button>
+          <Button data-testid="creator-copilot-regenerate" disabled={Boolean(busy) || !discussion} onClick={() => discussDraft(true)} variant="secondary">按调整重新生成</Button>
+          <Button data-testid="creator-video-generate" disabled={Boolean(busy)} onClick={createDraft} variant="secondary">生成并保存四平台版本</Button>
           <a className="sm-button sm-button-secondary" href="/calendar">去日历排期</a>
         </div>
         <p className="muted">{message}</p>
         <p className="muted">平台激励/创作标签均为建议，需发布前人工确认；不会调用外部 LLM key，也不会自动发布。</p>
       </div>
+      {discussion && (
+        <div className="creator-video-result" data-testid="creator-copilot-discussion">
+          <section>
+            <div className="section-title-row">
+              <div>
+                <p className="eyebrow">讨论结果</p>
+                <h2>内容方向分析</h2>
+              </div>
+              <span className="sm-badge sm-badge-warning">需人工确认标签/激励</span>
+            </div>
+            <p>{discussion.analysis.direction}</p>
+            <div className="metric-grid">
+              <div><span className="muted">受众</span><strong>{discussion.analysis.audience}</strong></div>
+              <div><span className="muted">语气</span><strong>{discussion.analysis.tone}</strong></div>
+              <div><span className="muted">时长</span><strong>{discussion.analysis.duration}</strong></div>
+              <div><span className="muted">发布计划</span><strong>{discussion.publishPlan.planSummary}</strong></div>
+            </div>
+            <ul>
+              {discussion.analysis.structure.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+            <p className="muted">{discussion.analysis.risks.join(" ")}</p>
+          </section>
+          <div className="platform-import-operation-summaries">
+            {discussion.platformDifferences.map((item) => (
+              <article className="is-passed" key={item.platform}>
+                <header>
+                  <PlatformBadge compact platform={item.platform} />
+                  <span className="sm-badge sm-badge-info">平台差异</span>
+                </header>
+                <strong>{item.focus}</strong>
+                <p>{item.format}</p>
+                <p>{item.adjustment}</p>
+                <p>{item.manualCheck}</p>
+              </article>
+            ))}
+          </div>
+          <div className="platform-import-operation-summaries">
+            {discussion.drafts.map((draft) => (
+              <article className="is-passed" key={draft.platform}>
+                <header>
+                  <PlatformBadge compact platform={draft.platform} />
+                  <span className="sm-badge sm-badge-warning">待保存</span>
+                </header>
+                <strong>{draft.title}</strong>
+                <p>{draft.body}</p>
+                <p>{draft.coverNote}</p>
+                <p>{draft.platformAdvice}</p>
+                <p>{draft.incentiveTagAdvice}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
       {result && (
         <div className="platform-import-operation-summaries creator-video-result" data-testid="creator-video-result">
           {result.drafts.map((draft) => (
@@ -230,6 +320,7 @@ function CreatorVideoPanel({
               <p>{draft.body}</p>
               <p>{draft.coverNote}</p>
               <p>{draft.platformAdvice}</p>
+              <p>{draft.incentiveTagAdvice}</p>
             </article>
           ))}
         </div>

@@ -101,7 +101,7 @@ function displayTitle(rawTitle: string) {
   if (/n8n/i.test(withoutIds)) return "自动化回收";
   if (/CSV/.test(withoutIds) && /导入/.test(withoutIds)) return "数据复盘";
   if (/编辑器保存/.test(withoutIds)) return "内容排期稿";
-  if (/选题/.test(withoutIds)) return "AI选题计划";
+  if (/^选题$/.test(withoutIds) || /^AI选题计划$/.test(withoutIds)) return "AI选题计划";
   return withoutIds || rawTitle;
 }
 

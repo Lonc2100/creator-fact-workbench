@@ -3362,6 +3362,53 @@ button:disabled {
   gap: 10px;
 }
 
+.creator-video-result {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.creator-video-result section {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--sm-border-subtle);
+  padding-top: 12px;
+}
+
+.section-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.section-title-row h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.metric-grid > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--sm-border-subtle);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.metric-grid strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .version-mini-card,
 .lead-card {
   display: grid;

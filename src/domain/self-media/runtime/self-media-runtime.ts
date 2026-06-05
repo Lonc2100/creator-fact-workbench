@@ -12,6 +12,7 @@ import type {
   ContentDraftReviewRequest,
   ContentTrustScopePatchRequest,
   ContentPlatformVersionRequest,
+  CreatorVideoDiscussionRequest,
   CreatorVideoIdeaRequest,
   CsvImportPreset,
   IdeaCreateRequest,
@@ -426,6 +427,11 @@ export async function convertSelfMediaIdeaToContent(input: IdeaToContentRequest)
 export async function createSelfMediaCreatorVideoDraft(input: CreatorVideoIdeaRequest) {
   const service = new SelfMediaService();
   return service.createCreatorVideoDraft(input);
+}
+
+export async function createSelfMediaCreatorVideoDiscussion(input: CreatorVideoDiscussionRequest) {
+  const service = new SelfMediaService();
+  return service.createCreatorVideoDiscussion(input);
 }
 
 export async function createSelfMediaLead(input: LeadCreateRequest) {
