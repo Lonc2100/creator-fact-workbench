@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, ContentPlatformVersionRequest, ContentStatus, ContentWorkbenchContentRow, ContentWorkbenchOriginKind, ContentWorkbenchSnapshot, CreatorVideoDiscussionResult, CreatorVideoDraftResult, Platform, PlatformVersionPatchRequest, PlatformVersionStatus, PublishHandoffPackage } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
@@ -150,6 +150,7 @@ function CreatorVideoPanel({
   const [scriptNotes, setScriptNotes] = useState("");
   const [materialNotes, setMaterialNotes] = useState("");
   const [scheduledAt, setScheduledAt] = useState(() => requestedScheduledAtFromUrl());
+  const scheduleInputRef = useRef<HTMLInputElement | null>(null);
   const [revisionPrompt, setRevisionPrompt] = useState("");
   const [discussion, setDiscussion] = useState<CreatorVideoDiscussionResult | null>(null);
   const [result, setResult] = useState<CreatorVideoDraftResult | null>(null);
@@ -157,6 +158,7 @@ function CreatorVideoPanel({
   const [message, setMessage] = useState("输入一个大概想法，先和本地创作助手讨论，再保存四平台版本。");
 
   function creatorDraftPayload(extra?: { action?: "discuss" }) {
+    const currentScheduledAt = scheduleInputRef.current?.value || scheduledAt;
     return {
       action: extra?.action,
       title: title || discussion?.idea.title,
@@ -164,7 +166,7 @@ function CreatorVideoPanel({
       brief,
       scriptNotes: scriptNotes || undefined,
       materialNotes: materialNotes || undefined,
-      scheduledAt: isoFromLocalDateTime(scheduledAt),
+      scheduledAt: isoFromLocalDateTime(currentScheduledAt),
       revisionPrompt: revisionPrompt || undefined,
       previousAnalysis: discussion?.analysis.direction
     };
@@ -241,7 +243,7 @@ function CreatorVideoPanel({
         </label>
         <label>
           <span>未来发布时间</span>
-          <input className="sm-input" data-testid="creator-video-scheduled-at" type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />
+          <input className="sm-input" data-testid="creator-video-scheduled-at" ref={scheduleInputRef} type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />
         </label>
         <label>
           <span>大致内容</span>
@@ -345,14 +347,22 @@ function CreatorVideoPanel({
 function PublishExecutionWorkbenchPanel({
   snapshot,
   onConfirmPublish,
-  onSelect
+  onSelect,
+  selectedContentId
 }: {
   snapshot: ContentWorkbenchSnapshot;
   onConfirmPublish: (payload: ConfirmPlatformVersionPublishRequest) => Promise<void>;
   onSelect: (contentId: string, versionId: string) => void;
+  selectedContentId?: string;
 }) {
   const [copyMessage, setCopyMessage] = useState("发布交接包只复制本地内容，不调用真实发布 API。");
-  const packages = snapshot.publishToMetricsWorkbench.publishHandoffPackages.slice(0, 12);
+  const allPackages = snapshot.publishToMetricsWorkbench.publishHandoffPackages;
+  const packages = (selectedContentId
+    ? [
+        ...allPackages.filter((pkg) => pkg.contentId === selectedContentId),
+        ...allPackages.filter((pkg) => pkg.contentId !== selectedContentId)
+      ]
+    : allPackages).slice(0, 12);
   const items = snapshot.publishToMetricsWorkbench.executionItems.slice(0, 8);
   async function copyText(label: string, text: string) {
     if (!text.trim()) {
@@ -387,7 +397,12 @@ function PublishExecutionWorkbenchPanel({
         {packages.map((pkg) => {
           const canConfirm = pkg.status === "scheduled";
           return (
-            <article className={pkg.capability.status === "future_official_api_candidate" ? "is-passed" : ""} key={pkg.id}>
+            <article
+              className={pkg.capability.status === "future_official_api_candidate" ? "is-passed" : ""}
+              data-content-id={pkg.contentId}
+              data-platform-version-id={pkg.platformVersionId}
+              key={pkg.id}
+            >
               <header>
                 <PlatformBadge compact platform={pkg.platform} />
                 <span className="sm-badge sm-badge-info">{pkg.capability.label}</span>
@@ -616,6 +631,16 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
     return new URLSearchParams(window.location.search).get("versionId") ?? snapshot.platformVersions[0]?.id;
   });
   const [message, setMessage] = useState("选择内容后编辑平台版本。");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const requestedContentId = params.get("contentId") ?? undefined;
+    const requestedVersionId = params.get("versionId") ?? undefined;
+    if (requestedContentId) setSelectedContentId(requestedContentId);
+    if (requestedVersionId) setSelectedVersionId(requestedVersionId);
+  }, []);
+
   const filteredRows = useMemo(
     () => filterRows(current.contentRows, { query, platform: platformFilter, source: sourceFilter, status: statusFilter, sort }),
     [current.contentRows, platformFilter, query, sort, sourceFilter, statusFilter]
@@ -786,6 +811,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
             setMessage("已打开待发布内容；可编辑、改排期或记录发布结果。");
           }}
           snapshot={current}
+          selectedContentId={selectedContentId}
         />
       </div>
       <WorkbenchSummaryPanel snapshot={current} />

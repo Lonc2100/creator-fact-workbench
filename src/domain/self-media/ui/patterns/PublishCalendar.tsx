@@ -14,7 +14,7 @@ import { Button } from "../primitives/Button";
 
 const weekDays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 type CalendarGridView = "week" | "month";
-const weekTimeSlots = [9, 13, 17, 21];
+const baseWeekTimeSlots = [9, 13, 17, 21];
 export type PendingScheduleDraftItem = Pick<PublishCalendarItem, "platformVersionId" | "contentId" | "platform" | "status" | "scheduledAt" | "title" | "blockers" | "checklistDone" | "checklistTotal"> & {
   id: string;
   queueId?: string;
@@ -125,8 +125,13 @@ function dropTargetFromEvent(event: DragEndEvent) {
 function timeSlotFor(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 9;
-  const hour = date.getHours();
-  return weekTimeSlots.reduce((best, slot) => (Math.abs(slot - hour) < Math.abs(best - hour) ? slot : best), weekTimeSlots[0]);
+  return date.getHours();
+}
+
+function weekTimeSlotsForItems(items: PublishCalendarItem[]) {
+  return Array.from(new Set([...baseWeekTimeSlots, ...items.map((item) => timeSlotFor(item.scheduledAt))]))
+    .filter((hour) => Number.isFinite(hour) && hour >= 0 && hour <= 23)
+    .sort((a, b) => a - b);
 }
 
 function formatSlot(hour: number) {
@@ -404,6 +409,7 @@ export function PublishCalendar({
   const displayDates = daysForView(view, firstDate);
   const dates = displayDates.map(dateKey);
   const cardGroups = groupCalendarCards(items, view);
+  const weekTimeSlots = weekTimeSlotsForItems(items);
   const byDate = new Map<string, CalendarCardGroup[]>();
   const byTimeCell = new Map<string, CalendarCardGroup[]>();
   for (const date of dates) {

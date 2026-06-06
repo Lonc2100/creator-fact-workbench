@@ -114,6 +114,8 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /按调整重新生成/);
   assert.match(contentScreen, /生成并保存四平台版本/);
   assert.match(contentScreen, /requestedScheduledAtFromUrl/);
+  assert.match(contentScreen, /useRef/);
+  assert.match(contentScreen, /scheduleInputRef\.current\?\.value \|\| scheduledAt/);
   assert.match(contentScreen, /new URLSearchParams\(window\.location\.search\)\.get\("scheduledAt"\)/);
   assert.match(contentScreen, /localDateTimeInputValue/);
   assert.match(contentScreen, /保存后校验失败/);
@@ -189,6 +191,8 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarPattern, /data-content-id=\{item\.contentId\}/);
   assert.match(calendarPattern, /data-calendar-empty-hour=\{hour\}/);
   assert.match(calendarPattern, /data-calendar-target-at/);
+  assert.match(calendarPattern, /weekTimeSlotsForItems/);
+  assert.doesNotMatch(calendarPattern, /Math\.abs\(slot - hour\)/);
   assert.match(calendarPattern, /dropTargetFromEvent/);
   assert.match(calendarPattern, /event\.over\?\.id/);
   assert.match(calendarPattern, /aria-label=\{`新增排期/);
@@ -290,6 +294,13 @@ test("operator UX polish keeps default copy Chinese and quiet", () => {
   assert.match(contentScreen, /"不进看板"/);
   assert.match(contentScreen, /创作者中心内容/);
   assert.match(contentScreen, /data-testid="publish-handoff-package"/);
+  assert.match(contentScreen, /selectedContentId/);
+  assert.match(contentScreen, /requestedContentId/);
+  assert.match(contentScreen, /params\.get\("contentId"\)/);
+  assert.match(contentScreen, /setSelectedContentId\(requestedContentId\)/);
+  assert.match(contentScreen, /pkg\.contentId === selectedContentId/);
+  assert.match(contentScreen, /data-content-id=\{pkg\.contentId\}/);
+  assert.match(contentScreen, /data-platform-version-id=\{pkg\.platformVersionId\}/);
   assert.match(contentScreen, /copy-publish-text/);
   assert.match(contentScreen, /copy-tags/);
   assert.match(contentScreen, /open-official-backend/);
