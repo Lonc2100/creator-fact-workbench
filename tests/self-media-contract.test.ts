@@ -5428,6 +5428,13 @@ test("publish execution workbench guides manual publish refresh and confirmed me
     const refreshWorkbench = service.publishToMetricsWorkbench(new Date("2026-06-06T11:00:00.000Z"));
     assert.ok(refreshWorkbench.executionItems.some((item) => item.platformVersionId === douyinVersion.id && item.needsManualRefresh));
     assert.ok(refreshWorkbench.postPublishRefresh.some((item) => item.platformVersionId === douyinVersion.id));
+    const refreshAssistant = refreshWorkbench.postPublishRecoveryItems.find((item) => item.platformVersionId === douyinVersion.id);
+    assert.ok(refreshAssistant);
+    assert.equal(refreshAssistant.matchStatus, "needs_capture");
+    assert.equal(refreshAssistant.latestImportStatus, "never");
+    assert.equal(refreshAssistant.recentlyCaptured, false);
+    assert.match(refreshAssistant.recommendedRefreshAction, /抖音/);
+    assert.ok(refreshAssistant.manualRefreshSteps.length >= 3);
 
     service.importPayload({
       source: "douyin_creator_center",
@@ -5458,6 +5465,12 @@ test("publish execution workbench guides manual publish refresh and confirmed me
     const candidate = candidateWorkbench.matchCandidates.find((item) => item.localPlatformVersionId === douyinVersion.id && item.importedContentId === "dy-publish-loop-imported");
     assert.ok(candidate);
     assert.equal(candidate.status, "candidate");
+    const candidateAssistant = candidateWorkbench.postPublishRecoveryItems.find((item) => item.platformVersionId === douyinVersion.id);
+    assert.ok(candidateAssistant);
+    assert.equal(candidateAssistant.matchStatus, "candidate_ready");
+    assert.equal(candidateAssistant.latestImportStatus, "success");
+    assert.equal(candidateAssistant.recentlyCaptured, true);
+    assert.equal(candidateAssistant.matchCandidateCount > 0, true);
     assert.equal(repo.listMetricSnapshots().some((item) => item.contentId === draft.content.id), false);
 
     const matched = service.confirmPlatformContentMatch({
@@ -5473,6 +5486,12 @@ test("publish execution workbench guides manual publish refresh and confirmed me
     assert.equal(matched.metricSnapshots[0].contentId, draft.content.id);
     assert.equal(matched.metricSnapshots[0].platformVersionId, douyinVersion.id);
     assert.equal(repo.listAccountMetricSnapshots().length, beforeAccountMetricCount);
+    const attributedWorkbench = service.publishToMetricsWorkbench(new Date("2026-06-06T12:30:00.000Z"));
+    const attributedAssistant = attributedWorkbench.postPublishRecoveryItems.find((item) => item.platformVersionId === douyinVersion.id);
+    assert.ok(attributedAssistant);
+    assert.equal(attributedAssistant.matchStatus, "attributed");
+    assert.equal(attributedAssistant.attributionStatusLabel, "已归因到本地内容");
+    assert.equal(attributedAssistant.metricSnapshotCount, 1);
     assert.doesNotMatch(JSON.stringify({ dueWorkbench, refreshWorkbench, candidateWorkbench, matched }), /\bcookie\b|\btoken\b|\bheaders?\b|raw payload|danmu|comment_content/i);
   } finally {
     repo?.close();
@@ -5621,6 +5640,10 @@ test("creator day workflow runs from schedule and platform drafts to handoff pub
     const candidate = candidateWorkbench.matchCandidates.find((item) => item.localPlatformVersionId === douyinVersion.id && item.importedContentId === importedContentId);
     assert.ok(candidate);
     assert.equal(candidate.score, 1);
+    const recoveryItem = candidateWorkbench.postPublishRecoveryItems.find((item) => item.platformVersionId === douyinVersion.id);
+    assert.ok(recoveryItem);
+    assert.equal(recoveryItem.matchStatus, "candidate_ready");
+    assert.equal(recoveryItem.latestImportStatus, "success");
 
     const matched = service.confirmPlatformContentMatch({
       localContentId: draft.content.id,

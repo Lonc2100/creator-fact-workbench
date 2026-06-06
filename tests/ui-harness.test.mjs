@@ -309,6 +309,12 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /手动抓取最新数据/);
   assert.match(importPage, /发布后刷新/);
   assert.match(importPage, /post-publish-refresh/);
+  assert.match(importPage, /postPublishRecoveryItems/);
+  assert.match(importPage, /post-publish-recovery-assistant/);
+  assert.match(importPage, /待回收内容/);
+  assert.match(importPage, /建议刷新动作/);
+  assert.match(importPage, /最近导入状态/);
+  assert.match(importPage, /匹配 \/ 归因/);
   assert.match(importPage, /平台内容匹配失败/);
   assert.match(importPage, /match_imported_content/);
   assert.match(importPage, /匹配到本地内容\/平台版本/);

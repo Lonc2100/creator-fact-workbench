@@ -101,6 +101,13 @@ function importStatusTone(status: PlatformImportStatus["latestStatus"]) {
   return "warning";
 }
 
+function recoveryStatusTone(status: DashboardSnapshot["publishToMetricsWorkbench"]["postPublishRecoveryItems"][number]["matchStatus"]) {
+  if (status === "attributed") return "success";
+  if (status === "candidate_ready") return "info";
+  if (status === "captured_no_candidate") return "warning";
+  return "danger";
+}
+
 function operationHistoryTone(status: DashboardSnapshot["operationHistory"][number]["status"]) {
   if (status === "success") return "success";
   if (status === "disabled") return "warning";
@@ -872,6 +879,7 @@ function PostPublishRefreshPanel({
   onConfirmMatch: (candidate: DashboardSnapshot["publishToMetricsWorkbench"]["matchCandidates"][number]) => Promise<void>;
 }) {
   const workbench = snapshot.publishToMetricsWorkbench;
+  const recoveryItems = workbench.postPublishRecoveryItems;
   return (
     <Panel
       id="post-publish-refresh"
@@ -882,31 +890,60 @@ function PostPublishRefreshPanel({
       <p className="muted" data-testid="post-publish-refresh-boundary">发布后刷新是本地手动抓取/同步，不是平台自动回调；系统只给候选，用户确认前不会把新平台内容指标归入本地内容。</p>
       <div className="platform-import-status-summary">
         <span><b>{formatNumber(workbench.postPublishRefresh.length)}</b> 发布后待刷新</span>
+        <span><b>{formatNumber(recoveryItems.length)}</b> 发布后回收助手</span>
         <span><b>{formatNumber(workbench.matchCandidates.length)}</b> 可人工确认候选</span>
         <span><b>{formatDateTime(workbench.scheduledRefresh.nextSuggestedAt)}</b> 建议下次抓取</span>
       </div>
-      <div className="platform-import-operation-summaries" data-testid="post-publish-refresh">
-        {workbench.postPublishRefresh.map((item) => (
-          <article className="is-passed" key={item.id}>
-            <header>
-              <PlatformBadge compact platform={item.platform} />
-              <span className="sm-badge sm-badge-warning">发布后待刷新</span>
-            </header>
-            <strong>{item.contentTitle}</strong>
-            <p>{item.versionTitle}</p>
-            <p>{item.manualRefreshCopy}</p>
-            <div className="inline-stack">
-              <a className="sm-button sm-button-secondary" href="#manual-refresh">预览最新本地抓取</a>
-              <a className="sm-button sm-button-primary" href="#manual-refresh">保存本地同步</a>
-            </div>
-          </article>
-        ))}
-        {workbench.postPublishRefresh.length === 0 && (
-          <article>
-            <strong>暂无发布后待刷新内容</strong>
-            <p>人工确认发布后，这里会按平台展示需要手动回收指标的内容。</p>
-          </article>
-        )}
+      <div className="table-wrap" data-testid="post-publish-refresh">
+        <table className="sm-table" data-testid="post-publish-recovery-assistant">
+          <thead>
+            <tr>
+              <th>待回收内容</th>
+              <th>平台 / 发布时间</th>
+              <th>建议刷新动作</th>
+              <th>最近导入状态</th>
+              <th>匹配 / 归因</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recoveryItems.map((item) => (
+              <tr key={item.id}>
+                <td>
+                  <strong>{item.contentTitle}</strong>
+                  <small>{item.versionTitle}</small>
+                </td>
+                <td>
+                  <PlatformBadge compact platform={item.platform} />
+                  <small>{formatDateTime(item.publishedAt ?? item.scheduledAt)}</small>
+                </td>
+                <td>
+                  <span>{item.recommendedRefreshAction}</span>
+                  <small>{item.manualRefreshSteps.join(" / ")}</small>
+                </td>
+                <td>
+                  <Badge tone={importStatusTone(item.latestImportStatus)}>{importStatusLabels[item.latestImportStatus]}</Badge>
+                  <small>{item.latestImportAt ? formatDateTime(item.latestImportAt) : "暂无导入记录"}{item.recentlyCaptured ? " / 已覆盖本次发布" : " / 待刷新"}</small>
+                </td>
+                <td>
+                  <Badge tone={recoveryStatusTone(item.matchStatus)}>{item.matchStatusLabel}</Badge>
+                  <small>{item.attributionStatusLabel}；候选 {formatNumber(item.matchCandidateCount)}；已归因快照 {formatNumber(item.metricSnapshotCount)}</small>
+                </td>
+                <td>
+                  <div className="inline-stack">
+                    <a className="sm-button sm-button-secondary" href={item.officialBackendUrl} target="_blank" rel="noreferrer">{item.backendActionLabel}</a>
+                    <a className="sm-button sm-button-primary" href="#manual-refresh">预览/保存最新抓取</a>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {recoveryItems.length === 0 && (
+              <tr>
+                <td colSpan={6}>暂无发布后回收项；人工确认发布后，这里会显示平台、发布时间、刷新动作、导入状态和匹配归因状态。</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
       <div className="table-wrap">
         <table className="sm-table" data-testid="platform-content-match-candidates">

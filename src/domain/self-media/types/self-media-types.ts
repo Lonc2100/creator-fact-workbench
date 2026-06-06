@@ -388,11 +388,42 @@ export interface PostPublishRefreshCandidate {
   matchCandidates: PlatformContentMatchCandidate[];
 }
 
+export type PostPublishRecoveryMatchStatus = "needs_capture" | "captured_no_candidate" | "candidate_ready" | "attributed";
+
+export interface PostPublishRecoveryItem {
+  id: string;
+  platform: ClosedLoopContentPlatform;
+  importPlatformKey: PlatformImportOperationPlatform;
+  contentId: string;
+  platformVersionId: string;
+  contentTitle: string;
+  versionTitle: string;
+  publishedAt?: string;
+  scheduledAt?: string;
+  officialBackendUrl: string;
+  backendActionLabel: string;
+  recommendedRefreshAction: string;
+  manualRefreshSteps: string[];
+  latestImportRunId?: string;
+  latestImportAt?: string;
+  latestImportStatus: ImportRun["status"] | "never";
+  recentlyCaptured: boolean;
+  matchStatus: PostPublishRecoveryMatchStatus;
+  matchStatusLabel: string;
+  attributionStatusLabel: string;
+  metricSnapshotCount: number;
+  latestMetricSnapshotAt?: string;
+  matchCandidateCount: number;
+  bestCandidateScore?: number;
+  nextAction: string;
+}
+
 export interface PublishToMetricsWorkbench {
   generatedAt: string;
   publishHandoffPackages: PublishHandoffPackage[];
   executionItems: PublishExecutionItem[];
   postPublishRefresh: PostPublishRefreshCandidate[];
+  postPublishRecoveryItems: PostPublishRecoveryItem[];
   matchCandidates: PlatformContentMatchCandidate[];
   manualRefreshCopy: string;
   scheduledRefresh: {

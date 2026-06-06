@@ -64,6 +64,7 @@ import type {
   PlatformReadinessStatus,
   PostImportActionEvidence,
   PostImportActionSuggestion,
+  PostPublishRecoveryItem,
   PostPublishRefreshCandidate,
   ImportSource,
   LeadCreateRequest,
@@ -1989,6 +1990,48 @@ function platformToImportOperationKey(platform: ClosedLoopContentPlatform): Plat
   return platform === "video_account" ? "video-account" : platform;
 }
 
+function importSourceForClosedLoopPlatform(platform: ClosedLoopContentPlatform): Extract<ImportSource, "douyin_creator_center" | "xiaohongshu_creator_center" | "video_account_creator_center" | "bilibili_creator_center"> {
+  if (platform === "douyin") return "douyin_creator_center";
+  if (platform === "xiaohongshu") return "xiaohongshu_creator_center";
+  if (platform === "video_account") return "video_account_creator_center";
+  return "bilibili_creator_center";
+}
+
+const postPublishRecoveryGuides: Record<ClosedLoopContentPlatform, Pick<PostPublishRecoveryItem, "recommendedRefreshAction" | "manualRefreshSteps">> = {
+  douyin: {
+    recommendedRefreshAction: "打开抖音创作者中心，进入作品管理或数据表现，刷新刚发布视频的数据后回到本页预览并保存抖音抓取。",
+    manualRefreshSteps: [
+      "人工打开抖音创作者中心并完成登录。",
+      "进入作品管理或数据表现，找到刚发布的视频。",
+      "刷新页面或完成本地安全抓取后，回到本页预览并保存抖音最新数据。"
+    ]
+  },
+  xiaohongshu: {
+    recommendedRefreshAction: "打开小红书创作服务平台，查看刚发布笔记的数据，完成本地安全抓取后回到本页预览并保存。",
+    manualRefreshSteps: [
+      "人工打开小红书创作服务平台并完成登录。",
+      "进入笔记管理或数据中心，找到刚发布的笔记。",
+      "刷新可见数据或完成本地安全抓取后，回到本页预览并保存小红书最新数据。"
+    ]
+  },
+  video_account: {
+    recommendedRefreshAction: "打开视频号助手，进入内容管理，刷新刚发布视频的数据后回到本页预览并保存视频号抓取。",
+    manualRefreshSteps: [
+      "人工打开视频号助手并完成登录。",
+      "进入内容管理，找到刚发布的视频。",
+      "刷新可见数据或完成本地安全抓取后，回到本页预览并保存视频号最新数据。"
+    ]
+  },
+  bilibili: {
+    recommendedRefreshAction: "打开 B站创作中心，进入稿件管理或数据页，刷新刚发布稿件的内容级数据；账号指标仍只预览不保存。",
+    manualRefreshSteps: [
+      "人工打开 B站创作中心并完成登录。",
+      "进入稿件管理或数据页，找到刚发布的视频。",
+      "只回收稿件内容级数据；账号级指标保持 preview-only，不写入内容总量。"
+    ]
+  }
+};
+
 function buildPublishHandoffText(input: { content: ContentItem; version: ContentPlatformVersion }) {
   const tagsText = (input.version.tags ?? []).map((tag) => tag.startsWith("#") ? tag : `#${tag}`).join(" ");
   return [
@@ -2076,13 +2119,49 @@ function hoursBetween(left?: string, right?: string) {
 }
 
 function latestMetricAfter(snapshots: MetricSnapshot[], since?: string) {
-  const sinceTime = since ? new Date(since).getTime() : 0;
+  const sinceDate = since ? dateOnly(since) : undefined;
   return [...snapshots]
-    .filter((snapshot) => {
-      const snapshotTime = new Date(dateToIso(snapshot.snapshotDate)).getTime();
-      return !since || snapshotTime >= sinceTime;
-    })
+    .filter((snapshot) => !sinceDate || snapshot.snapshotDate >= sinceDate)
     .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))[0];
+}
+
+function latestImportRunForSource(imports: ImportRun[], source: ImportSource) {
+  return [...imports]
+    .filter((run) => run.source === source)
+    .sort((a, b) => latestTime(b).localeCompare(latestTime(a)))[0];
+}
+
+function isAtOrAfter(value: string | undefined, since: string | undefined) {
+  if (!value || !since) return false;
+  const valueTime = new Date(value).getTime();
+  const sinceTime = new Date(since).getTime();
+  return Number.isFinite(valueTime) && Number.isFinite(sinceTime) && valueTime >= sinceTime;
+}
+
+function recoveryStatusLabels(status: PostPublishRecoveryItem["matchStatus"]) {
+  const labels: Record<PostPublishRecoveryItem["matchStatus"], { match: string; attribution: string; nextAction: string }> = {
+    needs_capture: {
+      match: "待抓取",
+      attribution: "未归因",
+      nextAction: "先按平台步骤手动刷新并保存最新抓取。"
+    },
+    captured_no_candidate: {
+      match: "已抓取，暂无候选",
+      attribution: "未归因",
+      nextAction: "检查平台标题和发布时间；必要时再次保存最新抓取。"
+    },
+    candidate_ready: {
+      match: "已有匹配候选",
+      attribution: "待人工确认",
+      nextAction: "在候选表确认后，指标才会归因到本地内容。"
+    },
+    attributed: {
+      match: "已归因",
+      attribution: "已归因到本地内容",
+      nextAction: "指标已回收到本地内容，可回到看板/复盘查看。"
+    }
+  };
+  return labels[status];
 }
 
 function buildPlatformContentMatchCandidates(input: {
@@ -2139,6 +2218,7 @@ function buildPublishToMetricsWorkbench(input: {
   platformVersions: ContentPlatformVersion[];
   queue: PublishQueueItem[];
   publishRecords: PublishRecord[];
+  imports: ImportRun[];
   metricSnapshots: MetricSnapshot[];
   trustedSnapshots: MetricSnapshot[];
   now?: Date;
@@ -2148,6 +2228,7 @@ function buildPublishToMetricsWorkbench(input: {
   const nearDueMs = 36 * 60 * 60 * 1000;
   const executionItems: PublishExecutionItem[] = [];
   const postPublishRefresh: PostPublishRefreshCandidate[] = [];
+  const postPublishRecoveryItems: PostPublishRecoveryItem[] = [];
   const allMatchCandidates: PlatformContentMatchCandidate[] = [];
 
   for (const version of input.platformVersions) {
@@ -2164,9 +2245,10 @@ function buildPublishToMetricsWorkbench(input: {
     const ownSnapshots = input.trustedSnapshots.filter((snapshot) => snapshot.contentId === version.contentId && snapshot.platformVersionId === version.id);
     const latestOwnSnapshot = latestMetricAfter(ownSnapshots, version.publishedAt);
     const publishedWaitingMetrics = version.status === "published" && !latestOwnSnapshot;
+    const publishedForRecovery = version.status === "published";
     const dueSoon = version.status === "scheduled" && scheduledTime !== undefined && scheduledTime <= nowTime + nearDueMs;
     const blockedOrFailed = version.status === "failed" || version.status === "blocked";
-    if (!dueSoon && !publishedWaitingMetrics && !blockedOrFailed) continue;
+    if (!dueSoon && !publishedWaitingMetrics && !blockedOrFailed && !publishedForRecovery) continue;
 
     let timing: PublishExecutionItem["timing"] = "upcoming";
     if (blockedOrFailed) timing = "blocked_or_failed";
@@ -2179,27 +2261,29 @@ function buildPublishToMetricsWorkbench(input: {
       : blockedOrFailed
         ? "处理失败/阻塞原因后回到草稿或重新排期。"
         : "到点后人工发布，发布完成再点击已发布确认。";
-    executionItems.push({
-      platformVersionId: version.id,
-      contentId: content.id,
-      queueId: queueItem?.id,
-      platform: version.platform,
-      contentTitle: content.title,
-      versionTitle: version.title,
-      scheduledAt,
-      publishedAt: version.publishedAt,
-      status: version.status,
-      queueStatus: queueItem?.status,
-      timing,
-      minutesUntilDue,
-      nextAction,
-      needsManualRefresh: publishedWaitingMetrics,
-      publishRecordId: latestRecord?.id,
-      contentUrl: `/content?contentId=${encodeURIComponent(content.id)}&versionId=${encodeURIComponent(version.id)}`,
-      calendarUrl: `/calendar?versionId=${encodeURIComponent(version.id)}`
-    });
+    if (dueSoon || publishedWaitingMetrics || blockedOrFailed) {
+      executionItems.push({
+        platformVersionId: version.id,
+        contentId: content.id,
+        queueId: queueItem?.id,
+        platform: version.platform,
+        contentTitle: content.title,
+        versionTitle: version.title,
+        scheduledAt,
+        publishedAt: version.publishedAt,
+        status: version.status,
+        queueStatus: queueItem?.status,
+        timing,
+        minutesUntilDue,
+        nextAction,
+        needsManualRefresh: publishedWaitingMetrics,
+        publishRecordId: latestRecord?.id,
+        contentUrl: `/content?contentId=${encodeURIComponent(content.id)}&versionId=${encodeURIComponent(version.id)}`,
+        calendarUrl: `/calendar?versionId=${encodeURIComponent(version.id)}`
+      });
+    }
 
-    if (publishedWaitingMetrics) {
+    if (publishedForRecovery) {
       const matchCandidates = buildPlatformContentMatchCandidates({
         contents: input.contents,
         platformVersions: input.platformVersions,
@@ -2208,9 +2292,21 @@ function buildPublishToMetricsWorkbench(input: {
         localVersion: version,
         localContent: content
       });
-      allMatchCandidates.push(...matchCandidates);
-      postPublishRefresh.push({
-        id: `post-publish-refresh-${version.id}`,
+      if (!latestOwnSnapshot) allMatchCandidates.push(...matchCandidates);
+      const latestImport = latestImportRunForSource(input.imports, importSourceForClosedLoopPlatform(version.platform));
+      const latestImportAt = latestImport ? latestTime(latestImport) : undefined;
+      const recentlyCaptured = Boolean(latestImport && latestImport.status === "success" && (isAtOrAfter(latestImportAt, version.publishedAt) || matchCandidates.length > 0));
+      const matchStatus: PostPublishRecoveryItem["matchStatus"] = latestOwnSnapshot
+        ? "attributed"
+        : matchCandidates.length > 0
+          ? "candidate_ready"
+          : recentlyCaptured
+            ? "captured_no_candidate"
+            : "needs_capture";
+      const labels = recoveryStatusLabels(matchStatus);
+      const guide = postPublishRecoveryGuides[version.platform];
+      postPublishRecoveryItems.push({
+        id: `post-publish-recovery-${version.id}`,
         platform: version.platform,
         importPlatformKey: platformToImportOperationKey(version.platform),
         contentId: content.id,
@@ -2219,12 +2315,41 @@ function buildPublishToMetricsWorkbench(input: {
         versionTitle: version.title,
         publishedAt: version.publishedAt,
         scheduledAt,
-        latestMetricSnapshotAt: undefined,
-        latestImportRunId: undefined,
-        nextAction: "先在本页预览/保存对应平台最新本地抓取，再人工确认候选匹配。",
-        manualRefreshCopy: "这是本地手动抓取/同步，不是平台自动回调；匹配前不会把新内容指标自动归入本地草稿。",
-        matchCandidates
+        officialBackendUrl: publishHandoffBackendMeta[version.platform].officialBackendUrl,
+        backendActionLabel: publishHandoffBackendMeta[version.platform].backendActionLabel,
+        recommendedRefreshAction: guide.recommendedRefreshAction,
+        manualRefreshSteps: guide.manualRefreshSteps,
+        latestImportRunId: latestImport?.id,
+        latestImportAt,
+        latestImportStatus: latestImport?.status ?? "never",
+        recentlyCaptured,
+        matchStatus,
+        matchStatusLabel: labels.match,
+        attributionStatusLabel: labels.attribution,
+        metricSnapshotCount: ownSnapshots.length,
+        latestMetricSnapshotAt: latestOwnSnapshot ? dateToIso(latestOwnSnapshot.snapshotDate) : undefined,
+        matchCandidateCount: matchCandidates.length,
+        bestCandidateScore: matchCandidates[0]?.score,
+        nextAction: labels.nextAction
       });
+      if (publishedWaitingMetrics) {
+        postPublishRefresh.push({
+          id: `post-publish-refresh-${version.id}`,
+          platform: version.platform,
+          importPlatformKey: platformToImportOperationKey(version.platform),
+          contentId: content.id,
+          platformVersionId: version.id,
+          contentTitle: content.title,
+          versionTitle: version.title,
+          publishedAt: version.publishedAt,
+          scheduledAt,
+          latestMetricSnapshotAt: undefined,
+          latestImportRunId: latestImport?.id,
+          nextAction: labels.nextAction,
+          manualRefreshCopy: "这是本地手动抓取/同步，不是平台自动回调；匹配前不会把新内容指标自动归入本地草稿。",
+          matchCandidates
+        });
+      }
     }
   }
 
@@ -2237,6 +2362,7 @@ function buildPublishToMetricsWorkbench(input: {
     }),
     executionItems: executionItems.sort((a, b) => (a.scheduledAt ?? a.publishedAt ?? "").localeCompare(b.scheduledAt ?? b.publishedAt ?? "")),
     postPublishRefresh: postPublishRefresh.sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")),
+    postPublishRecoveryItems: postPublishRecoveryItems.sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")),
     matchCandidates: allMatchCandidates.sort((a, b) => b.score - a.score),
     manualRefreshCopy: "发布确认后请到 /import 手动预览/保存四平台最新本地抓取；系统不会调用真实发布 API，也不会等待平台自动回调。",
     scheduledRefresh: {
@@ -3213,6 +3339,7 @@ export class SelfMediaService {
     const platformVersions = this.repo.listPlatformVersions();
     const queue = this.repo.listQueue();
     const publishRecords = this.repo.listPublishRecords();
+    const imports = this.repo.listImports();
     const metricSnapshots = this.repo.listMetricSnapshots();
     const contentsById = new Map(contents.map((content) => [content.id, content]));
     const trustedSnapshots = metricSnapshots.filter((snapshot) => isTrustedRealMetricSnapshot(snapshot, contentsById));
@@ -3222,6 +3349,7 @@ export class SelfMediaService {
       platformVersions,
       queue,
       publishRecords,
+      imports,
       metricSnapshots,
       trustedSnapshots,
       now
@@ -3719,7 +3847,7 @@ export class SelfMediaService {
     const trustedScopeCuration = buildTrustedScopeCurationSummary(contents, metricSnapshots, trustedSnapshots);
     const contentRows = buildContentWorkbenchRows({ contents, platformVersions, queue, actionItems, ideas, metricSnapshots, trustedSnapshots });
     const generatedAt = new Date().toISOString();
-    const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({ generatedAt, contents, platformVersions, queue, publishRecords, metricSnapshots, trustedSnapshots });
+    const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({ generatedAt, contents, platformVersions, queue, publishRecords, imports: this.repo.listImports(), metricSnapshots, trustedSnapshots });
     return {
       generatedAt,
       contents,
@@ -3786,7 +3914,7 @@ export class SelfMediaService {
     const postImportActionSuggestions = enrichPostImportActionSuggestions(buildPostImportActionSuggestions({ contents: trustedContents, metricSnapshots, metricPlatformGroups, platformDataHealth }), actionItems);
     const automationRuns = this.repo.listAutomationRuns();
     const evidenceInsights = this.buildEvidenceInsights(metricSnapshots);
-    const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({ generatedAt, contents: allContents, platformVersions: allPlatformVersions, queue, publishRecords: this.repo.listPublishRecords(), metricSnapshots: allMetricSnapshots, trustedSnapshots: metricSnapshots });
+    const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({ generatedAt, contents: allContents, platformVersions: allPlatformVersions, queue, publishRecords: this.repo.listPublishRecords(), imports, metricSnapshots: allMetricSnapshots, trustedSnapshots: metricSnapshots });
     const weeklyReview = generateReview("weekly", trustedContents, metrics, { ideas, queue, leads });
     const monthlyReview = generateReview("monthly", trustedContents, metrics, { ideas, queue, leads });
     const trustedWeeklySummary = buildTrustedWeeklyReportSummary({ generatedAt, realDataScope, trustedOperatingStatus, metricPlatformGroups, platformDataHealth, dailyPlatformOpsGate, weeklyReview });
