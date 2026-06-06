@@ -15,3 +15,31 @@ export function formatDateTime(value?: string) {
     minute: "2-digit"
   }).format(new Date(value));
 }
+
+function padDatePart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+export function localDateTimeInputValue(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return [
+    date.getFullYear(),
+    "-",
+    padDatePart(date.getMonth() + 1),
+    "-",
+    padDatePart(date.getDate()),
+    "T",
+    padDatePart(date.getHours()),
+    ":",
+    padDatePart(date.getMinutes())
+  ].join("");
+}
+
+export function isoFromLocalDateTime(value: string) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString();
+}

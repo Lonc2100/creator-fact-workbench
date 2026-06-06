@@ -5,7 +5,7 @@ import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, C
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
-import { formatDateTime } from "../foundations/format";
+import { formatDateTime, isoFromLocalDateTime } from "../foundations/format";
 import { contentStatusLabels, platformLabels, platformVersionStatusLabels } from "../foundations/labels";
 import { ContentDetail, ContentTable, PlatformVersionEditor } from "../patterns/ContentManagement";
 import { Button } from "../primitives/Button";
@@ -132,10 +132,6 @@ function filterRows(rows: ContentWorkbenchContentRow[], filters: { query: string
       if (filters.sort === "trusted_asc") return Number(a.includedInTrustedDashboardReview) - Number(b.includedInTrustedDashboardReview) || rowUpdatedAt(b) - rowUpdatedAt(a);
       return rowUpdatedAt(b) - rowUpdatedAt(a);
     });
-}
-
-function isoFromLocalDateTime(value: string) {
-  return value ? new Date(value).toISOString() : undefined;
 }
 
 function CreatorVideoPanel({

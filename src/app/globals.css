@@ -2057,8 +2057,8 @@ button:disabled {
     var(--sm-bg-panel);
   box-shadow: 0 10px 24px rgba(42, 35, 28, 0.07);
   padding: 10px;
-  cursor: grab;
-  touch-action: none;
+  cursor: pointer;
+  touch-action: manipulation;
   z-index: 1;
   transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
@@ -2082,7 +2082,7 @@ button:disabled {
 }
 
 .calendar-card:active {
-  cursor: grabbing;
+  cursor: pointer;
 }
 
 .calendar-card-meta,
@@ -2528,7 +2528,7 @@ button:disabled {
 
 .calendar-board-time-grid {
   min-height: 374px;
-  overflow: hidden;
+  overflow: auto;
   border-radius: 22px;
   border-color: rgba(42, 35, 28, 0.1);
   background: #fff;
@@ -2982,6 +2982,29 @@ button:disabled {
   gap: 6px;
 }
 
+.calendar-card-topline-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.calendar-card-drag-handle {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(42, 35, 28, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.76);
+  color: rgba(78, 66, 57, 0.58);
+  cursor: grab;
+}
+
+.calendar-card-drag-handle:active {
+  cursor: grabbing;
+}
+
 .calendar-card-icons {
   display: flex;
   align-items: center;
@@ -3056,20 +3079,36 @@ button:disabled {
 }
 
 .calendar-empty-slot-compact {
-  width: 30px;
-  min-height: 22px;
+  width: max-content;
+  min-width: 34px;
+  min-height: 24px;
   position: relative;
   z-index: 2;
   justify-self: start;
-  margin-top: 17px;
+  margin-top: 15px;
   margin-left: 5px;
   border-radius: 999px;
-  opacity: 0;
+  opacity: 1;
   transition: opacity 160ms ease, background 160ms ease;
 }
 
 .calendar-time-cell:hover .calendar-empty-slot-compact {
   opacity: 1;
+}
+
+.calendar-create-schedule-field {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-md);
+  background: #fffdf8;
+  padding: 12px;
+}
+
+.calendar-create-schedule-field span {
+  color: var(--sm-text-muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .calendar-time-cell .calendar-overflow-note {

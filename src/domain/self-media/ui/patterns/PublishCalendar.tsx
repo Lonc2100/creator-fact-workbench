@@ -1,12 +1,13 @@
 "use client";
 
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
+import { GripVertical } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
 import type { ConfirmPlatformVersionPublishRequest, ContentPlatformVersion, PublishCalendarItem, PublishHandoffPackage } from "../../types";
 import { PlatformBadge, PlatformIcon } from "../components/PlatformBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { cx } from "../foundations/cx";
-import { formatDateTime } from "../foundations/format";
+import { formatDateTime, isoFromLocalDateTime, localDateTimeInputValue } from "../foundations/format";
 import { platformLabels, platformTone, platformVersionStatusLabels } from "../foundations/labels";
 import { EmptyState } from "../components/EmptyState";
 import { Button } from "../primitives/Button";
@@ -79,17 +80,6 @@ function formatShortDate(value: Date) {
   return value.toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" });
 }
 
-function localDateTime(value?: string) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 16);
-}
-
-function isoFromLocal(value: string) {
-  return value ? new Date(value).toISOString() : undefined;
-}
-
 function displayTitle(rawTitle: string) {
   const withoutIds = rawTitle
     .replace(/^O2\s*/i, "")
@@ -136,10 +126,16 @@ function formatSlot(hour: number) {
   return `${normalized}:00 ${suffix}`;
 }
 
-function groupCalendarCards(items: PublishCalendarItem[]) {
+function calendarCardGroupKey(item: PublishCalendarItem, view: CalendarGridView) {
+  const date = dateKey(new Date(item.scheduledAt));
+  const timeBucket = view === "week" ? `:${timeSlotFor(item.scheduledAt)}` : "";
+  return `${item.contentId || item.platformVersionId}:${date}${timeBucket}`;
+}
+
+function groupCalendarCards(items: PublishCalendarItem[], view: CalendarGridView) {
   const groups = new Map<string, CalendarCardGroup>();
   for (const item of items) {
-    const key = item.contentId || item.platformVersionId;
+    const key = calendarCardGroupKey(item, view);
     const current = groups.get(key);
     if (!current) {
       groups.set(key, { id: key, item, items: [item], platforms: [item.platform] });
@@ -156,7 +152,10 @@ function groupCalendarCards(items: PublishCalendarItem[]) {
 
 function groupCardNote(group: CalendarCardGroup) {
   const platformCount = group.platforms.length;
+  const dateCount = new Set(group.items.map((item) => dateKey(new Date(item.scheduledAt)))).size;
+  const timeCount = new Set(group.items.map((item) => timeSlotFor(item.scheduledAt))).size;
   const prefix = platformCount > 1 ? `${platformCount}个平台` : platformLabels[group.item.platform];
+  if (dateCount > 1 || timeCount > 1) return `${prefix} · 多时间排期`;
   if (group.items.some((item) => item.status === "failed")) return `${prefix} · 有发布失败`;
   if (group.items.some((item) => item.status === "blocked")) return `${prefix} · 有阻塞待处理`;
   if (group.items.some((item) => item.status === "scheduled")) return `${prefix} · 等待发布确认`;
@@ -187,23 +186,40 @@ function DraggableCalendarCard({
   const style: CSSProperties = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, opacity: isDragging ? 0.62 : 1 } : {};
   const platforms = group.platforms.length ? group.platforms : [item.platform];
   const platformLabel = platforms.map((platform) => platformLabels[platform]).join("、");
+  const openDetail = () => onSelect?.(item.platformVersionId);
   return (
     <article
       className={cx("calendar-card", platformTone[item.platform], "focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[rgba(44,39,68,0.38)]")}
       data-calendar-card="true"
       data-content-id={item.contentId}
       data-platform-version-id={item.platformVersionId}
-      onClick={() => onSelect?.(item.platformVersionId)}
+      onClick={openDetail}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        openDetail();
+      }}
       ref={setNodeRef}
+      role="button"
       style={style}
-      {...listeners}
-      {...attributes}
+      tabIndex={0}
     >
       <div className="calendar-card-topline">
         <div className="calendar-card-icons" aria-label={platformLabel}>
           {platforms.slice(0, 4).map((platform) => <PlatformIcon key={`${item.id}-${platform}`} platform={platform} size="sm" />)}
         </div>
-        <time>{formatShortTime(item.scheduledAt)}</time>
+        <div className="calendar-card-topline-actions">
+          <time>{formatShortTime(item.scheduledAt)}</time>
+          <button
+            aria-label={`拖拽排期 ${displayTitle(item.title)}`}
+            className="calendar-card-drag-handle"
+            type="button"
+            {...listeners}
+            {...attributes}
+          >
+            <GripVertical aria-hidden="true" size={13} />
+          </button>
+        </div>
       </div>
       <strong className="calendar-card-title" title={item.title}>{displayTitle(item.title)}</strong>
       <p className="calendar-card-note">{groupCardNote(group)}</p>
@@ -314,7 +330,7 @@ function DroppableCalendarDay({
           <DraggableCalendarCard group={group} key={group.id} onSelect={onSelect} />
         ))}
         {groups.length > maxVisibleItems && <p className="calendar-overflow-note">更多排期</p>}
-        {groups.length === 0 && showEmptySlots && <button className="calendar-empty-slot" data-calendar-empty={date} onClick={() => onCreateAt?.(scheduledForDate({ scheduledAt: `${date}T09:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, 9))} type="button"><span>+</span> 排期</button>}
+        {groups.length === 0 && showEmptySlots && <button aria-label={`新增排期 ${date} 09:00`} className="calendar-empty-slot" data-calendar-empty={date} data-calendar-empty-hour={9} onClick={() => onCreateAt?.(scheduledForDate({ scheduledAt: `${date}T09:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, 9))} type="button"><span>+</span> 排期</button>}
       </div>
     </section>
   );
@@ -349,7 +365,7 @@ function DroppableCalendarTimeCell({
       {visible.map((group) => (
         <DraggableCalendarCard group={group} key={group.id} onSelect={onSelect} />
       ))}
-      {groups.length === 0 && showEmptySlots && <button className="calendar-empty-slot calendar-empty-slot-compact" data-calendar-empty={date} onClick={() => onCreateAt?.(scheduledForDate({ scheduledAt: `${date}T${String(hour).padStart(2, "0")}:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, hour))} type="button"><span>+</span></button>}
+      {groups.length === 0 && showEmptySlots && <button aria-label={`新增排期 ${date} ${String(hour).padStart(2, "0")}:00`} className="calendar-empty-slot calendar-empty-slot-compact" data-calendar-empty={date} data-calendar-empty-hour={hour} onClick={() => onCreateAt?.(scheduledForDate({ scheduledAt: `${date}T${String(hour).padStart(2, "0")}:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, hour))} type="button"><span>+</span></button>}
     </div>
   );
 }
@@ -377,7 +393,7 @@ export function PublishCalendar({
   const firstDate = anchorDate ?? new Date();
   const displayDates = daysForView(view, firstDate);
   const dates = displayDates.map(dateKey);
-  const cardGroups = groupCalendarCards(items);
+  const cardGroups = groupCalendarCards(items, view);
   const byDate = new Map<string, CalendarCardGroup[]>();
   const byTimeCell = new Map<string, CalendarCardGroup[]>();
   for (const date of dates) {
@@ -577,18 +593,18 @@ function PlatformScheduleRow({
   onStatusPatch?: (input: { id: string; status: ContentPlatformVersion["status"]; scheduledAt?: string }) => Promise<void>;
   onConfirmPublish?: (input: { platformVersionId: string; status: ConfirmPlatformVersionPublishRequest["status"] }) => Promise<void>;
 }) {
-  const [scheduledAt, setScheduledAt] = useState(localDateTime(version.scheduledAt));
+  const [scheduledAt, setScheduledAt] = useState(localDateTimeInputValue(version.scheduledAt));
   const [copyMessage, setCopyMessage] = useState("");
 
   useEffect(() => {
-    setScheduledAt(localDateTime(version.scheduledAt));
+    setScheduledAt(localDateTimeInputValue(version.scheduledAt));
   }, [version.id, version.scheduledAt]);
 
   const checklist = Object.entries(version.checklist);
   const done = checklist.filter(([, value]) => value).length;
   const readiness = checklist.length === 0 ? 0 : Math.round((done / checklist.length) * 100);
   const blocker = version.failureReason ?? (version.status === "blocked" ? "该平台版本已标记阻塞，等待人工补充原因。" : undefined);
-  const nextScheduledAt = isoFromLocal(scheduledAt);
+  const nextScheduledAt = isoFromLocalDateTime(scheduledAt);
   const canReturnToReview = version.status === "failed" || version.status === "blocked";
   const canConfirmPublish = version.status === "scheduled";
   async function copyCalendarText(label: string, text: string) {

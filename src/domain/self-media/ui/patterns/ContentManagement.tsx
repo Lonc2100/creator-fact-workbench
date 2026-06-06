@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, ContentItem, ContentPlatformVersion, ContentPlatformVersionRequest, ContentWorkbenchContentRow, PlatformChecklist, PlatformVersionPatchRequest, PublishQueueItem, PublishRecord, ReviewActionItem } from "../../types";
-import { formatDateTime } from "../foundations/format";
+import { formatDateTime, isoFromLocalDateTime, localDateTimeInputValue } from "../foundations/format";
 import { contentStatusLabels, platformLabels } from "../foundations/labels";
 import { PlatformBadge } from "../components/PlatformBadge";
 import { StatusBadge } from "../components/StatusBadge";
@@ -328,15 +328,6 @@ const checklistItems: Array<{ key: keyof PlatformChecklist; label: string }> = [
   { key: "humanConfirmed", label: "人工确认" }
 ];
 
-function localDateTime(value?: string) {
-  if (!value) return "";
-  return value.slice(0, 16);
-}
-
-function isoFromLocal(value: string) {
-  return value ? new Date(value).toISOString() : undefined;
-}
-
 export function PlatformVersionEditor({
   content,
   version,
@@ -362,7 +353,7 @@ export function PlatformVersionEditor({
   const [body, setBody] = useState(operatorText(version?.body));
   const [script, setScript] = useState(operatorText(version?.script));
   const [coverNote, setCoverNote] = useState(operatorText(version?.coverNote));
-  const [scheduledAt, setScheduledAt] = useState(localDateTime(version?.scheduledAt));
+  const [scheduledAt, setScheduledAt] = useState(localDateTimeInputValue(version?.scheduledAt));
   const [nextAction, setNextAction] = useState(operatorText(version?.nextAction ?? queueItem?.nextAction));
   const [status, setStatus] = useState<ContentDraftReviewRequest["status"]>(version?.status ?? "draft");
   const [checklist, setChecklist] = useState<Partial<PlatformChecklist>>(version?.checklist ?? {});
@@ -375,7 +366,7 @@ export function PlatformVersionEditor({
     setBody(operatorText(version?.body));
     setScript(operatorText(version?.script));
     setCoverNote(operatorText(version?.coverNote));
-    setScheduledAt(localDateTime(version?.scheduledAt));
+    setScheduledAt(localDateTimeInputValue(version?.scheduledAt));
     setNextAction(operatorText(version?.nextAction ?? queueItem?.nextAction));
     setStatus(version?.status ?? "draft");
     setChecklist(version?.checklist ?? {});
@@ -393,7 +384,7 @@ export function PlatformVersionEditor({
         body,
         script,
         coverNote,
-        scheduledAt: isoFromLocal(scheduledAt),
+        scheduledAt: isoFromLocalDateTime(scheduledAt),
         checklist
       });
     } finally {
@@ -405,7 +396,7 @@ export function PlatformVersionEditor({
     if (!version || !status) return;
     setBusy(true);
     try {
-      await onStatusPatch({ id: version.id, status, scheduledAt: isoFromLocal(scheduledAt), checklist });
+      await onStatusPatch({ id: version.id, status, scheduledAt: isoFromLocalDateTime(scheduledAt), checklist });
     } finally {
       setBusy(false);
     }
@@ -423,7 +414,7 @@ export function PlatformVersionEditor({
         title: rootTitle,
         body,
         topic,
-        scheduledAt: isoFromLocal(scheduledAt),
+        scheduledAt: isoFromLocalDateTime(scheduledAt),
         status,
         nextAction,
         checklist

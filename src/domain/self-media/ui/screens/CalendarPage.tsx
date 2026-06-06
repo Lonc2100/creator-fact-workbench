@@ -1,13 +1,13 @@
 "use client";
 
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ConfirmPlatformVersionPublishRequest, ContentWorkbenchSnapshot, DashboardSnapshot, Platform, PlatformVersionPatchRequest, PlatformVersionStatus, PublishQueueItem } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
 import { cx } from "../foundations/cx";
-import { formatDateTime } from "../foundations/format";
+import { formatDateTime, localDateTimeInputValue } from "../foundations/format";
 import { platformVersionStatusLabels } from "../foundations/labels";
 import { PublishCalendar, PlatformVersionInspector, type PendingScheduleDraftItem } from "../patterns/PublishCalendar";
 import { Button } from "../primitives/Button";
@@ -141,6 +141,11 @@ function pendingScheduleSortKey(item: PendingScheduleDraftItem) {
   if (item.status === "needs_review") return 0;
   if (item.status === "draft") return 1;
   return 2;
+}
+
+function requestedVersionIdFromUrl() {
+  if (typeof window === "undefined") return undefined;
+  return new URLSearchParams(window.location.search).get("versionId") ?? undefined;
 }
 
 function PublishLedgerPanel({
@@ -299,12 +304,10 @@ function CalendarCurrentTaskPanel({
 }
 
 export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnapshot; workbench: ContentWorkbenchSnapshot }) {
+  const requestedVersionId = requestedVersionIdFromUrl();
   const [current, setCurrent] = useState(snapshot);
   const [currentWorkbench, setCurrentWorkbench] = useState(workbench);
-  const [selectedId, setSelectedId] = useState(() => {
-    const requested = typeof window === "undefined" ? undefined : new URLSearchParams(window.location.search).get("versionId") ?? undefined;
-    return workbench.platformVersions.find((item) => item.id === requested)?.id;
-  });
+  const [selectedId, setSelectedId] = useState(() => workbench.platformVersions.find((item) => item.id === requestedVersionId)?.id);
   const [view, setView] = useState<"week" | "month">("week");
   const [scope, setScope] = useState<CalendarScope>("operating");
   const [query, setQuery] = useState("");
@@ -314,7 +317,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
   const [ledgerPlatform, setLedgerPlatform] = useState<Platform | "all">("all");
   const [ledgerStatus, setLedgerStatus] = useState<DashboardSnapshot["publishRecords"][number]["status"] | "all">("all");
   const [ledgerDate, setLedgerDate] = useState("");
-  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(() => Boolean(workbench.platformVersions.find((item) => item.id === requestedVersionId)));
   const [createSlotAt, setCreateSlotAt] = useState<string | undefined>();
   const [message, setMessage] = useState("");
   const versionById = useMemo(() => new Map(currentWorkbench.platformVersions.map((version) => [version.id, version])), [currentWorkbench.platformVersions]);
@@ -375,7 +378,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
       .sort((a, b) => pendingScheduleSortKey(a) - pendingScheduleSortKey(b) || a.title.localeCompare(b.title));
   }, [currentWorkbench.contentRows, currentWorkbench.queue, platform, query, status, visibleVersionIds]);
   const selectableVersionIds = useMemo(() => new Set([...visibleVersionIds, ...pendingSchedulingItems.map((item) => item.platformVersionId)]), [pendingSchedulingItems, visibleVersionIds]);
-  const selected = currentWorkbench.platformVersions.find((item) => item.id === selectedId && selectableVersionIds.has(item.id)) ?? currentWorkbench.platformVersions.find((item) => selectableVersionIds.has(item.id));
+  const selected = currentWorkbench.platformVersions.find((item) => item.id === selectedId) ?? currentWorkbench.platformVersions.find((item) => selectableVersionIds.has(item.id));
   const selectedContent = selected ? contentById.get(selected.contentId) : undefined;
   const selectedContentVersions = selected
     ? currentWorkbench.platformVersions
@@ -386,6 +389,15 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
   const calendarAnchorDate = selectedAnchorDate && !Number.isNaN(selectedAnchorDate.getTime()) ? selectedAnchorDate : undefined;
   const platformFilters = scope === "all_local" ? diagnosticPlatformFilters : operatingPlatformFilters;
   const statusFilters = scope === "all_local" ? diagnosticStatusFilters : operatingStatusFilters;
+
+  useEffect(() => {
+    const requested = requestedVersionIdFromUrl();
+    if (!requested) return;
+    if (!currentWorkbench.platformVersions.some((item) => item.id === requested)) return;
+    setSelectedId(requested);
+    setInspectorOpen(true);
+    setCreateSlotAt(undefined);
+  }, [currentWorkbench.platformVersions]);
 
   async function refreshDashboard() {
     const [dashboardResponse, workbenchResponse] = await Promise.all([
@@ -539,10 +551,14 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
           items={visibleItems}
           onReschedule={scheduleVersion}
           onSelect={(id) => {
+            setCreateSlotAt(undefined);
             setSelectedId(id);
             setInspectorOpen(true);
           }}
-          onCreateAt={(scheduledAt) => setCreateSlotAt(scheduledAt)}
+          onCreateAt={(scheduledAt) => {
+            setCreateSlotAt(scheduledAt);
+            setInspectorOpen(false);
+          }}
           pendingItems={scope === "all_local" ? [] : pendingSchedulingItems}
           showEmptySlots={scope === "operating"}
           view={view}
@@ -591,6 +607,10 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
               <span>选中时间</span>
               <strong>{formatDateTime(createSlotAt)}</strong>
             </div>
+            <label className="calendar-create-schedule-field">
+              <span>预填排期时间</span>
+              <input className="sm-input" data-testid="calendar-create-schedule-input" readOnly type="datetime-local" value={localDateTimeInputValue(createSlotAt)} />
+            </label>
             <p className="muted">这里先打开创建入口，不直接写入数据；保存四平台版本后会出现在日历中。</p>
             <div className="inline-stack">
               <a className="sm-button sm-button-primary" href="/content#new-video">去内容台创建</a>
