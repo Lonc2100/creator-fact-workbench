@@ -5536,6 +5536,110 @@ test("publish handoff packages prepare four official-backend manual publish flow
   }
 });
 
+test("creator day workflow runs from schedule and platform drafts to handoff publish and metric match", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-creator-day-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const scheduledAt = "2026-06-06T09:00:00.000Z";
+    const discussion = service.createCreatorVideoDiscussion({
+      title: "Creator day workflow daily run",
+      topic: "creator day workflow",
+      brief: "Schedule first, create discussion and platform versions, use handoff publishing, then recover metrics.",
+      scheduledAt
+    });
+    const draft = service.createCreatorVideoDraft({
+      title: discussion.idea.title,
+      topic: discussion.idea.topic,
+      brief: "Schedule first, create discussion and platform versions, use handoff publishing, then recover metrics.",
+      scheduledAt
+    });
+    const douyinVersion = draft.platformVersions.find((item) => item.platform === "douyin");
+    const xhsVersion = draft.platformVersions.find((item) => item.platform === "xiaohongshu");
+    assert.ok(douyinVersion);
+    assert.ok(xhsVersion);
+    assert.equal(discussion.drafts.length, 4);
+    assert.equal(draft.platformVersions.length, 4);
+
+    const dueWorkbench = service.publishToMetricsWorkbench(new Date("2026-06-06T09:30:00.000Z"));
+    const handoffPackages = dueWorkbench.publishHandoffPackages.filter((item) => item.contentId === draft.content.id);
+    assert.deepEqual(handoffPackages.map((item) => item.platform).sort(), ["bilibili", "douyin", "video_account", "xiaohongshu"]);
+    assert.equal(handoffPackages.some((item) => item.platform === "wechat"), false);
+    assert.ok(dueWorkbench.executionItems.some((item) => item.platformVersionId === douyinVersion.id));
+
+    const submitted = service.confirmPlatformVersionPublish({
+      platformVersionId: xhsVersion.id,
+      status: "submitted_review",
+      happenedAt: "2026-06-06T09:40:00.000Z",
+      confirmationSource: "manual",
+      note: "Creator day flow: submitted review in official backend."
+    });
+    assert.equal(submitted.publishRecord.status, "submitted_review");
+    assert.equal(submitted.version.status, "scheduled");
+
+    const published = service.confirmPlatformVersionPublish({
+      platformVersionId: douyinVersion.id,
+      status: "published",
+      happenedAt: "2026-06-06T09:50:00.000Z",
+      confirmationSource: "manual",
+      confirmedBy: "creator-day"
+    });
+    assert.equal(published.version.status, "published");
+
+    const importedContentId = "dy-creator-day-workflow";
+    const imported = service.importRequest({
+      mode: "json",
+      json: {
+        source: "douyin_creator_center",
+        contents: [{
+          id: importedContentId,
+          title: douyinVersion.title,
+          platform: "douyin",
+          status: "published",
+          format: "short_video",
+          topic: draft.content.topic,
+          publishedAt: "2026-06-06T09:52:00.000Z"
+        }],
+        metrics: [{
+          id: `metric-${importedContentId}`,
+          contentId: importedContentId,
+          platform: "douyin",
+          capturedAt: "2026-06-06T10:30:00.000Z",
+          views: 1888,
+          likes: 96,
+          comments: 12,
+          saves: 28,
+          shares: 9,
+          followersDelta: 3
+        }]
+      }
+    });
+    assert.equal(imported.run.status, "success");
+
+    const candidateWorkbench = service.publishToMetricsWorkbench(new Date("2026-06-06T11:00:00.000Z"));
+    const candidate = candidateWorkbench.matchCandidates.find((item) => item.localPlatformVersionId === douyinVersion.id && item.importedContentId === importedContentId);
+    assert.ok(candidate);
+    assert.equal(candidate.score, 1);
+
+    const matched = service.confirmPlatformContentMatch({
+      localContentId: draft.content.id,
+      localPlatformVersionId: douyinVersion.id,
+      importedContentId,
+      metricSnapshotIds: candidate.metricSnapshotIds,
+      confirmedBy: "creator-day"
+    });
+    assert.equal(matched.metricSnapshots.length, 1);
+    assert.equal(matched.metricSnapshots[0].contentId, draft.content.id);
+    assert.equal(matched.metricSnapshots[0].platformVersionId, douyinVersion.id);
+    assert.equal(repo.listAccountMetricSnapshots().length, 0);
+    assert.doesNotMatch(JSON.stringify({ dueWorkbench, candidateWorkbench, matched }), /\bcookie\b|\btoken\b|\bpassword\b|\bheaders?\b|raw payload/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("failed publish confirmation requires a reason and records manual failure semantics", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-publish-failed-"));
   let repo: SqliteSelfMediaRepo | undefined;
