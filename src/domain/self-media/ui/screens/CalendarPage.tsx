@@ -300,6 +300,10 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
         const version = versionById.get(item.platformVersionId);
         const content = contentById.get(item.contentId) ?? (version ? contentById.get(version.contentId) : undefined);
         return itemMatchesQuery(`${item.title} ${content?.title ?? ""}`, query);
+      })
+      .map((item) => {
+        const content = contentById.get(item.contentId);
+        return content ? { ...item, title: content.title } : item;
       }),
     [contentById, current.calendarItems, platform, query, rowByContentId, scope, status, versionById]
   );
@@ -339,6 +343,12 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
   }, [currentWorkbench.contentRows, currentWorkbench.queue, platform, query, status, visibleVersionIds]);
   const selectableVersionIds = useMemo(() => new Set([...visibleVersionIds, ...pendingSchedulingItems.map((item) => item.platformVersionId)]), [pendingSchedulingItems, visibleVersionIds]);
   const selected = currentWorkbench.platformVersions.find((item) => item.id === selectedId && selectableVersionIds.has(item.id)) ?? currentWorkbench.platformVersions.find((item) => selectableVersionIds.has(item.id));
+  const selectedContent = selected ? contentById.get(selected.contentId) : undefined;
+  const selectedContentVersions = selected
+    ? currentWorkbench.platformVersions
+      .filter((item) => item.contentId === selected.contentId)
+      .filter((item) => scope === "all_local" || isOperatingPlatform(item.platform))
+    : [];
   const selectedAnchorDate = selected?.scheduledAt ? new Date(selected.scheduledAt) : undefined;
   const calendarAnchorDate = selectedAnchorDate && !Number.isNaN(selectedAnchorDate.getTime()) ? selectedAnchorDate : undefined;
   const platformFilters = scope === "all_local" ? diagnosticPlatformFilters : operatingPlatformFilters;
@@ -384,8 +394,19 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
     }
   }
 
-  async function confirmPublish(status: ConfirmPlatformVersionPublishRequest["status"]) {
-    if (!selected) return;
+  async function patchVersionStatus(payload: PlatformVersionPatchRequest) {
+    setMessage("正在更新平台状态...");
+    try {
+      await patchVersion(payload);
+      setSelectedId(payload.id);
+      await refreshDashboard();
+      setMessage("平台状态已更新。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "平台状态更新失败");
+    }
+  }
+
+  async function confirmPublish(input: { platformVersionId: string; status: ConfirmPlatformVersionPublishRequest["status"] }) {
     setMessage("正在记录人工发布结果...");
     try {
       const response = await fetch("/api/self-media/content-versions", {
@@ -393,9 +414,9 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action: "confirm_publish",
-          platformVersionId: selected.id,
-          status,
-          note: status === "published" ? "日历人工确认发布" : "日历人工记录发布未成功，需要回到草稿处理。",
+          platformVersionId: input.platformVersionId,
+          status: input.status,
+          note: input.status === "published" ? "日历人工确认发布" : "日历人工记录发布未成功，需要回到草稿处理。",
           confirmationSource: "manual"
         })
       });
@@ -410,6 +431,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
   }
 
   async function clearFutureSchedules() {
+    if (typeof window !== "undefined" && !window.confirm("只清空未来排期时间和待发布队列，不会删除内容、发布记录或指标快照。确认继续？")) return;
     setMessage("正在清空未来排期...");
     try {
       const response = await fetch("/api/self-media/calendar", {
@@ -466,7 +488,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
           </select>
         </label>
         <a className="sm-button sm-button-primary calendar-new-button" href="/content#new-video">
-          <Plus aria-hidden="true" size={15} />新增未来排期
+          <Plus aria-hidden="true" size={15} />计划新视频 / 新增排期
         </a>
         <Button data-testid="calendar-clear-future-schedules" onClick={clearFutureSchedules} variant="danger">
           <Trash2 aria-hidden="true" size={15} />清空未来排期
@@ -505,7 +527,14 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
           <button className="calendar-inspector-close" onClick={() => setInspectorOpen(false)} type="button" aria-label="关闭平台版本详情">
             <X aria-hidden="true" size={18} />
           </button>
-          <PlatformVersionInspector onConfirmPublish={confirmPublish} onReschedule={scheduleVersion} version={selected} />
+          <PlatformVersionInspector
+            contentTitle={selectedContent?.title}
+            onConfirmPublish={confirmPublish}
+            onReschedule={scheduleVersion}
+            onStatusPatch={patchVersionStatus}
+            version={selected}
+            versions={selectedContentVersions}
+          />
         </div>
       )}
     </AppShell>

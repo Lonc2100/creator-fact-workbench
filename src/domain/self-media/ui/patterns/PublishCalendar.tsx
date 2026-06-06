@@ -139,9 +139,7 @@ function formatSlot(hour: number) {
 function groupCalendarCards(items: PublishCalendarItem[]) {
   const groups = new Map<string, CalendarCardGroup>();
   for (const item of items) {
-    const scheduled = new Date(item.scheduledAt);
-    const scheduleKey = Number.isNaN(scheduled.getTime()) ? "unscheduled" : `${dateKey(scheduled)}-${formatShortTime(item.scheduledAt)}`;
-    const key = `${item.contentId || item.platformVersionId}:${scheduleKey}`;
+    const key = item.contentId || item.platformVersionId;
     const current = groups.get(key);
     if (!current) {
       groups.set(key, { id: key, item, items: [item], platforms: [item.platform] });
@@ -154,6 +152,17 @@ function groupCalendarCards(items: PublishCalendarItem[]) {
     }
   }
   return [...groups.values()].sort((a, b) => new Date(a.item.scheduledAt).getTime() - new Date(b.item.scheduledAt).getTime());
+}
+
+function groupCardNote(group: CalendarCardGroup) {
+  const platformCount = group.platforms.length;
+  const prefix = platformCount > 1 ? `${platformCount}个平台` : platformLabels[group.item.platform];
+  if (group.items.some((item) => item.status === "failed")) return `${prefix} · 有发布失败`;
+  if (group.items.some((item) => item.status === "blocked")) return `${prefix} · 有阻塞待处理`;
+  if (group.items.some((item) => item.status === "scheduled")) return `${prefix} · 等待发布确认`;
+  if (group.items.some((item) => item.status === "published")) return `${prefix} · 已发布，回收数据`;
+  if (group.items.some((item) => item.status === "needs_review")) return `${prefix} · 标题封面待审`;
+  return `${prefix} · 待排期`;
 }
 
 function anchorDateForItems(items: PublishCalendarItem[]) {
@@ -177,10 +186,12 @@ function DraggableCalendarCard({
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.platformVersionId, data: { item } });
   const style: CSSProperties = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, opacity: isDragging ? 0.62 : 1 } : {};
   const platforms = group.platforms.length ? group.platforms : [item.platform];
+  const platformLabel = platforms.map((platform) => platformLabels[platform]).join("、");
   return (
     <article
       className={cx("calendar-card", platformTone[item.platform], "focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[rgba(44,39,68,0.38)]")}
       data-calendar-card="true"
+      data-content-id={item.contentId}
       data-platform-version-id={item.platformVersionId}
       onClick={() => onSelect?.(item.platformVersionId)}
       ref={setNodeRef}
@@ -189,13 +200,13 @@ function DraggableCalendarCard({
       {...attributes}
     >
       <div className="calendar-card-topline">
-        <div className="calendar-card-icons" aria-label={platformLabels[item.platform]}>
+        <div className="calendar-card-icons" aria-label={platformLabel}>
           {platforms.slice(0, 4).map((platform) => <PlatformIcon key={`${item.id}-${platform}`} platform={platform} size="sm" />)}
         </div>
         <time>{formatShortTime(item.scheduledAt)}</time>
       </div>
       <strong className="calendar-card-title" title={item.title}>{displayTitle(item.title)}</strong>
-      <p className="calendar-card-note">{cardNote(item)}</p>
+      <p className="calendar-card-note">{groupCardNote(group)}</p>
     </article>
   );
 }
@@ -481,40 +492,96 @@ export function PublishCalendar({
 
 export function PlatformVersionInspector({
   version,
+  versions,
+  contentTitle,
   onReschedule,
+  onStatusPatch,
   onConfirmPublish
 }: {
   version?: ContentPlatformVersion;
+  versions?: ContentPlatformVersion[];
+  contentTitle?: string;
   onReschedule?: (input: { platformVersionId: string; scheduledAt: string }) => Promise<void>;
-  onConfirmPublish?: (status: "published" | "failed") => Promise<void>;
+  onStatusPatch?: (input: { id: string; status: ContentPlatformVersion["status"]; scheduledAt?: string }) => Promise<void>;
+  onConfirmPublish?: (input: { platformVersionId: string; status: "published" | "failed" }) => Promise<void>;
 }) {
-  const [scheduledAt, setScheduledAt] = useState(localDateTime(version?.scheduledAt));
+  const contentVersions = versions?.length ? versions : version ? [version] : [];
+
+  if (contentVersions.length === 0) {
+    return <EmptyState title="选择一个排期" description="从日历中选择内容卡，查看各平台时间、状态和发布确认。" />;
+  }
+  const primary = version ?? contentVersions[0];
+  const sortedVersions = [...contentVersions].sort((a, b) => {
+    const aTime = a.scheduledAt ? new Date(a.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
+    const bTime = b.scheduledAt ? new Date(b.scheduledAt).getTime() : Number.MAX_SAFE_INTEGER;
+    return aTime - bTime || platformLabels[a.platform].localeCompare(platformLabels[b.platform]);
+  });
+  const readyVersions = sortedVersions.filter((item) => item.status === "scheduled" || item.status === "published").length;
+  return (
+    <aside className="inspector-panel">
+      <div>
+        <p className="sm-eyebrow">内容排期详情</p>
+        <h2>{contentTitle ?? primary.title}</h2>
+      </div>
+      <div className="inspector-row">
+        <span>平台</span>
+        <div className="inline-stack">
+          {sortedVersions.map((item) => <PlatformBadge key={item.id} platform={item.platform} compact />)}
+        </div>
+      </div>
+      <div className="inspector-row">
+        <span>排期进度</span>
+        <strong>{readyVersions}/{sortedVersions.length} 平台已排期或发布</strong>
+      </div>
+      <div className="calendar-platform-schedule-list" data-testid="calendar-content-schedule-inspector">
+        {sortedVersions.map((item) => (
+          <PlatformScheduleRow
+            key={item.id}
+            onConfirmPublish={onConfirmPublish}
+            onReschedule={onReschedule}
+            onStatusPatch={onStatusPatch}
+            version={item}
+          />
+        ))}
+      </div>
+      <div className="rounded-[var(--sm-radius-md)] border border-[var(--sm-border)] bg-[#fffdf8] p-3 text-sm leading-6 text-[var(--sm-text-muted)]">
+        <strong className="block text-[var(--sm-text-strong)]">内容版本</strong>
+        <span>{primary.coverNote ? `封面：${primary.coverNote}` : "封面备注未填写"}</span>
+        <span className="block">{primary.script ? "脚本已准备" : "脚本待补充"}</span>
+      </div>
+    </aside>
+  );
+}
+
+function PlatformScheduleRow({
+  version,
+  onReschedule,
+  onStatusPatch,
+  onConfirmPublish
+}: {
+  version: ContentPlatformVersion;
+  onReschedule?: (input: { platformVersionId: string; scheduledAt: string }) => Promise<void>;
+  onStatusPatch?: (input: { id: string; status: ContentPlatformVersion["status"]; scheduledAt?: string }) => Promise<void>;
+  onConfirmPublish?: (input: { platformVersionId: string; status: "published" | "failed" }) => Promise<void>;
+}) {
+  const [scheduledAt, setScheduledAt] = useState(localDateTime(version.scheduledAt));
 
   useEffect(() => {
-    setScheduledAt(localDateTime(version?.scheduledAt));
-  }, [version?.id, version?.scheduledAt]);
+    setScheduledAt(localDateTime(version.scheduledAt));
+  }, [version.id, version.scheduledAt]);
 
-  if (!version) {
-    return <EmptyState title="选择一个排期" description="从日历中选择平台版本，查看状态、检查项和下一步动作。" />;
-  }
   const checklist = Object.entries(version.checklist);
   const done = checklist.filter(([, value]) => value).length;
   const readiness = checklist.length === 0 ? 0 : Math.round((done / checklist.length) * 100);
   const blocker = version.failureReason ?? (version.status === "blocked" ? "该平台版本已标记阻塞，等待人工补充原因。" : undefined);
+  const nextScheduledAt = isoFromLocal(scheduledAt);
+  const canReturnToReview = version.status === "failed" || version.status === "blocked";
   return (
-    <aside className="inspector-panel">
-      <div>
-        <p className="sm-eyebrow">平台版本详情</p>
-        <h2>{version.title}</h2>
-      </div>
-      <div className="inspector-row">
-        <span>平台</span>
+    <section className="calendar-platform-schedule-row" data-platform-version-id={version.id}>
+      <header className="calendar-platform-schedule-head">
         <PlatformBadge platform={version.platform} />
-      </div>
-      <div className="inspector-row">
-        <span>状态</span>
         <StatusBadge status={version.status} />
-      </div>
+      </header>
       <div className="inspector-row">
         <span>发布时间</span>
         <strong>{formatDateTime(version.scheduledAt ?? version.publishedAt)}</strong>
@@ -536,8 +603,7 @@ export function PlatformVersionInspector({
             data-testid="calendar-reschedule-save"
             disabled={!onReschedule || !scheduledAt || version.status === "published"}
             onClick={() => {
-              const next = isoFromLocal(scheduledAt);
-              if (next) void onReschedule?.({ platformVersionId: version.id, scheduledAt: next });
+              if (nextScheduledAt) void onReschedule?.({ platformVersionId: version.id, scheduledAt: nextScheduledAt });
             }}
             variant="secondary"
           >
@@ -577,13 +643,29 @@ export function PlatformVersionInspector({
         <p>{version.nextAction ?? `${platformLabels[version.platform]}版本等待人工确认。`}</p>
       </div>
       <div className="publish-confirmation-strip">
-        <strong>人工发布确认</strong>
+        <strong>状态与人工发布确认</strong>
         <span>只记录人工结果，便于复盘排期。</span>
         <div className="inline-stack">
           <Button
+            data-testid="calendar-mark-needs-review"
+            disabled={!onStatusPatch || (!canReturnToReview && version.status !== "draft")}
+            onClick={() => onStatusPatch?.({ id: version.id, status: "needs_review", scheduledAt: nextScheduledAt })}
+            variant="secondary"
+          >
+            设为待审核
+          </Button>
+          <Button
+            data-testid="calendar-mark-scheduled"
+            disabled={!onStatusPatch || !nextScheduledAt || version.status !== "needs_review"}
+            onClick={() => onStatusPatch?.({ id: version.id, status: "scheduled", scheduledAt: nextScheduledAt })}
+            variant="secondary"
+          >
+            设为已排期
+          </Button>
+          <Button
             data-testid="calendar-confirm-publish"
             disabled={!onConfirmPublish || version.status !== "scheduled"}
-            onClick={() => onConfirmPublish?.("published")}
+            onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "published" })}
             variant="secondary"
           >
             人工确认已发布
@@ -591,19 +673,14 @@ export function PlatformVersionInspector({
           <Button
             data-testid="calendar-confirm-failed"
             disabled={!onConfirmPublish || version.status !== "scheduled"}
-            onClick={() => onConfirmPublish?.("failed")}
+            onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "failed" })}
             variant="danger"
           >
             记录发布失败
           </Button>
         </div>
       </div>
-      <div className="rounded-[var(--sm-radius-md)] border border-[var(--sm-border)] bg-[#fffdf8] p-3 text-sm leading-6 text-[var(--sm-text-muted)]">
-        <strong className="block text-[var(--sm-text-strong)]">版本内容</strong>
-        <span>{version.coverNote ? `封面：${version.coverNote}` : "封面备注未填写"}</span>
-        <span className="block">{version.script ? "脚本已准备" : "脚本待补充"}</span>
-      </div>
-    </aside>
+    </section>
   );
 }
 

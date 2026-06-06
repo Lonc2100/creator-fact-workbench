@@ -168,7 +168,8 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarPattern, /calendar-reschedule-save/);
   assert.match(calendarPattern, /修改排期时间/);
   assert.match(calendarPattern, /保存排期时间/);
-  assert.match(calendarPattern, /scheduleKey/);
+  assert.match(calendarPattern, /const key = item\.contentId \|\| item\.platformVersionId/);
+  assert.match(calendarPattern, /data-content-id=\{item\.contentId\}/);
   assert.match(calendarPattern, /PendingScheduleQueue/);
   assert.match(calendarPattern, /calendar-pending-schedule-queue/);
   assert.match(calendarPattern, /calendar-pending-draft-card/);
@@ -190,7 +191,7 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /calendar-clear-future-schedules/);
   assert.match(calendarScreen, /calendarAnchorDate/);
   assert.match(calendarScreen, /anchorDate=\{calendarAnchorDate\}/);
-  assert.match(calendarScreen, /新增未来排期/);
+  assert.match(calendarScreen, /计划新视频 \/ 新增排期/);
   assert.match(calendarScreen, /平台指标仍以创作者中心数据为准/);
   assert.match(calendarScreen, /publishRecords/);
   assert.doesNotMatch(calendarScreen, /providerRunId:|platformUrl:|platformPostId:/);
@@ -281,6 +282,9 @@ test("content and calendar default views hide internal labels and require explic
   assert.match(calendarScreen, /默认运营排期/);
   assert.match(calendarScreen, /全部本地\/诊断/);
   assert.match(calendarPattern, /暂无可行动排期/);
+  assert.match(calendarPattern, /const key = item\.contentId \|\| item\.platformVersionId/);
+  assert.match(calendarPattern, /calendar-content-schedule-inspector/);
+  assert.match(calendarPattern, /versions\?: ContentPlatformVersion\[\]/);
   assert.doesNotMatch(calendarScreen, /Best times|Autolists|<button disabled type="button">List<\/button>|Publish ledger|rawDir|evidenceFile|pageReady|apiReady/);
   assert.doesNotMatch(calendarPattern, /showEmptySlots=\{true\}|demo\/fake|fixture/);
 });

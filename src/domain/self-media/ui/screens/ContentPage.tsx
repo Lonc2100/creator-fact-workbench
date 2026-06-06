@@ -16,7 +16,7 @@ type StatusFilter = "all" | `content:${ContentStatus}` | `version:${PlatformVers
 type SortKey = "operating_desc" | "updated_desc" | "published_desc" | "platform_asc" | "trusted_desc" | "trusted_asc";
 type DensityMode = "comfortable" | "compact";
 
-const platformFilters: Array<Platform | "all"> = ["all", "douyin", "xiaohongshu", "video_account", "bilibili", "wechat", "other"];
+const platformFilters: Array<Platform | "all"> = ["all", "douyin", "xiaohongshu", "video_account", "bilibili", "other"];
 
 const sourceFilters: Array<{ value: SourceFilter; label: string }> = [
   { value: "operating_default", label: "运营视图" },
