@@ -403,7 +403,13 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /未确认公开稳定个人创作者数据 API/);
   assert.match(importPage, /未确认稳定创作者内容级数据 API/);
   assert.match(importPage, /账号指标 preview-only/);
-  assert.match(importPage, /最近导入时间/);
+  assert.match(importPage, /trustedAutoCaptureScheduler/);
+  assert.match(importPage, /当前模式/);
+  assert.match(importPage, /抓取状态/);
+  assert.match(importPage, /最近抓取/);
+  assert.match(importPage, /下一次抓取/);
+  assert.match(importPage, /人工操作/);
+  assert.match(importPage, /可信定时已启用/);
   assert.match(importPage, /自动抓取：/);
   assert.match(importPage, /check-capture-auth-status/);
   assert.match(importPage, /官方 API 未接入或未授权；浏览器辅助会话未连接/);

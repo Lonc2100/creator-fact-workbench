@@ -95,6 +95,19 @@ const realCaptureStatusLabels: Record<DashboardSnapshot["platformDataHealth"]["p
   unknown: "未知"
 };
 
+const captureModeLabels: Record<DashboardSnapshot["trustedAutoCaptureScheduler"]["statuses"][number]["captureMode"], string> = {
+  manual: "手动",
+  browser_assisted: "浏览器辅助",
+  official_api: "官方 API"
+};
+
+const captureConnectionStatusLabels: Record<DashboardSnapshot["trustedAutoCaptureScheduler"]["statuses"][number]["captureConnectionStatus"], string> = {
+  not_authorized: "未授权",
+  authorized: "已授权",
+  browser_session_active: "会话有效",
+  browser_session_missing: "会话不可用"
+};
+
 type CaptureRealityPlatformKey = "douyin" | "xiaohongshu" | "video-account" | "bilibili";
 
 interface CaptureRealityCapability {
@@ -960,22 +973,30 @@ function PlatformImportStatusPanel({ capabilities, history, statuses, onDashboar
 function CaptureRealityMatrix({ snapshot }: { snapshot: DashboardSnapshot }) {
   const statusesByPlatform = new Map(snapshot.platformImportStatuses.map((status) => [status.platform, status]));
   const healthByPlatform = new Map(snapshot.platformDataHealth.platforms.map((platform) => [platform.platform, platform]));
+  const schedulerByPlatform = new Map(snapshot.trustedAutoCaptureScheduler.statuses.map((status) => [status.key, status]));
   return (
     <div className="capture-reality-matrix" data-testid="platform-capture-reality-matrix">
       {captureRealityCapabilities.map((capability) => {
         const status = statusesByPlatform.get(capability.platform);
         const health = healthByPlatform.get(capability.key);
+        const scheduler = schedulerByPlatform.get(capability.key);
         const latestImportAt = status?.latestRunAt ?? health?.freshness.latestRealCaptureAt ?? health?.rawLatestModifiedAt;
-        const latestImportLabel = latestImportAt ? formatDateTime(latestImportAt) : "暂无";
-        const automaticEnabled = false;
+        const latestImportLabel = scheduler?.lastSuccessfulCaptureAt ? formatDateTime(scheduler.lastSuccessfulCaptureAt) : latestImportAt ? formatDateTime(latestImportAt) : "暂无";
+        const nextScheduledLabel = scheduler?.nextScheduledCaptureAt ? formatDateTime(scheduler.nextScheduledCaptureAt) : "未计划";
+        const automaticEnabled = scheduler?.captureSchedule.enabled === true;
         return (
           <article className="capture-reality-card" data-platform-capture-status={capability.key} key={capability.key}>
             <header>
               <PlatformBadge platform={capability.platform} />
-              <Badge tone="warning">未授权</Badge>
+              <Badge tone={scheduler?.isAuthorized || scheduler?.browserSessionAvailable ? "success" : "warning"}>{scheduler ? captureConnectionStatusLabels[scheduler.captureConnectionStatus] : "未授权"}</Badge>
               <Badge tone="info">API 未接入</Badge>
             </header>
             <dl>
+              <div><dt>当前模式</dt><dd>{scheduler ? captureModeLabels[scheduler.captureMode] : "手动"}</dd></div>
+              <div><dt>抓取状态</dt><dd>{scheduler?.statusLabel ?? "手动导入"}</dd></div>
+              <div><dt>最近抓取</dt><dd>{latestImportLabel}</dd></div>
+              <div><dt>下一次抓取</dt><dd>{nextScheduledLabel}</dd></div>
+              <div><dt>人工操作</dt><dd>{scheduler?.needsManualAction ? "需要人工操作" : "无需人工介入"}</dd></div>
               <div><dt>官方 API</dt><dd>{capability.officialApi}</dd></div>
               <div><dt>应用审核</dt><dd>{capability.appReview}</dd></div>
               <div><dt>授权要求</dt><dd>{capability.oauth}</dd></div>
@@ -987,8 +1008,10 @@ function CaptureRealityMatrix({ snapshot }: { snapshot: DashboardSnapshot }) {
             <div className="capture-reality-status-row">
               <span>{capability.browserAssisted}</span>
               <span>{capability.manualImport}</span>
-              <span>最近导入时间：{latestImportLabel}</span>
+              <span>最近抓取：{latestImportLabel}</span>
+              <span>下一次抓取：{nextScheduledLabel}</span>
               <span>自动抓取：{automaticEnabled ? "已启用" : "未启用"}</span>
+              <span>{scheduler?.missedCaptureReason ?? scheduler?.captureSchedule.reason ?? "等待人工导入"}</span>
             </div>
             <div className="capture-reality-footer">
               <button className="sm-button sm-button-secondary" disabled type="button">{capability.futureConnection}</button>
@@ -1140,6 +1163,8 @@ function ImportFirstViewportGuide({
   const recoveryPlatforms = Array.from(new Set(currentRecoveryItems.map((item) => item.platform)));
   const stalePlatforms = health.platforms.filter((platform) => platform.realCaptureStatus !== "fresh");
   const latestRealCaptureAt = health.summary.freshness.latestRealCaptureAt ?? snapshot.dataCaptureScheduleReliability.latestRealCaptureAt;
+  const scheduler = snapshot.trustedAutoCaptureScheduler;
+  const automaticCopy = scheduler.schedulerEnabledCount > 0 ? `已有 ${formatNumber(scheduler.schedulerEnabledCount)} 个平台启用可信定时。` : "当前自动抓取：未启用。";
   return (
     <Panel
       className="import-first-viewport-guide"
@@ -1167,7 +1192,7 @@ function ImportFirstViewportGuide({
         <p>网页登录状态不会自动被本系统读取；登录态只在平台网页和当前浏览器会话里，本系统刷新页面不会绕过授权自动抓取。要更新数据，必须选择手动导入、启动浏览器辅助读取当前页，或完成官方 API 授权。</p>
       </div>
       <div className="capture-mode-status-grid" data-testid="capture-mode-status-grid">
-        <span><b>当前是否有自动抓取？</b> 当前自动抓取：未启用。未完成授权或浏览器辅助会话时，自动抓取一律显示未启用。</span>
+        <span><b>当前是否有自动抓取？</b> {automaticCopy}未完成授权或浏览器辅助会话时，自动抓取一律显示未启用。</span>
         <span><b>现在怎么手动导入？</b> 先从平台后台导出或用本地浏览器辅助读取当前页，再到下方预览/保存。</span>
         <span><b>哪些平台未来可 API？</b> 抖音、B站有开放平台能力可做未来适配，但必须审核和授权。</span>
         <span><b>哪些平台需浏览器辅助？</b> 小红书、视频号当前按浏览器辅助或手动导入处理。</span>
@@ -1176,6 +1201,8 @@ function ImportFirstViewportGuide({
       <div className="platform-import-status-summary">
         <span><b>{formatDateTime(latestRealCaptureAt ?? undefined)}</b> 最近采集</span>
         <span><b>{formatNumber(stalePlatforms.length)}</b> 平台需补抓</span>
+        <span><b>{formatNumber(scheduler.startupCatchUpCount)}</b> 启动补抓检查</span>
+        <span><b>{formatNumber(scheduler.schedulerEnabledCount)}</b> 可信定时已启用</span>
         <span><b>{formatNumber(recoveryPlatforms.length)}</b> 平台有发布后回收</span>
         <span><b>{formatDateTime(workbench.scheduledRefresh.nextSuggestedAt)}</b> 下次建议</span>
       </div>

@@ -490,6 +490,54 @@ export type RealCaptureFreshnessStatus = "fresh" | "stale" | "missing" | "unknow
 
 export type DataCaptureScheduleStatus = "fresh" | "stale" | "missing" | "failed" | "unknown";
 
+export type CaptureMode = "manual" | "browser_assisted" | "official_api";
+
+export type CaptureConnectionStatus = "not_authorized" | "authorized" | "browser_session_active" | "browser_session_missing";
+
+export type CaptureScheduleCadence = "disabled" | "hourly" | "daily";
+
+export interface CaptureScheduleView {
+  enabled: boolean;
+  cadence: CaptureScheduleCadence;
+  intervalHours: number | null;
+  allowScheduledCapture: boolean;
+  reason: string;
+}
+
+export interface PlatformCaptureSchedulerStatus {
+  platform: Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+  key: "douyin" | "xiaohongshu" | "video-account" | "bilibili";
+  label: string;
+  captureMode: CaptureMode;
+  captureConnectionStatus: CaptureConnectionStatus;
+  isAuthorized: boolean;
+  browserSessionAvailable: boolean;
+  captureSchedule: CaptureScheduleView;
+  lastSuccessfulCaptureAt?: string | null;
+  nextScheduledCaptureAt?: string | null;
+  missedCaptureReason?: string | null;
+  startupCatchUpRequired: boolean;
+  needsManualAction: boolean;
+  canRunImmediateCapture: boolean;
+  statusLabel: string;
+  nextAction: string;
+}
+
+export interface TrustedAutoCaptureSchedulerView {
+  generatedAt: string;
+  staleAfterHours: number;
+  schedulerEnabledCount: number;
+  manualOnlyCount: number;
+  startupCatchUpCount: number;
+  statuses: PlatformCaptureSchedulerStatus[];
+  boundaries: {
+    noRealPlatformApiCall: true;
+    noSensitiveLoginMaterial: true;
+    noScheduleWithoutAuthorization: true;
+    browserSessionMustBeActive: true;
+  };
+}
+
 export interface DataCaptureScheduleReliabilityView {
   mode: "manual_only";
   modeLabel: string;
@@ -1110,6 +1158,7 @@ export interface DashboardSnapshot {
   platformReadinessStatuses: PlatformReadinessStatus[];
   platformDataHealth: PlatformDataHealthView;
   dataCaptureScheduleReliability: DataCaptureScheduleReliabilityView;
+  trustedAutoCaptureScheduler: TrustedAutoCaptureSchedulerView;
   realDataScope: RealDataScopeSummary;
   trustedOperatingStatus: TrustedOperatingStatus;
   trustedWeeklySummary: TrustedWeeklyReportSummary;

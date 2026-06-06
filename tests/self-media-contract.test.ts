@@ -8,9 +8,9 @@ import { pathToFileURL } from "node:url";
 import { BilibiliPersonalProvider, CsvPresetProvider, DouyinPersonalProvider, FakeSelfMediaProvider, ManualImportProvider, MediaCrawlerImportProvider, N8nExecutionProvider, VideoAccountPersonalProvider, WechatOfficialProvider, XiaohongshuPersonalProvider, previewBilibiliAccountMetricSnapshots } from "../src/domain/self-media/providers";
 import { SqliteSelfMediaRepo } from "../src/domain/self-media/repo";
 import { getSaveEnabledPlatformImportOperationPlatforms, runSelfMediaPlatformImportOperation } from "../src/domain/self-media/runtime";
-import { SelfMediaService, buildDataCaptureScheduleReliability, generateReview, readDailyPlatformOpsGateView, readDailySelfMediaOpsView, readPlatformDataHealthView, readTrustedDashboardAuditView } from "../src/domain/self-media/service";
+import { SelfMediaService, buildDataCaptureScheduleReliability, buildTrustedAutoCaptureScheduler, generateReview, readDailyPlatformOpsGateView, readDailySelfMediaOpsView, readPlatformDataHealthView, readTrustedDashboardAuditView } from "../src/domain/self-media/service";
 import { platformImportOperationCapabilities, resolveSelfMediaSeedMode, resolveWorkbenchDbPath } from "../src/domain/self-media/config";
-import type { AccountMetricSnapshot, DashboardSnapshot, TrustedWeeklySafeReportResponse } from "../src/domain/self-media/types";
+import type { AccountMetricSnapshot, DashboardSnapshot, PlatformDataHealthView, TrustedWeeklySafeReportResponse } from "../src/domain/self-media/types";
 
 const projectRoot = process.cwd();
 
@@ -100,6 +100,53 @@ function accountSnapshot(overrides: Partial<AccountMetricSnapshot> = {}): Accoun
     updatedAt: "2026-06-02T10:00:00.000Z",
     ...overrides
   };
+}
+
+function schedulerHealthPlatform(platform: PlatformDataHealthView["platforms"][number]["platform"], label: string): PlatformDataHealthView["platforms"][number] {
+  return {
+    platform,
+    label,
+    status: "warn",
+    realCaptureStatus: "missing",
+    rawCaptureCount: 0,
+    rawStatus: "warn",
+    mappingPreview: { exists: false, status: "warn" },
+    saveSmoke: { exists: false, status: "warn" },
+    freshness: { latestRealCaptureAt: null, realCaptureIsStale: null },
+    nextAction: "手动导入",
+    commands: { manualStep: "手动导入", preview: "", save: "", health: "", freshness: "", audit: "", gate: "" },
+    warnings: []
+  };
+}
+
+function schedulerHealthFixture(overrides: Partial<PlatformDataHealthView> = {}): PlatformDataHealthView {
+  const base: PlatformDataHealthView = {
+    reportPath: ".local/platform-data-health/report.json",
+    exists: true,
+    status: "warn",
+    generatedAt: "2026-06-07T07:00:00.000Z",
+    staleAfterHours: 72,
+    summary: {
+      platformCount: 4,
+      okCount: 0,
+      warnCount: 4,
+      errorCount: 0,
+      missingCount: 0,
+      staleCount: 4,
+      realCaptureStaleCount: 4,
+      sourceMismatchCount: 0,
+      bilibiliPreviewOnlyOk: true,
+      freshness: { latestRealCaptureAt: null, realCaptureIsStale: null, staleAfterHours: 72 }
+    },
+    platforms: [
+      schedulerHealthPlatform("douyin", "抖音"),
+      schedulerHealthPlatform("xiaohongshu", "小红书"),
+      schedulerHealthPlatform("video-account", "视频号"),
+      schedulerHealthPlatform("bilibili", "B站")
+    ],
+    bilibiliAccount: null
+  };
+  return { ...base, ...overrides };
 }
 
 function columnName(index: number) {
@@ -1818,6 +1865,95 @@ test("data capture schedule reliability stays manual-only and surfaces stale cat
   assert.equal(result.boundaries.wechatPaused, true);
   assert.equal(result.boundaries.bilibiliAccountPreviewOnly, true);
   assert.equal(result.boundaries.noAutoRegistration, true);
+});
+
+test("trusted auto capture scheduler blocks scheduling without authorization", () => {
+  const scheduler = buildTrustedAutoCaptureScheduler({
+    generatedAt: "2026-06-07T08:00:00.000Z",
+    platformDataHealth: schedulerHealthFixture()
+  });
+
+  assert.equal(scheduler.statuses.length, 4);
+  assert.equal(scheduler.schedulerEnabledCount, 0);
+  assert.equal(scheduler.manualOnlyCount, 4);
+  assert.equal(scheduler.startupCatchUpCount, 4);
+  assert.ok(scheduler.statuses.every((item) => item.captureMode === "manual"));
+  assert.ok(scheduler.statuses.every((item) => item.captureConnectionStatus === "not_authorized"));
+  assert.ok(scheduler.statuses.every((item) => item.captureSchedule.enabled === false));
+  assert.ok(scheduler.statuses.every((item) => item.captureSchedule.allowScheduledCapture === false));
+  assert.ok(scheduler.statuses.every((item) => item.nextScheduledCaptureAt === null));
+  assert.ok(scheduler.statuses.every((item) => item.needsManualAction === true));
+  assert.match(scheduler.statuses[0].missedCaptureReason ?? "", /手动导入/);
+  assert.equal(scheduler.boundaries.noScheduleWithoutAuthorization, true);
+  assert.equal(scheduler.boundaries.noRealPlatformApiCall, true);
+});
+
+test("trusted auto capture scheduler allows official API scheduling and restart catch-up", () => {
+  const scheduler = buildTrustedAutoCaptureScheduler({
+    generatedAt: "2026-06-07T08:00:00.000Z",
+    platformDataHealth: schedulerHealthFixture(),
+    connections: [
+      {
+        platform: "douyin",
+        captureMode: "official_api",
+        isAuthorized: true,
+        captureScheduleEnabled: true,
+        intervalHours: 1,
+        lastSuccessfulCaptureAt: "2026-06-07T05:00:00.000Z"
+      }
+    ]
+  });
+  const douyin = scheduler.statuses.find((item) => item.platform === "douyin");
+
+  assert.equal(douyin?.captureMode, "official_api");
+  assert.equal(douyin?.captureConnectionStatus, "authorized");
+  assert.equal(douyin?.isAuthorized, true);
+  assert.equal(douyin?.captureSchedule.allowScheduledCapture, true);
+  assert.equal(douyin?.captureSchedule.enabled, true);
+  assert.equal(douyin?.captureSchedule.cadence, "hourly");
+  assert.equal(douyin?.lastSuccessfulCaptureAt, "2026-06-07T05:00:00.000Z");
+  assert.equal(douyin?.nextScheduledCaptureAt, "2026-06-07T06:00:00.000Z");
+  assert.equal(douyin?.startupCatchUpRequired, true);
+  assert.equal(douyin?.canRunImmediateCapture, true);
+  assert.match(douyin?.missedCaptureReason ?? "", /补抓/);
+});
+
+test("trusted auto capture scheduler requires an active browser-assisted session", () => {
+  const scheduler = buildTrustedAutoCaptureScheduler({
+    generatedAt: "2026-06-07T08:00:00.000Z",
+    platformDataHealth: schedulerHealthFixture(),
+    connections: [
+      {
+        platform: "xiaohongshu",
+        captureMode: "browser_assisted",
+        browserSessionAvailable: false,
+        captureScheduleEnabled: true,
+        intervalHours: 24,
+        lastSuccessfulCaptureAt: "2026-06-07T07:00:00.000Z"
+      },
+      {
+        platform: "bilibili",
+        captureMode: "browser_assisted",
+        browserSessionAvailable: true,
+        captureScheduleEnabled: true,
+        intervalHours: 24,
+        lastSuccessfulCaptureAt: "2026-06-07T07:00:00.000Z"
+      }
+    ]
+  });
+  const xiaohongshu = scheduler.statuses.find((item) => item.platform === "xiaohongshu");
+  const bilibili = scheduler.statuses.find((item) => item.platform === "bilibili");
+
+  assert.equal(xiaohongshu?.captureConnectionStatus, "browser_session_missing");
+  assert.equal(xiaohongshu?.captureSchedule.enabled, false);
+  assert.equal(xiaohongshu?.captureSchedule.allowScheduledCapture, false);
+  assert.equal(xiaohongshu?.nextScheduledCaptureAt, null);
+  assert.equal(xiaohongshu?.needsManualAction, true);
+  assert.match(xiaohongshu?.missedCaptureReason ?? "", /会话不可用/);
+  assert.equal(bilibili?.captureConnectionStatus, "browser_session_active");
+  assert.equal(bilibili?.captureSchedule.enabled, true);
+  assert.equal(bilibili?.nextScheduledCaptureAt, "2026-06-08T07:00:00.000Z");
+  assert.equal(bilibili?.needsManualAction, true);
 });
 
 test("platform readiness overview keeps platform order and maturity labels stable", () => {

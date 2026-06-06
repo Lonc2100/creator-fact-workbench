@@ -26,6 +26,8 @@ import type {
   ContentPlatformVersion,
   ContentPlatformVersionRequest,
   ContentItem,
+  CaptureConnectionStatus,
+  CaptureMode,
   CsvImportPreset,
   CreatorPlatformDraft,
   CreatorVideoDiscussionRequest,
@@ -76,6 +78,7 @@ import type {
   MetricSnapshotSourceGroup,
   MonetizationLead,
   Platform,
+  PlatformCaptureSchedulerStatus,
   PlatformMetric,
   PlatformAccount,
   PlatformChecklist,
@@ -98,6 +101,7 @@ import type {
   SavedReview,
   TrustedDashboardAuditView,
   TrustedOperatingStatus,
+  TrustedAutoCaptureSchedulerView,
   TrustedWeeklySafeReport,
   TrustedWeeklySafeReportResponse,
   TrustedWeeklyReportSummary,
@@ -1481,6 +1485,154 @@ export function buildDataCaptureScheduleReliability(input: {
       bilibiliAccountPreviewOnly: true,
       noAutoRegistration: true,
       noBackgroundCapture: true
+    }
+  };
+}
+
+type TrustedAutoCaptureSchedulerConnectionInput = {
+  platform: PlatformCaptureSchedulerStatus["platform"] | PlatformCaptureSchedulerStatus["key"];
+  captureMode?: CaptureMode;
+  isAuthorized?: boolean;
+  browserSessionAvailable?: boolean;
+  captureScheduleEnabled?: boolean;
+  intervalHours?: number;
+  lastSuccessfulCaptureAt?: string | null;
+};
+
+const captureSchedulerPlatformDefinitions: Array<Pick<PlatformCaptureSchedulerStatus, "platform" | "key" | "label">> = [
+  { platform: "douyin", key: "douyin", label: "抖音" },
+  { platform: "xiaohongshu", key: "xiaohongshu", label: "小红书" },
+  { platform: "video_account", key: "video-account", label: "视频号" },
+  { platform: "bilibili", key: "bilibili", label: "B站" }
+];
+
+function isIsoDue(value: string | null | undefined, generatedAt: string) {
+  if (!value) return false;
+  const valueTime = new Date(value).getTime();
+  const generatedTime = new Date(generatedAt).getTime();
+  return Number.isFinite(valueTime) && Number.isFinite(generatedTime) && valueTime <= generatedTime;
+}
+
+function captureConnectionStatusFor(input: {
+  captureMode: CaptureMode;
+  officialApiAuthorized: boolean;
+  browserSessionAvailable: boolean;
+}): CaptureConnectionStatus {
+  if (input.captureMode === "official_api") return input.officialApiAuthorized ? "authorized" : "not_authorized";
+  if (input.captureMode === "browser_assisted") return input.browserSessionAvailable ? "browser_session_active" : "browser_session_missing";
+  return "not_authorized";
+}
+
+function captureModeLabel(mode: CaptureMode) {
+  if (mode === "official_api") return "官方 API";
+  if (mode === "browser_assisted") return "浏览器辅助";
+  return "手动";
+}
+
+export function buildTrustedAutoCaptureScheduler(input: {
+  generatedAt: string;
+  platformDataHealth: PlatformDataHealthView;
+  platformImportStatuses?: PlatformImportStatus[];
+  connections?: TrustedAutoCaptureSchedulerConnectionInput[];
+}): TrustedAutoCaptureSchedulerView {
+  const staleAfterHours = input.platformDataHealth.staleAfterHours
+    ?? input.platformDataHealth.summary.freshness.staleAfterHours
+    ?? 72;
+  const statusByPlatform = new Map((input.platformImportStatuses ?? []).map((status) => [status.platform, status]));
+  const healthByPlatform = new Map(input.platformDataHealth.platforms.map((health) => [health.platform, health]));
+  const connectionByKey = new Map((input.connections ?? []).map((connection) => [String(connection.platform), connection]));
+
+  const statuses = captureSchedulerPlatformDefinitions.map((definition): PlatformCaptureSchedulerStatus => {
+    const connection = connectionByKey.get(definition.platform) ?? connectionByKey.get(definition.key);
+    const captureMode: CaptureMode = connection?.captureMode ?? "manual";
+    const officialApiAuthorized = captureMode === "official_api" && connection?.isAuthorized === true;
+    const browserSessionAvailable = captureMode === "browser_assisted" && connection?.browserSessionAvailable === true;
+    const allowScheduledCapture = officialApiAuthorized || browserSessionAvailable;
+    const intervalHours = allowScheduledCapture
+      ? connection?.intervalHours ?? (captureMode === "official_api" ? 1 : 24)
+      : null;
+    const cadence: PlatformCaptureSchedulerStatus["captureSchedule"]["cadence"] = !intervalHours ? "disabled" : intervalHours <= 1 ? "hourly" : "daily";
+    const health = healthByPlatform.get(definition.key);
+    const importStatus = statusByPlatform.get(definition.platform);
+    const lastSuccessfulCaptureAt = connection?.lastSuccessfulCaptureAt
+      ?? (importStatus?.latestStatus === "success" ? importStatus.latestRunAt : undefined)
+      ?? health?.freshness.latestRealCaptureAt
+      ?? health?.rawLatestModifiedAt
+      ?? null;
+    const nextScheduledCaptureAt = allowScheduledCapture
+      ? addHoursIso(lastSuccessfulCaptureAt, intervalHours ?? 24) ?? input.generatedAt
+      : null;
+    const staleByHealth = health?.freshness.realCaptureIsStale === true || health?.realCaptureStatus === "stale" || health?.realCaptureStatus === "missing";
+    const dueBySchedule = allowScheduledCapture && isIsoDue(nextScheduledCaptureAt, input.generatedAt);
+    const startupCatchUpRequired = !lastSuccessfulCaptureAt || staleByHealth || dueBySchedule;
+    const captureConnectionStatus = captureConnectionStatusFor({ captureMode, officialApiAuthorized, browserSessionAvailable });
+
+    let missedCaptureReason: string | null = null;
+    if (!allowScheduledCapture) {
+      missedCaptureReason = captureMode === "official_api"
+        ? "官方 API 未授权，不能定时抓取。"
+        : captureMode === "browser_assisted"
+          ? "浏览器辅助会话不可用，需要先打开平台后台并连接本地浏览器助手。"
+          : "未授权平台只能手动导入，不能自动抓取。";
+    } else if (startupCatchUpRequired) {
+      missedCaptureReason = !lastSuccessfulCaptureAt
+        ? "没有成功抓取记录，启动后需要补抓。"
+        : "已超过下一次计划或新鲜度阈值，启动后需要补抓。";
+    }
+
+    const captureSchedule = {
+      enabled: allowScheduledCapture && connection?.captureScheduleEnabled === true,
+      cadence,
+      intervalHours,
+      allowScheduledCapture,
+      reason: allowScheduledCapture
+        ? `${captureModeLabel(captureMode)} 可调度；本地框架只允许安全适配器执行。`
+        : missedCaptureReason ?? "缺少授权或会话。"
+    };
+    const needsManualAction = !allowScheduledCapture || startupCatchUpRequired;
+    const statusLabel = captureSchedule.enabled
+      ? "定时抓取已启用"
+      : allowScheduledCapture
+        ? "可立即补抓/可启用定时"
+        : captureMode === "browser_assisted"
+          ? "等待浏览器辅助会话"
+          : "手动导入";
+    const nextAction = allowScheduledCapture
+      ? startupCatchUpRequired
+        ? "可用安全适配器立即补抓。"
+        : "等待下一次计划抓取。"
+      : "手动导入或先连接平台。";
+
+    return {
+      ...definition,
+      captureMode,
+      captureConnectionStatus,
+      isAuthorized: officialApiAuthorized,
+      browserSessionAvailable,
+      captureSchedule,
+      lastSuccessfulCaptureAt,
+      nextScheduledCaptureAt,
+      missedCaptureReason,
+      startupCatchUpRequired,
+      needsManualAction,
+      canRunImmediateCapture: allowScheduledCapture,
+      statusLabel,
+      nextAction
+    };
+  });
+
+  return {
+    generatedAt: input.generatedAt,
+    staleAfterHours,
+    schedulerEnabledCount: statuses.filter((status) => status.captureSchedule.enabled).length,
+    manualOnlyCount: statuses.filter((status) => status.captureMode === "manual").length,
+    startupCatchUpCount: statuses.filter((status) => status.startupCatchUpRequired).length,
+    statuses,
+    boundaries: {
+      noRealPlatformApiCall: true,
+      noSensitiveLoginMaterial: true,
+      noScheduleWithoutAuthorization: true,
+      browserSessionMustBeActive: true
     }
   };
 }
@@ -4091,7 +4243,9 @@ export class SelfMediaService {
     const platformDataHealth = readPlatformDataHealthView();
     const dailyPlatformOpsGate = readDailyPlatformOpsGateView();
     const dailySelfMediaOps = readDailySelfMediaOpsView();
+    const platformImportStatuses = this.platformImportStatuses();
     const dataCaptureScheduleReliability = buildDataCaptureScheduleReliability({ generatedAt, platformDataHealth, dailySelfMediaOps, dailyPlatformOpsGate });
+    const trustedAutoCaptureScheduler = buildTrustedAutoCaptureScheduler({ generatedAt, platformDataHealth, platformImportStatuses });
     const realDataScope = buildRealDataScopeSummary({ contents: allContents, metrics: allMetrics, metricSnapshots: allMetricSnapshots, imports, trustedSnapshots: metricSnapshots });
     const trustedOperatingStatus = buildTrustedOperatingStatus(realDataScope, metricSnapshots);
     const trustedScopeCuration = buildTrustedScopeCurationSummary(allContents, allMetricSnapshots, metricSnapshots);
@@ -4114,11 +4268,12 @@ export class SelfMediaService {
       leads,
       imports,
       operationHistory: this.listOperationHistory(),
-      platformImportStatuses: this.platformImportStatuses(),
+      platformImportStatuses,
       platformImportOperationCapabilities,
       platformReadinessStatuses: this.platformReadinessStatuses(),
       platformDataHealth,
       dataCaptureScheduleReliability,
+      trustedAutoCaptureScheduler,
       realDataScope,
       trustedOperatingStatus,
       trustedWeeklySummary,
