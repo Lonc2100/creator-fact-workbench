@@ -113,6 +113,14 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /分析并生成讨论稿/);
   assert.match(contentScreen, /按调整重新生成/);
   assert.match(contentScreen, /生成并保存四平台版本/);
+  assert.match(contentScreen, /requestedScheduledAtFromUrl/);
+  assert.match(contentScreen, /new URLSearchParams\(window\.location\.search\)\.get\("scheduledAt"\)/);
+  assert.match(contentScreen, /localDateTimeInputValue/);
+  assert.match(contentScreen, /保存后校验失败/);
+  assert.match(contentScreen, /persistedVersions\.length !== body\.platformVersions\.length/);
+  assert.match(contentScreen, /保存后未在系统中查到完整内容和四平台版本/);
+  assert.match(contentScreen, /await onCreated\(body\);\s+setResult\(body\);/);
+  assert.match(contentScreen, /setResult\(null\)/);
   assert.match(contentScreen, /平台激励\/创作标签均为建议/);
   assert.match(contentScreen, /publish-execution-workbench/);
   assert.match(contentScreen, /今日\/近期待发布/);
@@ -180,6 +188,9 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarPattern, /groupCalendarCards\(items, view\)/);
   assert.match(calendarPattern, /data-content-id=\{item\.contentId\}/);
   assert.match(calendarPattern, /data-calendar-empty-hour=\{hour\}/);
+  assert.match(calendarPattern, /data-calendar-target-at/);
+  assert.match(calendarPattern, /dropTargetFromEvent/);
+  assert.match(calendarPattern, /event\.over\?\.id/);
   assert.match(calendarPattern, /aria-label=\{`新增排期/);
   assert.match(calendarPattern, /PendingScheduleQueue/);
   assert.match(calendarPattern, /calendar-pending-schedule-queue/);
@@ -194,6 +205,8 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.doesNotMatch([calendarPattern, calendarScreen, formatHelpers].join("\n"), /toISOString\(\)\.slice\(0,\s*16\)/);
   assert.match(calendarScreen, /action: "confirm_publish"/);
   assert.match(calendarScreen, /日历人工确认发布/);
+  assert.match(calendarScreen, /排期保存后校验失败/);
+  assert.match(calendarScreen, /persisted\.scheduledAt !== input\.scheduledAt/);
   assert.match(calendarScreen, /发布记录台账/);
   assert.match(calendarScreen, /publish-ledger/);
   assert.match(calendarScreen, /本地人工确认记录/);
@@ -215,6 +228,9 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /真实日期优先/);
   assert.match(calendarScreen, /新增排期/);
   assert.match(calendarScreen, /calendar-create-schedule-input/);
+  assert.match(calendarScreen, /contentCreateHref/);
+  assert.match(calendarScreen, /scheduledAt=\$\{encodeURIComponent\(scheduledAt\)\}/);
+  assert.match(calendarScreen, /calendar-create-content-link/);
   assert.match(calendarScreen, /localDateTimeInputValue\(createSlotAt\)/);
   assert.match(calendarScreen, /onCreateAt=\{\(scheduledAt\) => \{/);
   assert.match(calendarScreen, /setCreateSlotAt\(scheduledAt\)/);

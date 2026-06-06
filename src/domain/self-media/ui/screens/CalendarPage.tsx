@@ -148,6 +148,11 @@ function requestedVersionIdFromUrl() {
   return new URLSearchParams(window.location.search).get("versionId") ?? undefined;
 }
 
+function contentCreateHref(scheduledAt?: string) {
+  if (!scheduledAt) return "/content#new-video";
+  return `/content?scheduledAt=${encodeURIComponent(scheduledAt)}#new-video`;
+}
+
 function PublishLedgerPanel({
   snapshot,
   platform,
@@ -404,8 +409,11 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
       fetch("/api/self-media/dashboard"),
       fetch("/api/self-media/content-workbench")
     ]);
-    setCurrent((await dashboardResponse.json()) as DashboardSnapshot);
-    setCurrentWorkbench((await workbenchResponse.json()) as ContentWorkbenchSnapshot);
+    const nextDashboard = (await dashboardResponse.json()) as DashboardSnapshot;
+    const nextWorkbench = (await workbenchResponse.json()) as ContentWorkbenchSnapshot;
+    setCurrent(nextDashboard);
+    setCurrentWorkbench(nextWorkbench);
+    return nextWorkbench;
   }
 
   async function patchVersion(payload: PlatformVersionPatchRequest) {
@@ -432,7 +440,9 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
         const needsReview = version.status === "needs_review" ? version : await patchVersion({ id: version.id, status: "needs_review", scheduledAt: input.scheduledAt });
         await patchVersion({ id: needsReview.id, status: "scheduled", scheduledAt: input.scheduledAt });
       }
-      await refreshDashboard();
+      const next = await refreshDashboard();
+      const persisted = next.platformVersions.find((item) => item.id === version.id);
+      if (!persisted || persisted.scheduledAt !== input.scheduledAt) throw new Error("排期保存后校验失败：系统中的时间与目标时间不一致。");
       setMessage("排期已保存，状态已按合法链路推进。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "排期保存失败");
@@ -613,7 +623,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
             </label>
             <p className="muted">这里先打开创建入口，不直接写入数据；保存四平台版本后会出现在日历中。</p>
             <div className="inline-stack">
-              <a className="sm-button sm-button-primary" href="/content#new-video">去内容台创建</a>
+              <a className="sm-button sm-button-primary" data-testid="calendar-create-content-link" href={contentCreateHref(createSlotAt)}>去内容台创建</a>
               <Button onClick={() => setCreateSlotAt(undefined)} variant="secondary">留在日历</Button>
             </div>
           </aside>

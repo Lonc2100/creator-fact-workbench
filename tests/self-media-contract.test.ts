@@ -5726,12 +5726,15 @@ test("creator video idea creates four platform drafts and optional schedule", as
     assert.equal(result.platformVersions.length, 4);
     assert.deepEqual(new Set(result.platformVersions.map((item) => item.platform)), new Set(["douyin", "xiaohongshu", "video_account", "bilibili"]));
     assert.equal(result.queueItems.length, 4);
+    assert.ok(result.platformVersions.every((item) => item.scheduledAt === "2026-06-08T12:00:00.000Z"));
+    assert.ok(result.queueItems.every((item) => item.scheduledAt === "2026-06-08T12:00:00.000Z" && item.status === "scheduled"));
     assert.ok(result.drafts.every((draft) => draft.tags.length > 0 && draft.coverNote && /人工/.test(draft.platformAdvice)));
     assert.ok(repo.listContents().some((item) => item.id === result.content.id && item.status === "scheduled"));
     assert.ok(repo.listPlatformVersions().every((item) => item.contentId !== result.content.id || item.status === "scheduled"));
     const workbench = await service.contentWorkbench();
     assert.ok(workbench.contentRows.some((row) => row.content.id === result.content.id && row.originKind === "local_draft"));
-    assert.ok(service.calendar().some((item) => item.contentId === result.content.id && item.scheduledAt === "2026-06-08T12:00:00.000Z"));
+    const calendarItems = service.calendar().filter((item) => item.contentId === result.content.id && item.scheduledAt === "2026-06-08T12:00:00.000Z");
+    assert.equal(calendarItems.length, 4);
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });

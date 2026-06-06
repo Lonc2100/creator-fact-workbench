@@ -5,7 +5,7 @@ import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, C
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
-import { formatDateTime, isoFromLocalDateTime } from "../foundations/format";
+import { formatDateTime, isoFromLocalDateTime, localDateTimeInputValue } from "../foundations/format";
 import { contentStatusLabels, platformLabels, platformVersionStatusLabels } from "../foundations/labels";
 import { ContentDetail, ContentTable, PlatformVersionEditor } from "../patterns/ContentManagement";
 import { Button } from "../primitives/Button";
@@ -134,6 +134,11 @@ function filterRows(rows: ContentWorkbenchContentRow[], filters: { query: string
     });
 }
 
+function requestedScheduledAtFromUrl() {
+  if (typeof window === "undefined") return "";
+  return localDateTimeInputValue(new URLSearchParams(window.location.search).get("scheduledAt") ?? undefined);
+}
+
 function CreatorVideoPanel({
   onCreated
 }: {
@@ -144,7 +149,7 @@ function CreatorVideoPanel({
   const [brief, setBrief] = useState("");
   const [scriptNotes, setScriptNotes] = useState("");
   const [materialNotes, setMaterialNotes] = useState("");
-  const [scheduledAt, setScheduledAt] = useState("");
+  const [scheduledAt, setScheduledAt] = useState(() => requestedScheduledAtFromUrl());
   const [revisionPrompt, setRevisionPrompt] = useState("");
   const [discussion, setDiscussion] = useState<CreatorVideoDiscussionResult | null>(null);
   const [result, setResult] = useState<CreatorVideoDraftResult | null>(null);
@@ -198,10 +203,21 @@ function CreatorVideoPanel({
       });
       const body = await response.json() as CreatorVideoDraftResult & { errorMessage?: string };
       if (!response.ok) throw new Error(body.errorMessage ?? "新视频生成失败");
-      setResult(body);
+      const verification = await fetch("/api/self-media/content-workbench");
+      const snapshot = (await verification.json()) as ContentWorkbenchSnapshot & { errorMessage?: string };
+      if (!verification.ok) throw new Error(snapshot.errorMessage ?? "保存后校验失败");
+      const persistedVersions = snapshot.platformVersions.filter((version) => version.contentId === body.content.id);
+      if (!snapshot.contents.some((content) => content.id === body.content.id) || persistedVersions.length !== body.platformVersions.length) {
+        throw new Error("保存后未在系统中查到完整内容和四平台版本，请重试。");
+      }
+      if (body.content.scheduledAt && persistedVersions.some((version) => version.scheduledAt !== body.content.scheduledAt)) {
+        throw new Error("保存后排期时间未完整写入四个平台版本，请重试。");
+      }
       await onCreated(body);
+      setResult(body);
       setMessage(body.content.scheduledAt ? "四平台版本已保存，并已进入日历排期。" : "四平台版本已保存，等待人工确认发布时间。");
     } catch (error) {
+      setResult(null);
       setMessage(error instanceof Error ? error.message : "新视频生成失败");
     } finally {
       setBusy(null);

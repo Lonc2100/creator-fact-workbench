@@ -113,6 +113,15 @@ function scheduledForDate(item: PublishCalendarItem, targetDate: string, targetH
   return next.toISOString();
 }
 
+function dropTargetFromEvent(event: DragEndEvent) {
+  const data = event.over?.data.current as { date?: string; hour?: number } | undefined;
+  if (data?.date) return { date: data.date, hour: data.hour };
+  const overId = typeof event.over?.id === "string" ? event.over.id : "";
+  const match = overId.match(/^(\d{4}-\d{2}-\d{2})(?:-(\d{1,2}))?$/);
+  if (!match) return undefined;
+  return { date: match[1], hour: match[2] ? Number(match[2]) : undefined };
+}
+
 function timeSlotFor(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 9;
@@ -360,6 +369,7 @@ function DroppableCalendarTimeCell({
       className={cx("calendar-time-cell", isOver && "is-over", isToday && "is-today")}
       data-calendar-date={date}
       data-calendar-hour={hour}
+      data-calendar-target-at={localDateTimeInputValue(scheduledForDate({ scheduledAt: `${date}T${String(hour).padStart(2, "0")}:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, hour))}
       ref={setNodeRef}
     >
       {visible.map((group) => (
@@ -412,11 +422,10 @@ export function PublishCalendar({
 
   function handleDragEnd(event: DragEndEvent) {
     const item = event.active.data.current?.item as PublishCalendarItem | undefined;
-    const date = event.over?.data.current?.date as string | undefined;
-    const hour = event.over?.data.current?.hour as number | undefined;
-    if (!item || !date) return;
+    const target = dropTargetFromEvent(event);
+    if (!item || !target?.date) return;
     onSelect?.(item.platformVersionId);
-    onReschedule?.({ platformVersionId: item.platformVersionId, scheduledAt: scheduledForDate(item, date, hour) });
+    onReschedule?.({ platformVersionId: item.platformVersionId, scheduledAt: scheduledForDate(item, target.date, target.hour) });
   }
 
   if (items.length === 0 && pendingItems.length === 0) {
