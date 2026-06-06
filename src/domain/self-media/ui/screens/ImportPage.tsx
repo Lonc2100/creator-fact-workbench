@@ -95,6 +95,87 @@ const realCaptureStatusLabels: Record<DashboardSnapshot["platformDataHealth"]["p
   unknown: "未知"
 };
 
+type CaptureRealityPlatformKey = "douyin" | "xiaohongshu" | "video-account" | "bilibili";
+
+interface CaptureRealityCapability {
+  key: CaptureRealityPlatformKey;
+  platform: PlatformImportStatus["platform"] | "video_account";
+  label: string;
+  officialApi: string;
+  appReview: string;
+  oauth: string;
+  contentData: string;
+  publishDraft: string;
+  scheduledAutoCapture: string;
+  implemented: string;
+  browserAssisted: string;
+  manualImport: string;
+  futureConnection: string;
+}
+
+const captureRealityCapabilities: CaptureRealityCapability[] = [
+  {
+    key: "douyin",
+    platform: "douyin",
+    label: "抖音",
+    officialApi: "未来可接官方 API",
+    appReview: "需要应用审核",
+    oauth: "需要 OAuth、访问令牌和 scope",
+    contentData: "官方文档有视频数据能力，接入前不能抓",
+    publishDraft: "有上传/发布能力文档，默认不自动发布",
+    scheduledAutoCapture: "未授权时不支持定时自动抓",
+    implemented: "当前仅本地手动导入/浏览器辅助映射",
+    browserAssisted: "可浏览器辅助",
+    manualImport: "可手动导入",
+    futureConnection: "连接平台：待接入 OAuth"
+  },
+  {
+    key: "xiaohongshu",
+    platform: "xiaohongshu",
+    label: "小红书",
+    officialApi: "未确认公开稳定个人创作者数据 API",
+    appReview: "开放平台/Ark 能力需按官方资质申请",
+    oauth: "本产品未接入授权流程",
+    contentData: "内容级数据当前靠导出或浏览器辅助",
+    publishDraft: "不写成官方草稿箱/API 发布",
+    scheduledAutoCapture: "当前不支持定时自动抓",
+    implemented: "当前仅本地手动导入/浏览器辅助映射",
+    browserAssisted: "可浏览器辅助",
+    manualImport: "可手动导入",
+    futureConnection: "连接平台：待官方能力确认"
+  },
+  {
+    key: "video-account",
+    platform: "video_account",
+    label: "视频号",
+    officialApi: "未确认稳定创作者内容级数据 API",
+    appReview: "微信开放能力需按具体场景申请",
+    oauth: "本产品未接入视频号授权",
+    contentData: "当前只能人工/浏览器辅助读取助手页面",
+    publishDraft: "不写成官方草稿箱/API 发布",
+    scheduledAutoCapture: "当前不支持定时自动抓",
+    implemented: "当前仅本地手动导入/浏览器辅助映射",
+    browserAssisted: "可浏览器辅助",
+    manualImport: "可手动导入",
+    futureConnection: "连接平台：待官方能力确认"
+  },
+  {
+    key: "bilibili",
+    platform: "bilibili",
+    label: "B站",
+    officialApi: "未来可接开放平台能力",
+    appReview: "需要开发者入驻/能力审核",
+    oauth: "需要授权和访问令牌",
+    contentData: "稿件内容级数据可做未来 API/导入适配",
+    publishDraft: "内容分发未来可接，默认不自动发布",
+    scheduledAutoCapture: "未授权时不支持定时自动抓",
+    implemented: "当前内容级导入可保存；账号指标 preview-only",
+    browserAssisted: "可浏览器辅助",
+    manualImport: "可手动导入",
+    futureConnection: "连接平台：待接入授权"
+  }
+];
+
 function importStatusTone(status: PlatformImportStatus["latestStatus"]) {
   if (status === "success") return "success";
   if (status === "failed") return "danger";
@@ -876,6 +957,50 @@ function PlatformImportStatusPanel({ capabilities, history, statuses, onDashboar
   );
 }
 
+function CaptureRealityMatrix({ snapshot }: { snapshot: DashboardSnapshot }) {
+  const statusesByPlatform = new Map(snapshot.platformImportStatuses.map((status) => [status.platform, status]));
+  const healthByPlatform = new Map(snapshot.platformDataHealth.platforms.map((platform) => [platform.platform, platform]));
+  return (
+    <div className="capture-reality-matrix" data-testid="platform-capture-reality-matrix">
+      {captureRealityCapabilities.map((capability) => {
+        const status = statusesByPlatform.get(capability.platform);
+        const health = healthByPlatform.get(capability.key);
+        const latestImportAt = status?.latestRunAt ?? health?.freshness.latestRealCaptureAt ?? health?.rawLatestModifiedAt;
+        const latestImportLabel = latestImportAt ? formatDateTime(latestImportAt) : "暂无";
+        const automaticEnabled = false;
+        return (
+          <article className="capture-reality-card" data-platform-capture-status={capability.key} key={capability.key}>
+            <header>
+              <PlatformBadge platform={capability.platform} />
+              <Badge tone="warning">未授权</Badge>
+              <Badge tone="info">API 未接入</Badge>
+            </header>
+            <dl>
+              <div><dt>官方 API</dt><dd>{capability.officialApi}</dd></div>
+              <div><dt>应用审核</dt><dd>{capability.appReview}</dd></div>
+              <div><dt>授权要求</dt><dd>{capability.oauth}</dd></div>
+              <div><dt>内容级数据</dt><dd>{capability.contentData}</dd></div>
+              <div><dt>发布/草稿箱</dt><dd>{capability.publishDraft}</dd></div>
+              <div><dt>定时自动抓</dt><dd>{capability.scheduledAutoCapture}</dd></div>
+              <div><dt>当前实现</dt><dd>{capability.implemented}</dd></div>
+            </dl>
+            <div className="capture-reality-status-row">
+              <span>{capability.browserAssisted}</span>
+              <span>{capability.manualImport}</span>
+              <span>最近导入时间：{latestImportLabel}</span>
+              <span>自动抓取：{automaticEnabled ? "已启用" : "未启用"}</span>
+            </div>
+            <div className="capture-reality-footer">
+              <button className="sm-button sm-button-secondary" disabled type="button">{capability.futureConnection}</button>
+              <a className="sm-button sm-button-primary" href="#manual-refresh">手动导入</a>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 function PostPublishRefreshPanel({
   snapshot,
   onConfirmMatch
@@ -1039,14 +1164,15 @@ function ImportFirstViewportGuide({
       </div>
       <div className="capture-reality-box" data-testid="capture-reality-explainer">
         <strong>为什么登录抖音/视频号网页后，刷新本系统不会自动更新？</strong>
-        <p>网页登录态只在平台网页和当前浏览器会话里；本系统刷新页面不会读取该网页登录态，也不会绕过授权自动抓取。要更新数据，必须选择手动导入、启动浏览器辅助读取当前页，或完成官方 API 授权。</p>
+        <p>网页登录状态不会自动被本系统读取；登录态只在平台网页和当前浏览器会话里，本系统刷新页面不会绕过授权自动抓取。要更新数据，必须选择手动导入、启动浏览器辅助读取当前页，或完成官方 API 授权。</p>
       </div>
       <div className="capture-mode-status-grid" data-testid="capture-mode-status-grid">
-        <span><b>抖音</b> 需 OAuth 授权或浏览器辅助；当前未接入自动 API 抓取。</span>
-        <span><b>视频号</b> 需浏览器辅助或明确官方能力；刷新本系统不会读取视频号助手登录态。</span>
-        <span><b>小红书</b> 未确认公开稳定创作者数据 API；先按手动/浏览器辅助处理。</span>
-        <span><b>B站</b> 视频/账号能力需授权；账号指标保持 preview-only，不进入 durable totals。</span>
+        <span><b>当前是否有自动抓取？</b> 当前自动抓取：未启用。未完成授权或浏览器辅助会话时，自动抓取一律显示未启用。</span>
+        <span><b>现在怎么手动导入？</b> 先从平台后台导出或用本地浏览器辅助读取当前页，再到下方预览/保存。</span>
+        <span><b>哪些平台未来可 API？</b> 抖音、B站有开放平台能力可做未来适配，但必须审核和授权。</span>
+        <span><b>哪些平台需浏览器辅助？</b> 小红书、视频号当前按浏览器辅助或手动导入处理。</span>
       </div>
+      <CaptureRealityMatrix snapshot={snapshot} />
       <div className="platform-import-status-summary">
         <span><b>{formatDateTime(latestRealCaptureAt ?? undefined)}</b> 最近采集</span>
         <span><b>{formatNumber(stalePlatforms.length)}</b> 平台需补抓</span>
@@ -1083,14 +1209,14 @@ function ScheduledRefreshSettingPanel({ snapshot }: { snapshot: DashboardSnapsho
   const catchUpLabel = reliability.startupCatchUpRequired ? "需要补抓" : "无需补抓";
   return (
     <Panel
-      title="定时抓取设定"
-      eyebrow="抓取可靠性"
+      title="手动检查节奏"
+      eyebrow="非自动抓取"
       action={<span className="sm-badge sm-badge-info">{reliability.statusLabel}</span>}
     >
       <div className="platform-import-status-summary" data-testid="scheduled-refresh-setting" data-capture-schedule-reliability="true">
         <span><b>{reliability.modeLabel}</b> 当前模式</span>
         <span><b>{formatDateTime(reliability.latestRealCaptureAt ?? undefined)}</b> 最近真实采集</span>
-        <span><b>{formatDateTime(reliability.nextSuggestedAt ?? undefined)}</b> 下次建议抓取</span>
+        <span><b>{formatDateTime(reliability.nextSuggestedAt ?? undefined)}</b> 下次建议检查</span>
         <span><b>每 {formatNumber(reliability.suggestedFrequencyHours)} 小时</b> 建议频率</span>
         <span><b>{catchUpLabel}</b> 开机补抓</span>
         <span><b>{reliability.statusLabel}</b> stale / 失败状态</span>

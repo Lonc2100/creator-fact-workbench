@@ -838,6 +838,77 @@ button:disabled {
   color: var(--sm-text-strong);
 }
 
+.capture-reality-matrix {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.capture-reality-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(42, 35, 28, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 10px;
+}
+
+.capture-reality-card header,
+.capture-reality-status-row,
+.capture-reality-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.capture-reality-card dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.capture-reality-card dl div {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.capture-reality-card dt,
+.capture-reality-card dd {
+  margin: 0;
+  font-size: 11.2px;
+  line-height: 1.35;
+}
+
+.capture-reality-card dt {
+  color: var(--sm-text-muted);
+  font-weight: 800;
+}
+
+.capture-reality-card dd {
+  color: #4f463d;
+}
+
+.capture-reality-status-row span {
+  border: 1px solid rgba(42, 35, 28, 0.08);
+  border-radius: 999px;
+  background: rgba(246, 241, 233, 0.58);
+  color: var(--sm-text-muted);
+  padding: 4px 7px;
+  font-size: 10.8px;
+  font-weight: 760;
+}
+
+.capture-reality-footer .sm-button {
+  min-height: 30px;
+  padding-inline: 10px;
+  font-size: 11.5px;
+}
+
 .import-guide-platforms {
   display: flex;
   flex-wrap: wrap;
@@ -5671,6 +5742,7 @@ button:disabled {
   .daily-self-media-ops-steps,
   .daily-self-media-ops-lists,
   .real-capture-action-plan,
+  .capture-reality-matrix,
   .real-capture-command-grid,
   .platform-import-operation-grid {
     grid-template-columns: 1fr;

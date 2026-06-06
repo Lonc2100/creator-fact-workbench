@@ -176,21 +176,21 @@ function buildDailyChecklistRows(snapshot: DashboardSnapshot): DailyChecklistRow
     },
     {
       key: "real-data-freshness",
-      label: "数据新鲜度",
+      label: "人工导入新鲜度",
       tone: platformDataHealthTone(snapshot.platformDataHealth.status, realCaptureStaleCount),
       status: platformDataHealthLabel(snapshot.platformDataHealth.status, realCaptureStaleCount),
-      detail: `最近真实采集 ${formatDateTime(latestRealCaptureAt ?? undefined)}；过期平台 ${formatNumber(realCaptureStaleCount)} 个`,
+      detail: `最近本地导入/采集 ${formatDateTime(latestRealCaptureAt ?? undefined)}；过期平台 ${formatNumber(realCaptureStaleCount)} 个；网页登录后刷新本系统不会自动更新。`,
       href: "/import",
       hrefLabel: "查看导入状态"
     },
     {
       key: "data-capture-schedule",
-      label: "抓取节奏",
+      label: "手动检查节奏",
       tone: captureScheduleTone(captureSchedule.status),
       status: captureSchedule.statusLabel,
-      detail: `建议每 ${formatNumber(captureSchedule.suggestedFrequencyHours)} 小时检查；下次建议 ${formatDateTime(captureSchedule.nextSuggestedAt ?? undefined)}；${captureSchedule.startupCatchUpRequired ? "开机后先补抓" : "开机后无需补抓"}`,
+      detail: `建议每 ${formatNumber(captureSchedule.suggestedFrequencyHours)} 小时人工检查；下次建议 ${formatDateTime(captureSchedule.nextSuggestedAt ?? undefined)}；当前没有后台自动抓取。`,
       href: "/import",
-      hrefLabel: "查看抓取状态"
+      hrefLabel: "查看平台接入状态"
     },
     {
       key: "daily-ops",
@@ -338,7 +338,7 @@ function PublishExecutionDashboardPanel({ snapshot }: { snapshot: DashboardSnaps
     >
       <div className="metric-strip" data-testid="dashboard-publish-execution-workbench">
         <span><b>{formatNumber(workbench.executionItems.filter((item) => item.status === "scheduled").length)}</b> 待人工发布</span>
-        <span><b>{formatNumber(workbench.postPublishRefresh.length)}</b> 发布后待抓取</span>
+        <span><b>{formatNumber(workbench.postPublishRefresh.length)}</b> 发布后待手动回收</span>
         <span><b>{formatNumber(workbench.matchCandidates.length)}</b> 候选匹配</span>
       </div>
       <div className="trusted-weekly-platforms" aria-label="发布执行台列表">
@@ -354,7 +354,7 @@ function PublishExecutionDashboardPanel({ snapshot }: { snapshot: DashboardSnaps
       {items.length === 0 && <p className="muted">暂无到期排期或发布后待回收指标内容。</p>}
       <div className="trusted-weekly-summary-foot">
         <span>{workbench.manualRefreshCopy}</span>
-        <a className="sm-button sm-button-primary" href="/import#post-publish-refresh">去手动抓取最新数据</a>
+        <a className="sm-button sm-button-primary" href="/import#post-publish-refresh">去手动导入 / 浏览器辅助</a>
       </div>
     </Panel>
   );
