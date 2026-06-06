@@ -1,4 +1,4 @@
-import { confirmSelfMediaPlatformVersionPublish, patchSelfMediaPlatformVersion, reviewSelfMediaContentDraft, upsertSelfMediaPlatformVersion } from "@/domain/self-media/runtime";
+import { confirmSelfMediaPlatformContentMatch, confirmSelfMediaPlatformVersionPublish, patchSelfMediaPlatformVersion, reviewSelfMediaContentDraft, upsertSelfMediaPlatformVersion } from "@/domain/self-media/runtime";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -13,6 +13,8 @@ export async function PATCH(request: Request) {
       ? await confirmSelfMediaPlatformVersionPublish(body)
       : body.action === "review_draft"
         ? await reviewSelfMediaContentDraft(body)
+        : body.action === "match_imported_content"
+          ? await confirmSelfMediaPlatformContentMatch(body)
         : await patchSelfMediaPlatformVersion(body);
     return Response.json(result);
   } catch (error) {

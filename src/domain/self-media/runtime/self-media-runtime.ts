@@ -8,6 +8,7 @@ import type {
   ActionItemToContentRequest,
   AutomationRunRequest,
   CalendarQuery,
+  ConfirmPlatformContentMatchRequest,
   ConfirmPlatformVersionPublishRequest,
   ContentDraftReviewRequest,
   ContentTrustScopePatchRequest,
@@ -457,6 +458,11 @@ export async function reviewSelfMediaContentDraft(input: ContentDraftReviewReque
 export async function confirmSelfMediaPlatformVersionPublish(input: ConfirmPlatformVersionPublishRequest) {
   const service = new SelfMediaService();
   return service.confirmPlatformVersionPublish(input);
+}
+
+export async function confirmSelfMediaPlatformContentMatch(input: ConfirmPlatformContentMatchRequest) {
+  const service = new SelfMediaService();
+  return service.confirmPlatformContentMatch(input);
 }
 
 export async function getSelfMediaCalendar(input: CalendarQuery) {

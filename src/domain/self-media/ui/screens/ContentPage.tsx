@@ -5,6 +5,7 @@ import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, C
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
+import { formatDateTime } from "../foundations/format";
 import { contentStatusLabels, platformLabels, platformVersionStatusLabels } from "../foundations/labels";
 import { ContentDetail, ContentTable, PlatformVersionEditor } from "../patterns/ContentManagement";
 import { Button } from "../primitives/Button";
@@ -329,6 +330,77 @@ function CreatorVideoPanel({
   );
 }
 
+function PublishExecutionWorkbenchPanel({
+  snapshot,
+  onConfirmPublish,
+  onSelect
+}: {
+  snapshot: ContentWorkbenchSnapshot;
+  onConfirmPublish: (payload: ConfirmPlatformVersionPublishRequest) => Promise<void>;
+  onSelect: (contentId: string, versionId: string) => void;
+}) {
+  const items = snapshot.publishToMetricsWorkbench.executionItems.slice(0, 8);
+  return (
+    <Panel
+      title="今日/近期待发布"
+      eyebrow="发布执行台"
+      action={<span className="sm-badge sm-badge-info">{items.length} 条待确认</span>}
+    >
+      <div className="table-wrap" data-testid="publish-execution-workbench">
+        <table className="sm-table">
+          <thead>
+            <tr>
+              <th>内容</th>
+              <th>平台</th>
+              <th>计划/状态</th>
+              <th>下一步</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.platformVersionId}>
+                <td>
+                  <strong>{item.contentTitle}</strong>
+                  <small>{item.versionTitle}</small>
+                </td>
+                <td><PlatformBadge compact platform={item.platform} /></td>
+                <td>
+                  <span className={item.timing === "blocked_or_failed" ? "sm-badge sm-badge-warning" : item.timing === "published_waiting_metrics" ? "sm-badge sm-badge-info" : "sm-badge sm-badge-success"}>
+                    {platformVersionStatusLabels[item.status]}
+                  </span>
+                  <small>{formatDateTime(item.scheduledAt ?? item.publishedAt)}</small>
+                </td>
+                <td>{item.nextAction}</td>
+                <td>
+                  <div className="inline-stack">
+                    <Button onClick={() => onSelect(item.contentId, item.platformVersionId)} variant="secondary">打开内容编辑</Button>
+                    <a className="sm-button sm-button-secondary" href={item.calendarUrl}>打开日历</a>
+                    {item.status === "scheduled" && (
+                      <>
+                        <Button onClick={() => onConfirmPublish({ platformVersionId: item.platformVersionId, status: "published", confirmationSource: "manual", note: "内容执行台人工确认已发布" })} variant="primary">人工确认已发布</Button>
+                        <Button onClick={() => onConfirmPublish({ platformVersionId: item.platformVersionId, status: "failed", confirmationSource: "manual", note: "内容执行台记录发布失败，需要回到草稿处理。" })} variant="ghost">记录发布失败</Button>
+                        <Button onClick={() => onConfirmPublish({ platformVersionId: item.platformVersionId, status: "blocked", confirmationSource: "manual", note: "内容执行台记录发布阻塞，需要补素材或平台检查。" })} variant="ghost">记录发布阻塞</Button>
+                      </>
+                    )}
+                    {item.needsManualRefresh && <a className="sm-button sm-button-primary" href="/import#post-publish-refresh">去手动抓取最新数据</a>}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={5}>暂无到期或发布后待回收指标的四平台内容。</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted">{snapshot.publishToMetricsWorkbench.manualRefreshCopy}</p>
+    </Panel>
+  );
+}
+
 function TrustedScopeCurationPanel({
   snapshot,
   onToggle
@@ -588,6 +660,15 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
       />
       <p className="operation-message" data-testid="content-operation-message">{message}</p>
       <CreatorVideoPanel onCreated={handleCreatorDraftCreated} />
+      <PublishExecutionWorkbenchPanel
+        onConfirmPublish={confirmPublish}
+        onSelect={(contentId, versionId) => {
+          setSelectedContentId(contentId);
+          setSelectedVersionId(versionId);
+          setMessage("已打开待发布内容；可编辑、改排期或记录发布结果。");
+        }}
+        snapshot={current}
+      />
       <WorkbenchSummaryPanel snapshot={current} />
       <TrustedScopeCurationPanel snapshot={current} onToggle={patchTrustedScope} />
       <Panel title="内容列表筛选" eyebrow="默认运营视图">

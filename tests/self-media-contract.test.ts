@@ -5348,6 +5348,92 @@ test("manual publish confirmation creates an idempotent publish record", () => {
   }
 });
 
+test("publish execution workbench guides manual publish refresh and confirmed metric matching", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-publish-metrics-loop-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const draft = service.createCreatorVideoDraft({
+      title: "发布到指标闭环测试",
+      topic: "发布闭环",
+      brief: "验证排期到点、人工确认发布、手动抓取后再人工匹配指标。",
+      scheduledAt: "2026-06-06T09:00:00.000Z"
+    });
+    const douyinVersion = draft.platformVersions.find((item) => item.platform === "douyin");
+    assert.ok(douyinVersion);
+
+    const dueWorkbench = service.publishToMetricsWorkbench(new Date("2026-06-06T10:30:00.000Z"));
+    assert.ok(dueWorkbench.executionItems.some((item) => item.platformVersionId === douyinVersion.id && item.timing === "overdue"));
+
+    const beforeMetricCount = repo.listMetricSnapshots().length;
+    const beforeAccountMetricCount = repo.listAccountMetricSnapshots().length;
+    const confirmed = service.confirmPlatformVersionPublish({
+      platformVersionId: douyinVersion.id,
+      status: "published",
+      happenedAt: "2026-06-06T10:40:00.000Z",
+      confirmationSource: "manual",
+      confirmedBy: "creator"
+    });
+    assert.equal(confirmed.version.status, "published");
+    assert.equal(repo.listPublishRecords().length, 1);
+    assert.equal(repo.listMetricSnapshots().length, beforeMetricCount);
+
+    const refreshWorkbench = service.publishToMetricsWorkbench(new Date("2026-06-06T11:00:00.000Z"));
+    assert.ok(refreshWorkbench.executionItems.some((item) => item.platformVersionId === douyinVersion.id && item.needsManualRefresh));
+    assert.ok(refreshWorkbench.postPublishRefresh.some((item) => item.platformVersionId === douyinVersion.id));
+
+    service.importPayload({
+      source: "douyin_creator_center",
+      contents: [{
+        id: "dy-publish-loop-imported",
+        title: douyinVersion.title,
+        platform: "douyin",
+        status: "published",
+        format: "short_video",
+        topic: "发布闭环",
+        publishedAt: "2026-06-06T10:42:00.000Z"
+      }],
+      metrics: [{
+        id: "metric-dy-publish-loop-imported",
+        contentId: "dy-publish-loop-imported",
+        platform: "douyin",
+        capturedAt: "2026-06-06T11:30:00.000Z",
+        views: 1234,
+        likes: 88,
+        comments: 9,
+        saves: 18,
+        shares: 7,
+        followersDelta: 2
+      }]
+    }, { isTestFixture: false, operationKind: "platform_save", trustedScopeEligible: true });
+
+    const candidateWorkbench = service.publishToMetricsWorkbench(new Date("2026-06-06T12:00:00.000Z"));
+    const candidate = candidateWorkbench.matchCandidates.find((item) => item.localPlatformVersionId === douyinVersion.id && item.importedContentId === "dy-publish-loop-imported");
+    assert.ok(candidate);
+    assert.equal(candidate.status, "candidate");
+    assert.equal(repo.listMetricSnapshots().some((item) => item.contentId === draft.content.id), false);
+
+    const matched = service.confirmPlatformContentMatch({
+      localContentId: draft.content.id,
+      localPlatformVersionId: douyinVersion.id,
+      importedContentId: "dy-publish-loop-imported",
+      metricSnapshotIds: candidate.metricSnapshotIds,
+      confirmedBy: "creator"
+    });
+    assert.equal(matched.platformVersion.status, "published");
+    assert.equal(matched.importedContent.userExcludedFromTrustedScope, true);
+    assert.equal(matched.metricSnapshots.length, 1);
+    assert.equal(matched.metricSnapshots[0].contentId, draft.content.id);
+    assert.equal(matched.metricSnapshots[0].platformVersionId, douyinVersion.id);
+    assert.equal(repo.listAccountMetricSnapshots().length, beforeAccountMetricCount);
+    assert.doesNotMatch(JSON.stringify({ dueWorkbench, refreshWorkbench, candidateWorkbench, matched }), /\bcookie\b|\btoken\b|\bheaders?\b|raw payload|danmu|comment_content/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("failed publish confirmation requires a reason and records manual failure semantics", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-publish-failed-"));
   let repo: SqliteSelfMediaRepo | undefined;

@@ -299,6 +299,73 @@ export interface ContentWorkbenchContentRow {
   latestSnapshotDate?: string;
 }
 
+export type ClosedLoopContentPlatform = "douyin" | "xiaohongshu" | "video_account" | "bilibili";
+
+export interface PublishExecutionItem {
+  platformVersionId: string;
+  contentId: string;
+  queueId?: string;
+  platform: ClosedLoopContentPlatform;
+  contentTitle: string;
+  versionTitle: string;
+  scheduledAt?: string;
+  publishedAt?: string;
+  status: PlatformVersionStatus;
+  queueStatus?: PublishQueueStatus;
+  timing: "overdue" | "due_today" | "upcoming" | "published_waiting_metrics" | "blocked_or_failed";
+  minutesUntilDue?: number;
+  nextAction: string;
+  needsManualRefresh: boolean;
+  publishRecordId?: string;
+  contentUrl: string;
+  calendarUrl: string;
+}
+
+export interface PlatformContentMatchCandidate {
+  id: string;
+  platform: ClosedLoopContentPlatform;
+  localContentId: string;
+  localPlatformVersionId: string;
+  importedContentId: string;
+  importedTitle: string;
+  importedPublishedAt?: string;
+  importRunId?: string;
+  metricSnapshotIds: string[];
+  score: number;
+  reasons: string[];
+  status: "candidate" | "matched";
+}
+
+export interface PostPublishRefreshCandidate {
+  id: string;
+  platform: ClosedLoopContentPlatform;
+  importPlatformKey: PlatformImportOperationPlatform;
+  contentId: string;
+  platformVersionId: string;
+  contentTitle: string;
+  versionTitle: string;
+  publishedAt?: string;
+  scheduledAt?: string;
+  latestMetricSnapshotAt?: string;
+  latestImportRunId?: string;
+  nextAction: string;
+  manualRefreshCopy: string;
+  matchCandidates: PlatformContentMatchCandidate[];
+}
+
+export interface PublishToMetricsWorkbench {
+  generatedAt: string;
+  executionItems: PublishExecutionItem[];
+  postPublishRefresh: PostPublishRefreshCandidate[];
+  matchCandidates: PlatformContentMatchCandidate[];
+  manualRefreshCopy: string;
+  scheduledRefresh: {
+    nextSuggestedAt: string;
+    command: string;
+    boundary: string;
+  };
+}
+
 export interface ContentWorkbenchSnapshot {
   generatedAt: string;
   contents: ContentItem[];
@@ -309,6 +376,7 @@ export interface ContentWorkbenchSnapshot {
   actionItems: ReviewActionItem[];
   ideas: TopicIdea[];
   metricSnapshots: MetricSnapshot[];
+  publishToMetricsWorkbench: PublishToMetricsWorkbench;
   trustedScopeCuration: TrustedScopeCurationSummary;
   trustedOperatingStatus: TrustedOperatingStatus;
   summary: {
@@ -950,6 +1018,7 @@ export interface DashboardSnapshot {
   monthlyReview: ReviewReport;
   logs: WorkbenchLog[];
   audits: AuditRecord[];
+  publishToMetricsWorkbench: PublishToMetricsWorkbench;
 }
 
 export interface ProviderImportPayload {
@@ -1193,6 +1262,22 @@ export interface ConfirmPlatformVersionPublishResult {
   publishRecord: PublishRecord;
   traceId: string;
   idempotent: boolean;
+}
+
+export interface ConfirmPlatformContentMatchRequest {
+  localContentId: string;
+  localPlatformVersionId: string;
+  importedContentId: string;
+  metricSnapshotIds?: string[];
+  confirmedBy?: string;
+}
+
+export interface ConfirmPlatformContentMatchResult {
+  content: ContentItem;
+  platformVersion: ContentPlatformVersion;
+  metricSnapshots: MetricSnapshot[];
+  importedContent: ContentItem;
+  traceId: string;
 }
 
 export interface CalendarQuery {

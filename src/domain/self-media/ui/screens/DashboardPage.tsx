@@ -308,6 +308,40 @@ function DailyOperatingChecklistPanel({ snapshot }: { snapshot: DashboardSnapsho
   );
 }
 
+function PublishExecutionDashboardPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
+  const workbench = snapshot.publishToMetricsWorkbench;
+  const items = workbench.executionItems.slice(0, 5);
+  return (
+    <Panel
+      className="publish-execution-dashboard-panel"
+      title="今日/近期待发布"
+      eyebrow="发布执行台"
+      action={<span className="analytics-panel-action">{formatNumber(items.length)} 条待处理</span>}
+    >
+      <div className="metric-strip" data-testid="dashboard-publish-execution-workbench">
+        <span><b>{formatNumber(workbench.executionItems.filter((item) => item.status === "scheduled").length)}</b> 待人工发布</span>
+        <span><b>{formatNumber(workbench.postPublishRefresh.length)}</b> 发布后待抓取</span>
+        <span><b>{formatNumber(workbench.matchCandidates.length)}</b> 候选匹配</span>
+      </div>
+      <div className="trusted-weekly-platforms" aria-label="发布执行台列表">
+        {items.map((item) => (
+          <div className="trusted-weekly-platform" key={item.platformVersionId}>
+            <PlatformBadge platform={item.platform} />
+            <span>{item.contentTitle}</span>
+            <small>{versionStatusLabel(item.status)} / {formatDateTime(item.scheduledAt ?? item.publishedAt)}</small>
+            <a className="sm-button sm-button-secondary" href={item.contentUrl}>打开内容编辑</a>
+          </div>
+        ))}
+      </div>
+      {items.length === 0 && <p className="muted">暂无到期排期或发布后待回收指标内容。</p>}
+      <div className="trusted-weekly-summary-foot">
+        <span>{workbench.manualRefreshCopy}</span>
+        <a className="sm-button sm-button-primary" href="/import#post-publish-refresh">去手动抓取最新数据</a>
+      </div>
+    </Panel>
+  );
+}
+
 function TrustedOperatingStrip({ snapshot }: { snapshot: DashboardSnapshot }) {
   const status = snapshot.trustedOperatingStatus;
   const dailyGate = snapshot.dailyPlatformOpsGate;
@@ -990,6 +1024,7 @@ export function DashboardPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       />
       <div className="dashboard-page-stack">
         <DailyOperatingChecklistPanel snapshot={current} />
+        <PublishExecutionDashboardPanel snapshot={current} />
         <TrustedOperatingStrip snapshot={current} />
         <TrustedWeeklySummaryPanel
           onCopySafeReport={copySafeWeeklyReport}

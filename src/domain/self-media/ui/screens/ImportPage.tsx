@@ -803,6 +803,7 @@ function TrustedAuditPanel({ status }: { status: DashboardSnapshot["trustedOpera
 function PlatformImportStatusPanel({ capabilities, history, statuses, onDashboardRefresh }: { capabilities: PlatformImportOperationCapability[]; history: DashboardSnapshot["operationHistory"]; statuses: PlatformImportStatus[]; onDashboardRefresh: (snapshot: DashboardSnapshot) => void }) {
   return (
     <Panel
+      id="manual-refresh"
       title="手动抓取最新数据"
       eyebrow="四平台本地同步"
       action={<Button onClick={() => window.location.reload()} variant="ghost">刷新当前页面数据</Button>}
@@ -859,6 +860,91 @@ function PlatformImportStatusPanel({ capabilities, history, statuses, onDashboar
           </tbody>
         </table>
       </div>
+    </Panel>
+  );
+}
+
+function PostPublishRefreshPanel({
+  snapshot,
+  onConfirmMatch
+}: {
+  snapshot: DashboardSnapshot;
+  onConfirmMatch: (candidate: DashboardSnapshot["publishToMetricsWorkbench"]["matchCandidates"][number]) => Promise<void>;
+}) {
+  const workbench = snapshot.publishToMetricsWorkbench;
+  return (
+    <Panel
+      id="post-publish-refresh"
+      title="发布后刷新"
+      eyebrow="手动回收指标"
+      action={<span className="sm-badge sm-badge-info">{workbench.postPublishRefresh.length} 条待回收</span>}
+    >
+      <p className="muted" data-testid="post-publish-refresh-boundary">发布后刷新是本地手动抓取/同步，不是平台自动回调；系统只给候选，用户确认前不会把新平台内容指标归入本地内容。</p>
+      <div className="platform-import-status-summary">
+        <span><b>{formatNumber(workbench.postPublishRefresh.length)}</b> 发布后待刷新</span>
+        <span><b>{formatNumber(workbench.matchCandidates.length)}</b> 可人工确认候选</span>
+        <span><b>{formatDateTime(workbench.scheduledRefresh.nextSuggestedAt)}</b> 建议下次抓取</span>
+      </div>
+      <div className="platform-import-operation-summaries" data-testid="post-publish-refresh">
+        {workbench.postPublishRefresh.map((item) => (
+          <article className="is-passed" key={item.id}>
+            <header>
+              <PlatformBadge compact platform={item.platform} />
+              <span className="sm-badge sm-badge-warning">发布后待刷新</span>
+            </header>
+            <strong>{item.contentTitle}</strong>
+            <p>{item.versionTitle}</p>
+            <p>{item.manualRefreshCopy}</p>
+            <div className="inline-stack">
+              <a className="sm-button sm-button-secondary" href="#manual-refresh">预览最新本地抓取</a>
+              <a className="sm-button sm-button-primary" href="#manual-refresh">保存本地同步</a>
+            </div>
+          </article>
+        ))}
+        {workbench.postPublishRefresh.length === 0 && (
+          <article>
+            <strong>暂无发布后待刷新内容</strong>
+            <p>人工确认发布后，这里会按平台展示需要手动回收指标的内容。</p>
+          </article>
+        )}
+      </div>
+      <div className="table-wrap">
+        <table className="sm-table" data-testid="platform-content-match-candidates">
+          <thead>
+            <tr>
+              <th>本地内容</th>
+              <th>平台候选</th>
+              <th>依据</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {workbench.matchCandidates.map((candidate) => {
+              const local = workbench.postPublishRefresh.find((item) => item.platformVersionId === candidate.localPlatformVersionId);
+              return (
+                <tr key={candidate.id}>
+                  <td>
+                    <strong>{local?.contentTitle ?? candidate.localContentId}</strong>
+                    <small>{formatNumber(Math.round(candidate.score * 100))}% 匹配度</small>
+                  </td>
+                  <td>
+                    <PlatformBadge compact platform={candidate.platform} />
+                    <span>{candidate.importedTitle}</span>
+                  </td>
+                  <td>{candidate.reasons.join(" / ")}</td>
+                  <td><Button onClick={() => onConfirmMatch(candidate)} variant="primary">匹配到本地内容/平台版本</Button></td>
+                </tr>
+              );
+            })}
+            {workbench.matchCandidates.length === 0 && (
+              <tr>
+                <td colSpan={4}>暂无可确认候选；先预览/保存最新本地抓取后再人工匹配。</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted">{workbench.scheduledRefresh.boundary}</p>
     </Panel>
   );
 }
@@ -930,6 +1016,34 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     }
   }
 
+  async function confirmPlatformContentMatch(candidate: DashboardSnapshot["publishToMetricsWorkbench"]["matchCandidates"][number]) {
+    setIsLoading(true);
+    setMessage("正在确认平台内容匹配...");
+    try {
+      const response = await fetch("/api/self-media/content-versions", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "match_imported_content",
+          localContentId: candidate.localContentId,
+          localPlatformVersionId: candidate.localPlatformVersionId,
+          importedContentId: candidate.importedContentId,
+          metricSnapshotIds: candidate.metricSnapshotIds,
+          confirmedBy: "local_user"
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.errorMessage ?? "平台内容匹配失败");
+      const dashboardResponse = await fetch("/api/self-media/dashboard");
+      setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
+      setMessage("已人工确认匹配；指标快照已归入本地内容，导入候选已从默认看板口径排除。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "平台内容匹配失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <AppShell active="/import">
       <PageHeader
@@ -940,6 +1054,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       />
       <div className="import-page-stack">
         <PlatformDataHealthPanel health={currentSnapshot.platformDataHealth} />
+        <PostPublishRefreshPanel onConfirmMatch={confirmPlatformContentMatch} snapshot={currentSnapshot} />
         <PlatformImportStatusPanel capabilities={currentSnapshot.platformImportOperationCapabilities} history={currentSnapshot.operationHistory} statuses={currentSnapshot.platformImportStatuses} onDashboardRefresh={setCurrentSnapshot} />
         <ScheduledRefreshSettingPanel snapshot={currentSnapshot} />
         <details className="analytics-data-section import-advanced-diagnostics" data-testid="import-advanced-diagnostics">

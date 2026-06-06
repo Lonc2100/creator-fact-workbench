@@ -111,6 +111,12 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /按调整重新生成/);
   assert.match(contentScreen, /生成并保存四平台版本/);
   assert.match(contentScreen, /平台激励\/创作标签均为建议/);
+  assert.match(contentScreen, /publish-execution-workbench/);
+  assert.match(contentScreen, /今日\/近期待发布/);
+  assert.match(contentScreen, /人工确认已发布/);
+  assert.match(contentScreen, /记录发布失败/);
+  assert.match(contentScreen, /记录发布阻塞/);
+  assert.match(contentScreen, /去手动抓取最新数据/);
   assert.match(contentScreen, /ContentWorkbenchSnapshot/);
   assert.match(contentScreen, /\/api\/self-media\/content-workbench/);
   assert.match(contentScreen, /默认运营视图/);
@@ -122,6 +128,8 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentWorkbenchApi, /getSelfMediaContentWorkbench/);
   assert.match(dashboardScreen, /打开内容草稿/);
   assert.match(dashboardScreen, /contentId=/);
+  assert.match(dashboardScreen, /dashboard-publish-execution-workbench/);
+  assert.match(dashboardScreen, /发布执行台/);
 });
 
 test("content workbench exposes filters sorting pagination and trusted-scope copy", () => {
@@ -283,6 +291,11 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /function PlatformDataHealthPanel/);
   assert.match(importPage, /function PlatformImportStatusPanel/);
   assert.match(importPage, /手动抓取最新数据/);
+  assert.match(importPage, /发布后刷新/);
+  assert.match(importPage, /post-publish-refresh/);
+  assert.match(importPage, /平台内容匹配失败/);
+  assert.match(importPage, /match_imported_content/);
+  assert.match(importPage, /匹配到本地内容\/平台版本/);
   assert.match(importPage, /manual-refresh-boundary/);
   assert.match(importPage, /定时抓取设定/);
   assert.match(importPage, /scheduled-refresh-setting/);

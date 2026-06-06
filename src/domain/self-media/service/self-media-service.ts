@@ -12,6 +12,9 @@ import type {
   AutomationRunRequest,
   CalendarQuery,
   ClearFutureScheduleResult,
+  ClosedLoopContentPlatform,
+  ConfirmPlatformContentMatchRequest,
+  ConfirmPlatformContentMatchResult,
   ConfirmPlatformVersionPublishRequest,
   ConfirmPlatformVersionPublishResult,
   ContentDraftReviewRequest,
@@ -52,12 +55,15 @@ import type {
   ImportProvenanceMetadata,
   OperationHistory,
   PlatformImportOperationAction,
+  PlatformImportOperationPlatform,
+  PlatformContentMatchCandidate,
   PlatformImportOperationSummary,
   PlatformImportStatus,
   PlatformDataHealthView,
   PlatformReadinessStatus,
   PostImportActionEvidence,
   PostImportActionSuggestion,
+  PostPublishRefreshCandidate,
   ImportSource,
   LeadCreateRequest,
   LeadPatchRequest,
@@ -74,9 +80,11 @@ import type {
   PlatformVersionStatus,
   ProviderImportPayload,
   PublishCalendarItem,
+  PublishExecutionItem,
   PublishQueueItem,
   PublishQueueStatus,
   PublishRecord,
+  PublishToMetricsWorkbench,
   PublishQueueTransitionRequest,
   PublishQueueTransitionResult,
   RealDataScopeSummary,
@@ -1822,6 +1830,209 @@ function stableHash(value: string) {
   return createHash("sha1").update(value).digest("hex").slice(0, 12);
 }
 
+function isClosedLoopContentPlatform(platform: Platform): platform is ClosedLoopContentPlatform {
+  return closedLoopContentPlatforms.includes(platform as ClosedLoopContentPlatform);
+}
+
+function platformToImportOperationKey(platform: ClosedLoopContentPlatform): PlatformImportOperationPlatform {
+  return platform === "video_account" ? "video-account" : platform;
+}
+
+function normalizeMatchText(value: string | undefined) {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "")
+    .trim();
+}
+
+function titleSimilarity(left: string | undefined, right: string | undefined) {
+  const a = normalizeMatchText(left);
+  const b = normalizeMatchText(right);
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.includes(b) || b.includes(a)) return Math.min(a.length, b.length) / Math.max(a.length, b.length);
+  const aChars = new Set([...a]);
+  const bChars = new Set([...b]);
+  const intersection = [...aChars].filter((char) => bChars.has(char)).length;
+  const union = new Set([...aChars, ...bChars]).size;
+  return union > 0 ? intersection / union : 0;
+}
+
+function hoursBetween(left?: string, right?: string) {
+  if (!left || !right) return undefined;
+  const a = new Date(left).getTime();
+  const b = new Date(right).getTime();
+  if (Number.isNaN(a) || Number.isNaN(b)) return undefined;
+  return Math.abs(a - b) / 36e5;
+}
+
+function latestMetricAfter(snapshots: MetricSnapshot[], since?: string) {
+  const sinceTime = since ? new Date(since).getTime() : 0;
+  return [...snapshots]
+    .filter((snapshot) => {
+      const snapshotTime = new Date(dateToIso(snapshot.snapshotDate)).getTime();
+      return !since || snapshotTime >= sinceTime;
+    })
+    .sort((a, b) => b.snapshotDate.localeCompare(a.snapshotDate))[0];
+}
+
+function buildPlatformContentMatchCandidates(input: {
+  contents: ContentItem[];
+  platformVersions: ContentPlatformVersion[];
+  metricSnapshots: MetricSnapshot[];
+  trustedSnapshots: MetricSnapshot[];
+  localVersion: ContentPlatformVersion;
+  localContent: ContentItem;
+}): PlatformContentMatchCandidate[] {
+  if (!isClosedLoopContentPlatform(input.localVersion.platform)) return [];
+  const importedSnapshotsByContent = new Map<string, MetricSnapshot[]>();
+  for (const snapshot of input.trustedSnapshots) {
+    if (snapshot.platform !== input.localVersion.platform) continue;
+    if (snapshot.contentId === input.localContent.id) continue;
+    importedSnapshotsByContent.set(snapshot.contentId, [...(importedSnapshotsByContent.get(snapshot.contentId) ?? []), snapshot]);
+  }
+
+  const candidates: PlatformContentMatchCandidate[] = [];
+  for (const [importedContentId, snapshots] of importedSnapshotsByContent) {
+    const importedContent = input.contents.find((content) => content.id === importedContentId);
+    if (!importedContent || importedContent.id === input.localContent.id || importedContent.userExcludedFromTrustedScope) continue;
+    const similarity = Math.max(titleSimilarity(input.localVersion.title, importedContent.title), titleSimilarity(input.localContent.title, importedContent.title));
+    const timeGap = hoursBetween(importedContent.publishedAt, input.localVersion.publishedAt ?? input.localVersion.scheduledAt ?? input.localContent.publishedAt ?? input.localContent.scheduledAt);
+    const timeScore = timeGap === undefined ? 0 : timeGap <= 36 ? 0.25 : timeGap <= 96 ? 0.1 : 0;
+    const score = Number(Math.min(1, similarity * 0.75 + timeScore).toFixed(2));
+    if (score < 0.45) continue;
+    const reasons = [
+      `同平台 ${creatorPlatformDraftLabels[input.localVersion.platform]}`,
+      similarity >= 0.75 ? "标题高度相近" : "标题部分相近",
+      timeGap !== undefined && timeGap <= 96 ? `发布时间窗口约 ${Math.round(timeGap)} 小时` : undefined
+    ].filter((item): item is string => Boolean(item));
+    candidates.push({
+      id: `match-candidate-${input.localVersion.id}-${importedContent.id}`,
+      platform: input.localVersion.platform,
+      localContentId: input.localContent.id,
+      localPlatformVersionId: input.localVersion.id,
+      importedContentId: importedContent.id,
+      importedTitle: importedContent.title,
+      importedPublishedAt: importedContent.publishedAt,
+      importRunId: snapshots.find((snapshot) => snapshot.importRunId)?.importRunId,
+      metricSnapshotIds: snapshots.map((snapshot) => snapshot.id),
+      score,
+      reasons,
+      status: "candidate"
+    });
+  }
+  return candidates.sort((a, b) => b.score - a.score).slice(0, 3);
+}
+
+function buildPublishToMetricsWorkbench(input: {
+  generatedAt: string;
+  contents: ContentItem[];
+  platformVersions: ContentPlatformVersion[];
+  queue: PublishQueueItem[];
+  publishRecords: PublishRecord[];
+  metricSnapshots: MetricSnapshot[];
+  trustedSnapshots: MetricSnapshot[];
+  now?: Date;
+}): PublishToMetricsWorkbench {
+  const now = input.now ?? new Date();
+  const nowTime = now.getTime();
+  const nearDueMs = 36 * 60 * 60 * 1000;
+  const executionItems: PublishExecutionItem[] = [];
+  const postPublishRefresh: PostPublishRefreshCandidate[] = [];
+  const allMatchCandidates: PlatformContentMatchCandidate[] = [];
+
+  for (const version of input.platformVersions) {
+    if (!isClosedLoopContentPlatform(version.platform)) continue;
+    const content = input.contents.find((item) => item.id === version.contentId);
+    if (!content) continue;
+    const queueItem = input.queue.find((item) => item.contentId === version.contentId && item.platform === version.platform);
+    const latestRecord = [...input.publishRecords]
+      .filter((record) => record.platformVersionId === version.id)
+      .sort((a, b) => b.happenedAt.localeCompare(a.happenedAt))[0];
+    const scheduledAt = version.scheduledAt ?? queueItem?.scheduledAt;
+    const scheduledTime = scheduledAt ? new Date(scheduledAt).getTime() : undefined;
+    const minutesUntilDue = scheduledTime === undefined ? undefined : Math.round((scheduledTime - nowTime) / 60000);
+    const ownSnapshots = input.trustedSnapshots.filter((snapshot) => snapshot.contentId === version.contentId && snapshot.platformVersionId === version.id);
+    const latestOwnSnapshot = latestMetricAfter(ownSnapshots, version.publishedAt);
+    const publishedWaitingMetrics = version.status === "published" && !latestOwnSnapshot;
+    const dueSoon = version.status === "scheduled" && scheduledTime !== undefined && scheduledTime <= nowTime + nearDueMs;
+    const blockedOrFailed = version.status === "failed" || version.status === "blocked";
+    if (!dueSoon && !publishedWaitingMetrics && !blockedOrFailed) continue;
+
+    let timing: PublishExecutionItem["timing"] = "upcoming";
+    if (blockedOrFailed) timing = "blocked_or_failed";
+    else if (publishedWaitingMetrics) timing = "published_waiting_metrics";
+    else if (scheduledTime !== undefined && scheduledTime < nowTime) timing = "overdue";
+    else if (scheduledTime !== undefined && new Date(scheduledTime).toISOString().slice(0, 10) === now.toISOString().slice(0, 10)) timing = "due_today";
+
+    const nextAction = publishedWaitingMetrics
+      ? "已人工确认发布；下一步去 /import 手动抓取最新数据，再人工匹配回本地内容。"
+      : blockedOrFailed
+        ? "处理失败/阻塞原因后回到草稿或重新排期。"
+        : "到点后人工发布，发布完成再点击已发布确认。";
+    executionItems.push({
+      platformVersionId: version.id,
+      contentId: content.id,
+      queueId: queueItem?.id,
+      platform: version.platform,
+      contentTitle: content.title,
+      versionTitle: version.title,
+      scheduledAt,
+      publishedAt: version.publishedAt,
+      status: version.status,
+      queueStatus: queueItem?.status,
+      timing,
+      minutesUntilDue,
+      nextAction,
+      needsManualRefresh: publishedWaitingMetrics,
+      publishRecordId: latestRecord?.id,
+      contentUrl: `/content?contentId=${encodeURIComponent(content.id)}&versionId=${encodeURIComponent(version.id)}`,
+      calendarUrl: `/calendar?versionId=${encodeURIComponent(version.id)}`
+    });
+
+    if (publishedWaitingMetrics) {
+      const matchCandidates = buildPlatformContentMatchCandidates({
+        contents: input.contents,
+        platformVersions: input.platformVersions,
+        metricSnapshots: input.metricSnapshots,
+        trustedSnapshots: input.trustedSnapshots,
+        localVersion: version,
+        localContent: content
+      });
+      allMatchCandidates.push(...matchCandidates);
+      postPublishRefresh.push({
+        id: `post-publish-refresh-${version.id}`,
+        platform: version.platform,
+        importPlatformKey: platformToImportOperationKey(version.platform),
+        contentId: content.id,
+        platformVersionId: version.id,
+        contentTitle: content.title,
+        versionTitle: version.title,
+        publishedAt: version.publishedAt,
+        scheduledAt,
+        latestMetricSnapshotAt: undefined,
+        latestImportRunId: undefined,
+        nextAction: "先在本页预览/保存对应平台最新本地抓取，再人工确认候选匹配。",
+        manualRefreshCopy: "这是本地手动抓取/同步，不是平台自动回调；匹配前不会把新内容指标自动归入本地草稿。",
+        matchCandidates
+      });
+    }
+  }
+
+  return {
+    generatedAt: input.generatedAt,
+    executionItems: executionItems.sort((a, b) => (a.scheduledAt ?? a.publishedAt ?? "").localeCompare(b.scheduledAt ?? b.publishedAt ?? "")),
+    postPublishRefresh: postPublishRefresh.sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")),
+    matchCandidates: allMatchCandidates.sort((a, b) => b.score - a.score),
+    manualRefreshCopy: "发布确认后请到 /import 手动预览/保存四平台最新本地抓取；系统不会调用真实发布 API，也不会等待平台自动回调。",
+    scheduledRefresh: {
+      nextSuggestedAt: new Date(nowTime + 2 * 60 * 60 * 1000).toISOString(),
+      command: "npm run check:local-server-health -- --ports=3200 --strict --require-trusted-data --check-page",
+      boundary: "第一版只显示本地计划说明和状态；不做后台 daemon，不静默自动登录，不保存敏感登录材料或原始请求明细。"
+    }
+  };
+}
+
 function envValue(name: string) {
   return process.env[name]?.trim();
 }
@@ -2736,12 +2947,15 @@ export class SelfMediaService {
     const recordId = `publish-record-${version.id}-${stableHash(idempotencyKey)}`;
     const existingRecord = this.repo.listPublishRecords().find((item) => item.id === recordId || item.idempotencyKey === idempotencyKey);
     const confirmedAt = existingRecord?.happenedAt ?? happenedAt;
+    const nextAction = input.status === "published"
+      ? "已人工确认发布；下一步去 /import 手动抓取最新数据并人工匹配指标。"
+      : note;
     const updated: ContentPlatformVersion = {
       ...version,
       status: input.status,
       publishedAt: input.status === "published" ? confirmedAt : version.publishedAt,
       failureReason: input.status === "failed" || input.status === "blocked" ? note : version.failureReason,
-      nextAction: input.status === "failed" || input.status === "blocked" ? note : version.nextAction,
+      nextAction: nextAction ?? version.nextAction,
       checklist: input.status === "published" ? { ...version.checklist, humanConfirmed: true } : version.checklist,
       updatedAt: new Date().toISOString()
     };
@@ -2775,6 +2989,109 @@ export class SelfMediaService {
       data: { id: updated.id, status: updated.status, confirmationSource, idempotent: Boolean(existingRecord) }
     });
     return { version: updated, publishRecord, traceId, idempotent: Boolean(existingRecord) };
+  }
+
+  publishToMetricsWorkbench(now = new Date()): PublishToMetricsWorkbench {
+    const contents = this.repo.listContents();
+    const platformVersions = this.repo.listPlatformVersions();
+    const queue = this.repo.listQueue();
+    const publishRecords = this.repo.listPublishRecords();
+    const metricSnapshots = this.repo.listMetricSnapshots();
+    const contentsById = new Map(contents.map((content) => [content.id, content]));
+    const trustedSnapshots = metricSnapshots.filter((snapshot) => isTrustedRealMetricSnapshot(snapshot, contentsById));
+    return buildPublishToMetricsWorkbench({
+      generatedAt: new Date().toISOString(),
+      contents,
+      platformVersions,
+      queue,
+      publishRecords,
+      metricSnapshots,
+      trustedSnapshots,
+      now
+    });
+  }
+
+  confirmPlatformContentMatch(input: ConfirmPlatformContentMatchRequest): ConfirmPlatformContentMatchResult {
+    const traceId = createTraceId("content-match");
+    const localContent = this.repo.getEntity<ContentItem>("contents", input.localContentId);
+    if (!localContent) throw new Error(`找不到本地内容：${input.localContentId}`);
+    const localVersion = this.repo.getEntity<ContentPlatformVersion>("platformVersions", input.localPlatformVersionId);
+    if (!localVersion || localVersion.contentId !== localContent.id) throw new Error(`找不到本地平台版本：${input.localPlatformVersionId}`);
+    if (!isClosedLoopContentPlatform(localVersion.platform)) throw new Error("只支持四平台内容级匹配。");
+    const importedContent = this.repo.getEntity<ContentItem>("contents", input.importedContentId);
+    if (!importedContent) throw new Error(`找不到导入内容：${input.importedContentId}`);
+    if (importedContent.platform !== localVersion.platform) throw new Error("导入内容和本地版本平台不一致，不能匹配。");
+    if (importedContent.id === localContent.id) throw new Error("导入内容已经是当前本地内容，不需要重复匹配。");
+
+    const contents = this.repo.listContents();
+    const contentsById = new Map(contents.map((content) => [content.id, content]));
+    const metricSnapshots = this.repo.listMetricSnapshots();
+    const allowedSnapshots = metricSnapshots.filter((snapshot) =>
+      snapshot.contentId === importedContent.id &&
+      snapshot.platform === localVersion.platform &&
+      isTrustedRealMetricSnapshot(snapshot, contentsById)
+    );
+    const selectedIds = input.metricSnapshotIds?.length ? new Set(input.metricSnapshotIds) : undefined;
+    const selectedSnapshots = selectedIds ? allowedSnapshots.filter((snapshot) => selectedIds.has(snapshot.id)) : allowedSnapshots;
+    if (selectedSnapshots.length === 0) throw new Error("没有可匹配的可信内容级指标快照；请先在 /import 保存对应平台最新本地抓取。");
+
+    const now = new Date().toISOString();
+    const updatedContent: ContentItem = {
+      ...localContent,
+      status: "published",
+      publishedAt: localContent.publishedAt ?? localVersion.publishedAt ?? importedContent.publishedAt,
+      notes: compactLines([
+        localContent.notes,
+        `confirmed_platform_content_match:${importedContent.id}`
+      ]).join("\n")
+    };
+    const updatedVersion: ContentPlatformVersion = {
+      ...localVersion,
+      status: "published",
+      publishedAt: localVersion.publishedAt ?? importedContent.publishedAt ?? now,
+      nextAction: "平台内容已人工匹配；后续以手动抓取到的内容级快照更新指标。",
+      checklist: { ...localVersion.checklist, humanConfirmed: true },
+      updatedAt: now
+    };
+    const updatedImportedContent: ContentItem = {
+      ...importedContent,
+      userExcludedFromTrustedScope: true,
+      trustedScopeOverride: "exclude",
+      trustedScopeUpdatedAt: now,
+      trustedScopeUpdatedBy: input.confirmedBy ?? "local_user"
+    };
+
+    this.repo.upsertEntity("contents", updatedContent.id, updatedContent);
+    this.repo.upsertEntity("platformVersions", updatedVersion.id, updatedVersion);
+    this.repo.upsertEntity("contents", updatedImportedContent.id, updatedImportedContent);
+
+    const matchedSnapshots: MetricSnapshot[] = selectedSnapshots.map((snapshot) => {
+      const id = `snapshot-match-${updatedVersion.id}-${snapshot.snapshotDate}-${stableHash(snapshot.id)}`;
+      const matched: MetricSnapshot = {
+        ...snapshot,
+        id,
+        platformVersionId: updatedVersion.id,
+        contentId: updatedContent.id,
+        updatedAt: now
+      };
+      this.repo.upsertEntity("metricSnapshots", matched.id, matched);
+      return matched;
+    });
+
+    writeLog(this.repo, {
+      level: "info",
+      event: "self_media.platform_content_match_confirmed",
+      scope: "service",
+      message: `Matched imported content ${importedContent.id} to local platform version ${updatedVersion.id}.`,
+      traceId,
+      data: {
+        localContentId: updatedContent.id,
+        localPlatformVersionId: updatedVersion.id,
+        importedContentId: importedContent.id,
+        metricSnapshotCount: matchedSnapshots.length
+      }
+    });
+    return { content: updatedContent, platformVersion: updatedVersion, metricSnapshots: matchedSnapshots, importedContent: updatedImportedContent, traceId };
   }
 
   calendar(query: CalendarQuery = {}) {
@@ -3184,8 +3501,10 @@ export class SelfMediaService {
     const trustedOperatingStatus = buildTrustedOperatingStatus(realDataScope, trustedSnapshots);
     const trustedScopeCuration = buildTrustedScopeCurationSummary(contents, metricSnapshots, trustedSnapshots);
     const contentRows = buildContentWorkbenchRows({ contents, platformVersions, queue, actionItems, ideas, metricSnapshots, trustedSnapshots });
+    const generatedAt = new Date().toISOString();
+    const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({ generatedAt, contents, platformVersions, queue, publishRecords, metricSnapshots, trustedSnapshots });
     return {
-      generatedAt: new Date().toISOString(),
+      generatedAt,
       contents,
       contentRows,
       platformVersions,
@@ -3194,6 +3513,7 @@ export class SelfMediaService {
       actionItems,
       ideas,
       metricSnapshots,
+      publishToMetricsWorkbench,
       trustedScopeCuration,
       trustedOperatingStatus,
       summary: {
@@ -3248,6 +3568,7 @@ export class SelfMediaService {
     const automationRuns = this.repo.listAutomationRuns();
     const evidenceInsights = this.buildEvidenceInsights(metricSnapshots);
     const generatedAt = new Date().toISOString();
+    const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({ generatedAt, contents: allContents, platformVersions: allPlatformVersions, queue, publishRecords: this.repo.listPublishRecords(), metricSnapshots: allMetricSnapshots, trustedSnapshots: metricSnapshots });
     const weeklyReview = generateReview("weekly", trustedContents, metrics, { ideas, queue, leads });
     const monthlyReview = generateReview("monthly", trustedContents, metrics, { ideas, queue, leads });
     const trustedWeeklySummary = buildTrustedWeeklyReportSummary({ generatedAt, realDataScope, trustedOperatingStatus, metricPlatformGroups, platformDataHealth, dailyPlatformOpsGate, weeklyReview });
@@ -3290,7 +3611,8 @@ export class SelfMediaService {
       weeklyReview,
       monthlyReview,
       logs: this.repo.listLogs(),
-      audits: this.repo.listAudits()
+      audits: this.repo.listAudits(),
+      publishToMetricsWorkbench
     };
   }
 }
