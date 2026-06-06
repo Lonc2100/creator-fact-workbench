@@ -31,6 +31,7 @@ import type {
   CreatorVideoDiscussionResult,
   CreatorVideoDraftResult,
   CreatorVideoIdeaRequest,
+  DataCaptureScheduleReliabilityView,
   DailySelfMediaOpsStepView,
   DailySelfMediaOpsView,
   DailyPlatformOpsGateStepView,
@@ -1299,6 +1300,108 @@ export function readDailySelfMediaOpsView(cwd = process.cwd()): DailySelfMediaOp
       message: `每日运营闭环报告解析失败：${error instanceof Error ? error.message : String(error)}`
     };
   }
+}
+
+function addHoursIso(value: string | null | undefined, hours: number) {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return null;
+  return new Date(time + hours * 60 * 60 * 1000).toISOString();
+}
+
+function latestIso(...values: Array<string | null | undefined>) {
+  const dated = values
+    .map((value) => ({ value, time: value ? new Date(value).getTime() : Number.NaN }))
+    .filter((item): item is { value: string; time: number } => Boolean(item.value) && Number.isFinite(item.time))
+    .sort((a, b) => b.time - a.time);
+  return dated[0]?.value ?? null;
+}
+
+export function buildDataCaptureScheduleReliability(input: {
+  generatedAt: string;
+  platformDataHealth: PlatformDataHealthView;
+  dailySelfMediaOps: DailySelfMediaOpsView;
+  dailyPlatformOpsGate: DailyPlatformOpsGateView;
+}): DataCaptureScheduleReliabilityView {
+  const suggestedFrequencyHours = 24;
+  const staleAfterHours = input.platformDataHealth.staleAfterHours
+    ?? input.platformDataHealth.summary.freshness.staleAfterHours
+    ?? 72;
+  const latestRealCaptureAt = input.platformDataHealth.summary.freshness.latestRealCaptureAt
+    ?? input.dailyPlatformOpsGate.freshness.latestRealCaptureAt
+    ?? null;
+  const latestSuccessfulImportAt = latestIso(
+    latestRealCaptureAt,
+    input.platformDataHealth.status === "ok" ? input.platformDataHealth.generatedAt : null,
+    input.dailyPlatformOpsGate.status === "pass" ? input.dailyPlatformOpsGate.generatedAt : null,
+    input.dailySelfMediaOps.status === "pass" ? input.dailySelfMediaOps.generatedAt : null
+  );
+  const failedAt = latestIso(
+    input.platformDataHealth.status === "error" ? input.platformDataHealth.generatedAt : null,
+    input.dailyPlatformOpsGate.status === "fail" || input.dailyPlatformOpsGate.status === "error" ? input.dailyPlatformOpsGate.generatedAt : null,
+    input.dailySelfMediaOps.status === "fail" || input.dailySelfMediaOps.status === "error" ? input.dailySelfMediaOps.generatedAt : null
+  );
+  const latestFailureAt = failedAt ?? null;
+  const isFailed = Boolean(latestFailureAt) || input.platformDataHealth.status === "error";
+  const isStale = input.platformDataHealth.summary.freshness.realCaptureIsStale === true
+    || input.platformDataHealth.summary.realCaptureStaleCount > 0;
+  const status: DataCaptureScheduleReliabilityView["status"] = isFailed
+    ? "failed"
+    : !latestRealCaptureAt || input.platformDataHealth.status === "missing"
+      ? "missing"
+      : isStale
+        ? "stale"
+        : input.platformDataHealth.summary.freshness.realCaptureIsStale === false || input.platformDataHealth.status === "ok"
+          ? "fresh"
+          : "unknown";
+  const nextSuggestedAt = addHoursIso(latestRealCaptureAt, suggestedFrequencyHours) ?? input.generatedAt;
+  const startupCatchUpRequired = status === "missing" || status === "stale" || status === "failed";
+  const statusLabels: Record<DataCaptureScheduleReliabilityView["status"], string> = {
+    fresh: "抓取新鲜",
+    stale: "需要补抓",
+    missing: "等待首次抓取",
+    failed: "抓取链路需复核",
+    unknown: "待确认"
+  };
+  const failureSummary = status === "failed"
+    ? "最近检查发现抓取链路异常；先看平台健康，再手动刷新四平台。"
+    : status === "stale"
+      ? "最近真实采集已过期或部分平台过期；开机后建议先补抓。"
+      : status === "missing"
+        ? "暂无可用真实采集时间；先进行一次手动抓取。"
+        : status === "fresh"
+          ? "最近真实采集仍在建议窗口内。"
+          : "抓取状态待确认；建议先复核平台健康。";
+  return {
+    mode: "manual_only",
+    modeLabel: "手动抓取 + 开机补抓提示",
+    hasHourlyAutomation: false,
+    hasBackgroundDaemon: false,
+    hasStartupAutomation: false,
+    windowsTaskSchedulerRegistered: false,
+    suggestedFrequencyHours,
+    staleAfterHours,
+    latestRealCaptureAt,
+    latestSuccessfulImportAt,
+    latestFailureAt,
+    nextSuggestedAt,
+    status,
+    statusLabel: statusLabels[status],
+    startupCatchUpRequired,
+    startupCatchUpCopy: startupCatchUpRequired
+      ? "开机后先补抓：刷新四平台后再确认健康和门禁。"
+      : "开机后无需补抓：继续按建议频率复核。",
+    manualImmediateRefreshCopy: "手动立即抓取：先登录对应平台完成真实采集，再保存导入并复核健康。",
+    failureSummary,
+    visibleNextAction: startupCatchUpRequired ? "先补抓四平台真实数据" : "按建议频率继续观察",
+    boundaries: {
+      noSensitiveLoginMaterial: true,
+      wechatPaused: true,
+      bilibiliAccountPreviewOnly: true,
+      noAutoRegistration: true,
+      noBackgroundCapture: true
+    }
+  };
 }
 
 function buildTrustedOperatingStatus(realDataScope: RealDataScopeSummary, metricSnapshots: MetricSnapshot[]): TrustedOperatingStatus {
@@ -3558,16 +3661,17 @@ export class SelfMediaService {
     const metricPlatformGroups = buildMetricPlatformGroups(metricSnapshots, metrics);
     const accountMetricSnapshots = this.repo.listAccountMetricSnapshots();
     const accountMetricGroups = buildAccountMetricGroups(accountMetricSnapshots);
+    const generatedAt = new Date().toISOString();
     const platformDataHealth = readPlatformDataHealthView();
     const dailyPlatformOpsGate = readDailyPlatformOpsGateView();
     const dailySelfMediaOps = readDailySelfMediaOpsView();
+    const dataCaptureScheduleReliability = buildDataCaptureScheduleReliability({ generatedAt, platformDataHealth, dailySelfMediaOps, dailyPlatformOpsGate });
     const realDataScope = buildRealDataScopeSummary({ contents: allContents, metrics: allMetrics, metricSnapshots: allMetricSnapshots, imports, trustedSnapshots: metricSnapshots });
     const trustedOperatingStatus = buildTrustedOperatingStatus(realDataScope, metricSnapshots);
     const trustedScopeCuration = buildTrustedScopeCurationSummary(allContents, allMetricSnapshots, metricSnapshots);
     const postImportActionSuggestions = enrichPostImportActionSuggestions(buildPostImportActionSuggestions({ contents: trustedContents, metricSnapshots, metricPlatformGroups, platformDataHealth }), actionItems);
     const automationRuns = this.repo.listAutomationRuns();
     const evidenceInsights = this.buildEvidenceInsights(metricSnapshots);
-    const generatedAt = new Date().toISOString();
     const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({ generatedAt, contents: allContents, platformVersions: allPlatformVersions, queue, publishRecords: this.repo.listPublishRecords(), metricSnapshots: allMetricSnapshots, trustedSnapshots: metricSnapshots });
     const weeklyReview = generateReview("weekly", trustedContents, metrics, { ideas, queue, leads });
     const monthlyReview = generateReview("monthly", trustedContents, metrics, { ideas, queue, leads });
@@ -3588,6 +3692,7 @@ export class SelfMediaService {
       platformImportOperationCapabilities,
       platformReadinessStatuses: this.platformReadinessStatuses(),
       platformDataHealth,
+      dataCaptureScheduleReliability,
       realDataScope,
       trustedOperatingStatus,
       trustedWeeklySummary,

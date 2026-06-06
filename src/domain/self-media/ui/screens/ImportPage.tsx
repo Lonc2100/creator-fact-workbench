@@ -950,20 +950,24 @@ function PostPublishRefreshPanel({
 }
 
 function ScheduledRefreshSettingPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
-  const preflight = snapshot.dailySelfMediaOps.preflightHealth;
-  const freshness = snapshot.platformDataHealth.summary.freshness;
+  const reliability = snapshot.dataCaptureScheduleReliability;
+  const catchUpLabel = reliability.startupCatchUpRequired ? "需要补抓" : "无需补抓";
   return (
     <Panel
       title="定时抓取设定"
-      eyebrow="本地计划说明"
-      action={<span className="sm-badge sm-badge-info">{snapshot.dailySelfMediaOps.exists ? dailySelfMediaOpsStatusLabels[snapshot.dailySelfMediaOps.status] : "未运行"}</span>}
+      eyebrow="抓取可靠性"
+      action={<span className="sm-badge sm-badge-info">{reliability.statusLabel}</span>}
     >
-      <div className="platform-import-status-summary" data-testid="scheduled-refresh-setting">
-        <span><b>{preflight.enabled ? "已显式检查" : "未启用后台守护"}</b> 当前模式</span>
-        <span><b>{freshness.latestRealCaptureAt ? formatDateTime(freshness.latestRealCaptureAt) : "暂无"}</b> 最近真实采集</span>
-        <span><b>{freshness.realCaptureIsStale === false ? "可用" : freshness.realCaptureIsStale === true ? "需更新" : "待确认"}</b> 下次运行状态</span>
+      <div className="platform-import-status-summary" data-testid="scheduled-refresh-setting" data-capture-schedule-reliability="true">
+        <span><b>{reliability.modeLabel}</b> 当前模式</span>
+        <span><b>{formatDateTime(reliability.latestRealCaptureAt ?? undefined)}</b> 最近真实采集</span>
+        <span><b>{formatDateTime(reliability.nextSuggestedAt ?? undefined)}</b> 下次建议抓取</span>
+        <span><b>每 {formatNumber(reliability.suggestedFrequencyHours)} 小时</b> 建议频率</span>
+        <span><b>{catchUpLabel}</b> 开机补抓</span>
+        <span><b>{reliability.statusLabel}</b> stale / 失败状态</span>
       </div>
-      <p className="muted">第一版只提供本机计划和人工确认入口；不静默自动登录，不保存敏感登录材料。具体命令保留在高级诊断区，默认运营视图只看状态。</p>
+      <p className="muted">{reliability.failureSummary} {reliability.startupCatchUpCopy}</p>
+      <p className="muted">当前没有后台守护、小时级任务或开机自动抓取；开机后这里提示是否需要补抓。Windows 计划任务只提供草案，未确认不会注册；不保存敏感登录材料。</p>
     </Panel>
   );
 }

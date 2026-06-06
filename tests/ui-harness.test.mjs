@@ -303,6 +303,11 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /manual-refresh-boundary/);
   assert.match(importPage, /定时抓取设定/);
   assert.match(importPage, /scheduled-refresh-setting/);
+  assert.match(importPage, /dataCaptureScheduleReliability/);
+  assert.match(importPage, /data-capture-schedule-reliability/);
+  assert.match(importPage, /下次建议抓取/);
+  assert.match(importPage, /当前没有后台守护、小时级任务或开机自动抓取/);
+  assert.match(importPage, /Windows 计划任务只提供草案/);
   assert.match(importPage, /不是平台自动回调/);
   assert.match(importPage, /import-advanced-diagnostics/);
   assert.match(importPage, /高级诊断与手动导入/);
@@ -421,6 +426,7 @@ test("dashboard default view is data-only and folds internal diagnostics", () =>
     "今日数据动作",
     "数据服务",
     "数据新鲜度",
+    "抓取节奏",
     "运营闭环",
     "数据一致性",
     "待处理行动项",

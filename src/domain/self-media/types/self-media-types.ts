@@ -407,6 +407,37 @@ export interface DataFreshnessTimelineView {
 
 export type RealCaptureFreshnessStatus = "fresh" | "stale" | "missing" | "unknown";
 
+export type DataCaptureScheduleStatus = "fresh" | "stale" | "missing" | "failed" | "unknown";
+
+export interface DataCaptureScheduleReliabilityView {
+  mode: "manual_only";
+  modeLabel: string;
+  hasHourlyAutomation: boolean;
+  hasBackgroundDaemon: boolean;
+  hasStartupAutomation: boolean;
+  windowsTaskSchedulerRegistered: boolean;
+  suggestedFrequencyHours: number;
+  staleAfterHours: number;
+  latestRealCaptureAt?: string | null;
+  latestSuccessfulImportAt?: string | null;
+  latestFailureAt?: string | null;
+  nextSuggestedAt?: string | null;
+  status: DataCaptureScheduleStatus;
+  statusLabel: string;
+  startupCatchUpRequired: boolean;
+  startupCatchUpCopy: string;
+  manualImmediateRefreshCopy: string;
+  failureSummary: string;
+  visibleNextAction: string;
+  boundaries: {
+    noSensitiveLoginMaterial: true;
+    wechatPaused: true;
+    bilibiliAccountPreviewOnly: true;
+    noAutoRegistration: true;
+    noBackgroundCapture: true;
+  };
+}
+
 export interface PlatformAssistedRefreshCommands {
   manualStep: string;
   preview: string;
@@ -994,6 +1025,7 @@ export interface DashboardSnapshot {
   platformImportOperationCapabilities: PlatformImportOperationCapability[];
   platformReadinessStatuses: PlatformReadinessStatus[];
   platformDataHealth: PlatformDataHealthView;
+  dataCaptureScheduleReliability: DataCaptureScheduleReliabilityView;
   realDataScope: RealDataScopeSummary;
   trustedOperatingStatus: TrustedOperatingStatus;
   trustedWeeklySummary: TrustedWeeklyReportSummary;

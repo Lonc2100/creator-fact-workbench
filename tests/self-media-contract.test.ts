@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 import { BilibiliPersonalProvider, CsvPresetProvider, DouyinPersonalProvider, FakeSelfMediaProvider, ManualImportProvider, MediaCrawlerImportProvider, N8nExecutionProvider, VideoAccountPersonalProvider, WechatOfficialProvider, XiaohongshuPersonalProvider, previewBilibiliAccountMetricSnapshots } from "../src/domain/self-media/providers";
 import { SqliteSelfMediaRepo } from "../src/domain/self-media/repo";
 import { getSaveEnabledPlatformImportOperationPlatforms, runSelfMediaPlatformImportOperation } from "../src/domain/self-media/runtime";
-import { SelfMediaService, generateReview, readDailyPlatformOpsGateView, readDailySelfMediaOpsView, readPlatformDataHealthView, readTrustedDashboardAuditView } from "../src/domain/self-media/service";
+import { SelfMediaService, buildDataCaptureScheduleReliability, generateReview, readDailyPlatformOpsGateView, readDailySelfMediaOpsView, readPlatformDataHealthView, readTrustedDashboardAuditView } from "../src/domain/self-media/service";
 import { platformImportOperationCapabilities, resolveSelfMediaSeedMode, resolveWorkbenchDbPath } from "../src/domain/self-media/config";
 import type { AccountMetricSnapshot, DashboardSnapshot, TrustedWeeklySafeReportResponse } from "../src/domain/self-media/types";
 
@@ -1772,6 +1772,52 @@ test("platform import statuses summarize priority creator-center runs", async ()
   assert.equal(bilibili?.contentCount, 0);
   assert.equal(bilibili?.metricCount, 0);
   repo.close();
+});
+
+test("data capture schedule reliability stays manual-only and surfaces stale catch-up", () => {
+  const result = buildDataCaptureScheduleReliability({
+    generatedAt: "2026-06-06T08:00:00.000Z",
+    platformDataHealth: {
+      reportPath: ".local/platform-data-health/report.json",
+      exists: true,
+      status: "warn",
+      generatedAt: "2026-06-06T07:30:00.000Z",
+      staleAfterHours: 72,
+      summary: {
+        platformCount: 4,
+        okCount: 3,
+        warnCount: 1,
+        errorCount: 0,
+        missingCount: 0,
+        staleCount: 1,
+        realCaptureStaleCount: 1,
+        sourceMismatchCount: 0,
+        bilibiliPreviewOnlyOk: true,
+        freshness: {
+          latestRealCaptureAt: "2026-06-04T08:00:00.000Z",
+          realCaptureIsStale: true,
+          staleAfterHours: 72
+        }
+      },
+      platforms: [],
+      bilibiliAccount: null
+    },
+    dailySelfMediaOps: { status: "pass", generatedAt: "2026-06-06T07:45:00.000Z" } as Parameters<typeof buildDataCaptureScheduleReliability>[0]["dailySelfMediaOps"],
+    dailyPlatformOpsGate: { status: "pass", generatedAt: "2026-06-06T07:40:00.000Z", freshness: {} } as Parameters<typeof buildDataCaptureScheduleReliability>[0]["dailyPlatformOpsGate"]
+  });
+
+  assert.equal(result.mode, "manual_only");
+  assert.equal(result.hasHourlyAutomation, false);
+  assert.equal(result.hasBackgroundDaemon, false);
+  assert.equal(result.hasStartupAutomation, false);
+  assert.equal(result.windowsTaskSchedulerRegistered, false);
+  assert.equal(result.status, "stale");
+  assert.equal(result.startupCatchUpRequired, true);
+  assert.equal(result.nextSuggestedAt, "2026-06-05T08:00:00.000Z");
+  assert.equal(result.boundaries.noSensitiveLoginMaterial, true);
+  assert.equal(result.boundaries.wechatPaused, true);
+  assert.equal(result.boundaries.bilibiliAccountPreviewOnly, true);
+  assert.equal(result.boundaries.noAutoRegistration, true);
 });
 
 test("platform readiness overview keeps platform order and maturity labels stable", () => {

@@ -77,6 +77,13 @@ function dailyOpsTone(status: DashboardSnapshot["dailySelfMediaOps"]["status"]):
   return "danger";
 }
 
+function captureScheduleTone(status: DashboardSnapshot["dataCaptureScheduleReliability"]["status"]): DailyChecklistTone {
+  if (status === "fresh") return "success";
+  if (status === "failed") return "danger";
+  if (status === "missing") return "info";
+  return "warning";
+}
+
 function platformDataHealthLabel(status: DashboardSnapshot["platformDataHealth"]["status"], staleCount: number) {
   if (status === "ok" && staleCount === 0) return "新鲜";
   if (status === "missing") return "待采集";
@@ -144,6 +151,7 @@ function buildDailyChecklistRows(snapshot: DashboardSnapshot): DailyChecklistRow
   const apiReady3200 = preflight.apiReadyPorts.includes(3200);
   const trustedDataReady3200 = preflight.trustedDataReadyPorts.includes(3200);
   const healthOk = pageReady3200 && apiReady3200 && trustedDataReady3200;
+  const captureSchedule = snapshot.dataCaptureScheduleReliability;
   const latestRealCaptureAt = snapshot.platformDataHealth.summary.freshness.latestRealCaptureAt;
   const realCaptureStaleCount = snapshot.platformDataHealth.summary.realCaptureStaleCount;
   const activeActions = snapshot.actionItems.filter((item) => !isPausedWechatActionItem(item) && !["done", "dropped"].includes(item.status));
@@ -173,6 +181,15 @@ function buildDailyChecklistRows(snapshot: DashboardSnapshot): DailyChecklistRow
       detail: `最近真实采集 ${formatDateTime(latestRealCaptureAt ?? undefined)}；过期平台 ${formatNumber(realCaptureStaleCount)} 个`,
       href: "/import",
       hrefLabel: "查看导入状态"
+    },
+    {
+      key: "data-capture-schedule",
+      label: "抓取节奏",
+      tone: captureScheduleTone(captureSchedule.status),
+      status: captureSchedule.statusLabel,
+      detail: `建议每 ${formatNumber(captureSchedule.suggestedFrequencyHours)} 小时检查；下次建议 ${formatDateTime(captureSchedule.nextSuggestedAt ?? undefined)}；${captureSchedule.startupCatchUpRequired ? "开机后先补抓" : "开机后无需补抓"}`,
+      href: "/import",
+      hrefLabel: "查看抓取状态"
     },
     {
       key: "daily-ops",
