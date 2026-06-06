@@ -360,6 +360,37 @@ function PublishExecutionDashboardPanel({ snapshot }: { snapshot: DashboardSnaps
   );
 }
 
+function StartCreatorDayFlowPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
+  const workbench = snapshot.publishToMetricsWorkbench;
+  const scheduledCount = workbench.executionItems.filter((item) => item.status === "scheduled").length;
+  const refreshCount = workbench.postPublishRefresh.length;
+  const matchCount = workbench.matchCandidates.length;
+  const nextItem = workbench.executionItems[0];
+  return (
+    <Panel
+      className="daily-operating-checklist-panel"
+      title="开始今天创作流程"
+      eyebrow="当前任务 / 下一步动作"
+      action={<span className="analytics-panel-action">{formatNumber(scheduledCount + refreshCount + matchCount)} 项待推进</span>}
+    >
+      <div className="metric-strip">
+        <span><b>1</b> 新视频</span>
+        <span><b>{formatNumber(scheduledCount)}</b> 待人工发布</span>
+        <span><b>{formatNumber(refreshCount)}</b> 发布后回收</span>
+        <span><b>{formatNumber(matchCount)}</b> 指标匹配</span>
+      </div>
+      <div className="trusted-weekly-summary-foot">
+        <span>{nextItem ? `建议先处理：${nextItem.contentTitle} / ${platformLabels[nextItem.platform]} / ${nextItem.nextAction}` : "从新视频开始：写想法、生成四平台版本、放进日历，再按发布交接包执行。"}</span>
+        <div className="inline-stack">
+          <a className="sm-button sm-button-primary" href="/content#new-video">开始新视频</a>
+          <a className="sm-button sm-button-secondary" href="/calendar">打开日历</a>
+          <a className="sm-button sm-button-secondary" href="/import#post-publish-refresh">回收发布数据</a>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function TrustedOperatingStrip({ snapshot }: { snapshot: DashboardSnapshot }) {
   const status = snapshot.trustedOperatingStatus;
   const dailyGate = snapshot.dailyPlatformOpsGate;
@@ -1041,6 +1072,7 @@ export function DashboardPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         actions={<Button disabled>分析视图</Button>}
       />
       <div className="dashboard-page-stack">
+        <StartCreatorDayFlowPanel snapshot={current} />
         <DailyOperatingChecklistPanel snapshot={current} />
         <PublishExecutionDashboardPanel snapshot={current} />
         <TrustedOperatingStrip snapshot={current} />

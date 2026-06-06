@@ -5492,6 +5492,8 @@ test("publish execution workbench guides manual publish refresh and confirmed me
     assert.equal(attributedAssistant.matchStatus, "attributed");
     assert.equal(attributedAssistant.attributionStatusLabel, "已归因到本地内容");
     assert.equal(attributedAssistant.metricSnapshotCount, 1);
+    assert.equal(attributedWorkbench.postPublishRecoveryItems.some((item) => item.contentId === "dy-publish-loop-imported"), false);
+    assert.equal(attributedWorkbench.publishHandoffPackages.some((item) => item.contentId === "dy-publish-loop-imported"), false);
     assert.doesNotMatch(JSON.stringify({ dueWorkbench, refreshWorkbench, candidateWorkbench, matched }), /\bcookie\b|\btoken\b|\bheaders?\b|raw payload|danmu|comment_content/i);
   } finally {
     repo?.close();

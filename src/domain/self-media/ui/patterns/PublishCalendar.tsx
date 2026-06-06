@@ -277,6 +277,7 @@ function DroppableCalendarDay({
   view,
   index,
   onSelect,
+  onCreateAt,
   showEmptySlots
 }: {
   date: string;
@@ -286,6 +287,7 @@ function DroppableCalendarDay({
   view: CalendarGridView;
   index: number;
   onSelect?: (platformVersionId: string) => void;
+  onCreateAt?: (scheduledAt: string) => void;
   showEmptySlots: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: date, data: { date } });
@@ -312,7 +314,7 @@ function DroppableCalendarDay({
           <DraggableCalendarCard group={group} key={group.id} onSelect={onSelect} />
         ))}
         {groups.length > maxVisibleItems && <p className="calendar-overflow-note">更多排期</p>}
-        {groups.length === 0 && showEmptySlots && <button className="calendar-empty-slot" data-calendar-empty={date} type="button"><span>+</span> 排期</button>}
+        {groups.length === 0 && showEmptySlots && <button className="calendar-empty-slot" data-calendar-empty={date} onClick={() => onCreateAt?.(scheduledForDate({ scheduledAt: `${date}T09:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, 9))} type="button"><span>+</span> 排期</button>}
       </div>
     </section>
   );
@@ -324,6 +326,7 @@ function DroppableCalendarTimeCell({
   groups,
   isToday,
   onSelect,
+  onCreateAt,
   showEmptySlots
 }: {
   date: string;
@@ -331,6 +334,7 @@ function DroppableCalendarTimeCell({
   groups: CalendarCardGroup[];
   isToday: boolean;
   onSelect?: (platformVersionId: string) => void;
+  onCreateAt?: (scheduledAt: string) => void;
   showEmptySlots: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `${date}-${hour}`, data: { date, hour } });
@@ -345,7 +349,7 @@ function DroppableCalendarTimeCell({
       {visible.map((group) => (
         <DraggableCalendarCard group={group} key={group.id} onSelect={onSelect} />
       ))}
-      {groups.length === 0 && showEmptySlots && <button className="calendar-empty-slot calendar-empty-slot-compact" data-calendar-empty={date} type="button"><span>+</span></button>}
+      {groups.length === 0 && showEmptySlots && <button className="calendar-empty-slot calendar-empty-slot-compact" data-calendar-empty={date} onClick={() => onCreateAt?.(scheduledForDate({ scheduledAt: `${date}T${String(hour).padStart(2, "0")}:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, hour))} type="button"><span>+</span></button>}
     </div>
   );
 }
@@ -355,6 +359,7 @@ export function PublishCalendar({
   view = "week",
   anchorDate,
   onSelect,
+  onCreateAt,
   onReschedule,
   showEmptySlots = false,
   pendingItems = []
@@ -363,12 +368,13 @@ export function PublishCalendar({
   view?: CalendarGridView;
   anchorDate?: Date;
   onSelect?: (platformVersionId: string) => void;
+  onCreateAt?: (scheduledAt: string) => void;
   onReschedule?: (input: { platformVersionId: string; scheduledAt: string }) => void;
   showEmptySlots?: boolean;
   pendingItems?: PendingScheduleDraftItem[];
 }) {
   const [mounted, setMounted] = useState(false);
-  const firstDate = anchorDate ?? anchorDateForItems(items);
+  const firstDate = anchorDate ?? new Date();
   const displayDates = daysForView(view, firstDate);
   const dates = displayDates.map(dateKey);
   const cardGroups = groupCalendarCards(items);
@@ -451,6 +457,7 @@ export function PublishCalendar({
                         hour={hour}
                         isToday={key === todayKey}
                         key={`${key}-${hour}`}
+                        onCreateAt={onCreateAt}
                         onSelect={onSelect}
                         showEmptySlots={showEmptySlots}
                       />
@@ -475,6 +482,7 @@ export function PublishCalendar({
                     isToday={key === todayKey}
                     groups={byDate.get(key) ?? []}
                     key={`${key}-${index}`}
+                    onCreateAt={onCreateAt}
                     onSelect={onSelect}
                     showEmptySlots={showEmptySlots}
                     view={view}

@@ -2143,7 +2143,7 @@ button:disabled {
   color: var(--sm-text-subtle);
   font-size: 12px;
   font-weight: 780;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .calendar-empty-slot span {
@@ -3058,6 +3058,8 @@ button:disabled {
 .calendar-empty-slot-compact {
   width: 30px;
   min-height: 22px;
+  position: relative;
+  z-index: 2;
   justify-self: start;
   margin-top: 17px;
   margin-left: 5px;

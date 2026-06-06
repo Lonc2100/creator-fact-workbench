@@ -553,6 +553,37 @@ function WorkbenchSummaryPanel({ snapshot }: { snapshot: ContentWorkbenchSnapsho
   );
 }
 
+function ContentCurrentTaskPanel({ snapshot }: { snapshot: ContentWorkbenchSnapshot }) {
+  const packages = snapshot.publishToMetricsWorkbench.publishHandoffPackages;
+  const scheduledPackages = packages.filter((item) => item.status === "scheduled");
+  const reviewDrafts = snapshot.platformVersions.filter((item) => item.status === "draft" || item.status === "needs_review");
+  const nextPackage = scheduledPackages[0] ?? packages[0];
+  return (
+    <Panel
+      title="当前任务 / 下一步动作"
+      eyebrow="今天从这里开始"
+      action={<span className="sm-badge sm-badge-info">{scheduledPackages.length} 个待发布平台包</span>}
+    >
+      <div className="metric-strip">
+        <span><b>1</b> 新视频</span>
+        <span><b>{reviewDrafts.length}</b> 待审核草稿</span>
+        <span><b>{scheduledPackages.length}</b> 发布交接包</span>
+        <span><b>{snapshot.publishToMetricsWorkbench.executionItems.length}</b> 今日/近期待处理</span>
+      </div>
+      <div className="trusted-weekly-summary-foot">
+        <span>{nextPackage ? `下一步：处理 ${platformLabels[nextPackage.platform]}《${nextPackage.contentTitle}》发布交接包。` : "下一步：先创建新视频，保存四平台版本后再进入日历排期。"}</span>
+        <div className="inline-stack">
+          <a className="sm-button sm-button-primary" href="#new-video">新视频</a>
+          <a className="sm-button sm-button-secondary" href="/calendar">引用到日历</a>
+          <a className="sm-button sm-button-secondary" href="#new-video">生成四平台版本</a>
+          <a className="sm-button sm-button-secondary" href="#publish-handoff">发布交接包</a>
+        </div>
+      </div>
+      <p className="muted">参考多频道 composer 的工作法：先定一个内容，再确认四个平台版本、排期和人工发布交接；历史/全部内容放在下方筛选。</p>
+    </Panel>
+  );
+}
+
 export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }) {
   const [current, setCurrent] = useState(snapshot);
   const [query, setQuery] = useState("");
@@ -732,16 +763,19 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
         }
       />
       <p className="operation-message" data-testid="content-operation-message">{message}</p>
+      <ContentCurrentTaskPanel snapshot={current} />
       <CreatorVideoPanel onCreated={handleCreatorDraftCreated} />
-      <PublishExecutionWorkbenchPanel
-        onConfirmPublish={confirmPublish}
-        onSelect={(contentId, versionId) => {
-          setSelectedContentId(contentId);
-          setSelectedVersionId(versionId);
-          setMessage("已打开待发布内容；可编辑、改排期或记录发布结果。");
-        }}
-        snapshot={current}
-      />
+      <div id="publish-handoff">
+        <PublishExecutionWorkbenchPanel
+          onConfirmPublish={confirmPublish}
+          onSelect={(contentId, versionId) => {
+            setSelectedContentId(contentId);
+            setSelectedVersionId(versionId);
+            setMessage("已打开待发布内容；可编辑、改排期或记录发布结果。");
+          }}
+          snapshot={current}
+        />
+      </div>
       <WorkbenchSummaryPanel snapshot={current} />
       <TrustedScopeCurationPanel snapshot={current} onToggle={patchTrustedScope} />
       <Panel title="内容列表筛选" eyebrow="默认运营视图">

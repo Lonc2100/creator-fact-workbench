@@ -104,6 +104,9 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /action: "review_draft"/);
   assert.match(contentScreen, /action: "confirm_publish"/);
   assert.match(contentScreen, /creator-new-video-panel/);
+  assert.match(contentScreen, /当前任务 \/ 下一步动作/);
+  assert.match(contentScreen, /引用到日历/);
+  assert.match(contentScreen, /发布交接包/);
   assert.match(contentScreen, /\/api\/self-media\/creator-drafts/);
   assert.match(contentScreen, /action: "discuss"/);
   assert.match(contentScreen, /creator-copilot-discussion/);
@@ -130,6 +133,8 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(dashboardScreen, /contentId=/);
   assert.match(dashboardScreen, /dashboard-publish-execution-workbench/);
   assert.match(dashboardScreen, /发布执行台/);
+  assert.match(dashboardScreen, /StartCreatorDayFlowPanel/);
+  assert.match(dashboardScreen, /开始今天创作流程/);
 });
 
 test("content workbench exposes filters sorting pagination and trusted-scope copy", () => {
@@ -192,6 +197,11 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /calendarAnchorDate/);
   assert.match(calendarScreen, /anchorDate=\{calendarAnchorDate\}/);
   assert.match(calendarScreen, /计划新视频 \/ 新增排期/);
+  assert.match(calendarScreen, /CalendarCurrentTaskPanel/);
+  assert.match(calendarScreen, /真实日期优先/);
+  assert.match(calendarScreen, /新增排期/);
+  assert.match(calendarScreen, /onCreateAt=\{\(scheduledAt\) => setCreateSlotAt\(scheduledAt\)\}/);
+  assert.match(calendarScreen, /showEmptySlots=\{scope === "operating"\}/);
   assert.match(calendarScreen, /平台指标仍以创作者中心数据为准/);
   assert.match(calendarScreen, /publishRecords/);
   assert.doesNotMatch(calendarScreen, /providerRunId:|platformUrl:|platformPostId:/);
@@ -303,13 +313,17 @@ test("content and calendar default views hide internal labels and require explic
 
 test("import page default view is data-only and folds diagnostics", () => {
   const importPage = read("src/domain/self-media/ui/screens/ImportPage.tsx");
-  assert.match(importPage, /默认只看四平台真实导入动作、最近导入结果和数据新鲜度/);
+  assert.match(importPage, /第一屏只处理发布后回收当前任务/);
+  assert.match(importPage, /四平台同步与数据新鲜度/);
   assert.match(importPage, /function PlatformDataHealthPanel/);
   assert.match(importPage, /function PlatformImportStatusPanel/);
   assert.match(importPage, /手动抓取最新数据/);
-  assert.match(importPage, /发布后刷新/);
+  assert.match(importPage, /发布后回收当前任务/);
   assert.match(importPage, /post-publish-refresh/);
   assert.match(importPage, /postPublishRecoveryItems/);
+  assert.match(importPage, /currentRecoveryItems/);
+  assert.match(importPage, /currentCandidates/);
+  assert.match(importPage, /isPausedWechatRecoveryText/);
   assert.match(importPage, /post-publish-recovery-assistant/);
   assert.match(importPage, /待回收内容/);
   assert.match(importPage, /建议刷新动作/);
@@ -343,8 +357,8 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /item\.lastMessage \? operatorWarningLabel\(item\.lastMessage\) : "无"/);
 
   const defaultRender = importPage.slice(
-    importPage.indexOf("<PlatformDataHealthPanel"),
-    importPage.indexOf("<details className=\"analytics-data-section import-advanced-diagnostics\"")
+    importPage.indexOf("<PostPublishRefreshPanel"),
+    importPage.indexOf("<details className=\"analytics-data-section\">")
   );
   const advancedRender = importPage.slice(importPage.indexOf("<details className=\"analytics-data-section import-advanced-diagnostics\""));
   for (const pattern of [/daily-self-media-ops-preflight/, /--preflight-health/, /preferredDashboardUrl/, /safeWeekly=/, /trustedData=/, /pageReady=/, /\brawDir\b/, /\brunId\b/, /\brun\s*id\b/i, /douyin_creator_center/, /xiaohongshu_creator_center/, /video_account_creator_center/, /bilibili_creator_center/, /private message endpoints/i, /redacted/i, /provider source id/i, /objectId/]) {

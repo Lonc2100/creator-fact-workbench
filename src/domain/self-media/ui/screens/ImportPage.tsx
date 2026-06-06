@@ -222,6 +222,10 @@ function operatorWarnings(values: string[]) {
   return [...new Set(values.map(operatorWarningLabel))].slice(0, 3);
 }
 
+function isPausedWechatRecoveryText(value: string) {
+  return /(公众号|微信后台|wechat|wechat_official)/i.test(value);
+}
+
 function metricEntries(row: RealImportPreviewRow) {
   return Object.entries(row.normalized).filter(([key, value]) => key !== "id" && key !== "title" && value !== undefined && value !== "");
 }
@@ -880,18 +884,24 @@ function PostPublishRefreshPanel({
 }) {
   const workbench = snapshot.publishToMetricsWorkbench;
   const recoveryItems = workbench.postPublishRecoveryItems;
+  const currentRecoveryItems = recoveryItems
+    .filter((item) => item.matchStatus !== "attributed")
+    .filter((item) => !isPausedWechatRecoveryText(`${item.contentTitle} ${item.versionTitle}`))
+    .slice(0, 8);
+  const currentVersionIds = new Set(currentRecoveryItems.map((item) => item.platformVersionId));
+  const currentCandidates = workbench.matchCandidates.filter((candidate) => currentVersionIds.has(candidate.localPlatformVersionId));
   return (
     <Panel
       id="post-publish-refresh"
-      title="发布后刷新"
-      eyebrow="手动回收指标"
-      action={<span className="sm-badge sm-badge-info">{workbench.postPublishRefresh.length} 条待回收</span>}
+      title="发布后回收当前任务"
+      eyebrow="当前任务 / 下一步动作"
+      action={<span className="sm-badge sm-badge-info">{currentRecoveryItems.length} 条当前待处理</span>}
     >
       <p className="muted" data-testid="post-publish-refresh-boundary">发布后刷新是本地手动抓取/同步，不是平台自动回调；系统只给候选，用户确认前不会把新平台内容指标归入本地内容。</p>
       <div className="platform-import-status-summary">
         <span><b>{formatNumber(workbench.postPublishRefresh.length)}</b> 发布后待刷新</span>
-        <span><b>{formatNumber(recoveryItems.length)}</b> 发布后回收助手</span>
-        <span><b>{formatNumber(workbench.matchCandidates.length)}</b> 可人工确认候选</span>
+        <span><b>{formatNumber(currentRecoveryItems.length)}</b> 当前回收任务</span>
+        <span><b>{formatNumber(currentCandidates.length)}</b> 可人工确认候选</span>
         <span><b>{formatDateTime(workbench.scheduledRefresh.nextSuggestedAt)}</b> 建议下次抓取</span>
       </div>
       <div className="table-wrap" data-testid="post-publish-refresh">
@@ -907,7 +917,7 @@ function PostPublishRefreshPanel({
             </tr>
           </thead>
           <tbody>
-            {recoveryItems.map((item) => (
+            {currentRecoveryItems.map((item) => (
               <tr key={item.id}>
                 <td>
                   <strong>{item.contentTitle}</strong>
@@ -937,9 +947,9 @@ function PostPublishRefreshPanel({
                 </td>
               </tr>
             ))}
-            {recoveryItems.length === 0 && (
+            {currentRecoveryItems.length === 0 && (
               <tr>
-                <td colSpan={6}>暂无发布后回收项；人工确认发布后，这里会显示平台、发布时间、刷新动作、导入状态和匹配归因状态。</td>
+                <td colSpan={6}>暂无当前待回收项；人工确认发布后，这里会显示平台、发布时间、刷新动作、导入状态和匹配归因状态。</td>
               </tr>
             )}
           </tbody>
@@ -956,7 +966,7 @@ function PostPublishRefreshPanel({
             </tr>
           </thead>
           <tbody>
-            {workbench.matchCandidates.map((candidate) => {
+            {currentCandidates.map((candidate) => {
               const local = workbench.postPublishRefresh.find((item) => item.platformVersionId === candidate.localPlatformVersionId);
               return (
                 <tr key={candidate.id}>
@@ -973,7 +983,7 @@ function PostPublishRefreshPanel({
                 </tr>
               );
             })}
-            {workbench.matchCandidates.length === 0 && (
+            {currentCandidates.length === 0 && (
               <tr>
                 <td colSpan={4}>暂无可确认候选；先预览/保存最新本地抓取后再人工匹配。</td>
               </tr>
@@ -982,6 +992,7 @@ function PostPublishRefreshPanel({
         </table>
       </div>
       <p className="muted">{workbench.scheduledRefresh.boundary}</p>
+      {recoveryItems.length > currentRecoveryItems.length && <p className="muted">已归因或历史回收项已下移，不占用当前任务区。</p>}
     </Panel>
   );
 }
@@ -1090,14 +1101,25 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       <PageHeader
         eyebrow="数据接入"
         title="数据导入"
-        description="默认只看四平台真实导入动作、最近导入结果和数据新鲜度。"
+        description="第一屏只处理发布后回收当前任务；历史导入、手动导入和诊断默认折叠。"
         actions={<Button onClick={() => window.location.reload()} variant="secondary">刷新</Button>}
       />
       <div className="import-page-stack">
-        <PlatformDataHealthPanel health={currentSnapshot.platformDataHealth} />
         <PostPublishRefreshPanel onConfirmMatch={confirmPlatformContentMatch} snapshot={currentSnapshot} />
-        <PlatformImportStatusPanel capabilities={currentSnapshot.platformImportOperationCapabilities} history={currentSnapshot.operationHistory} statuses={currentSnapshot.platformImportStatuses} onDashboardRefresh={setCurrentSnapshot} />
-        <ScheduledRefreshSettingPanel snapshot={currentSnapshot} />
+        <details className="analytics-data-section">
+          <summary>
+            <span>
+              <strong>四平台同步与数据新鲜度</strong>
+              <small>需要抓取/保存最新数据时再展开</small>
+            </span>
+            <i>展开</i>
+          </summary>
+          <div className="import-preview-stack">
+            <PlatformDataHealthPanel health={currentSnapshot.platformDataHealth} />
+            <PlatformImportStatusPanel capabilities={currentSnapshot.platformImportOperationCapabilities} history={currentSnapshot.operationHistory} statuses={currentSnapshot.platformImportStatuses} onDashboardRefresh={setCurrentSnapshot} />
+            <ScheduledRefreshSettingPanel snapshot={currentSnapshot} />
+          </div>
+        </details>
         <details className="analytics-data-section import-advanced-diagnostics" data-testid="import-advanced-diagnostics">
           <summary>
             <span>

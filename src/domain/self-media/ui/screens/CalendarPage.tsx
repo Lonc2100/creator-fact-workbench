@@ -267,6 +267,37 @@ function PublishLedgerPanel({
   );
 }
 
+function CalendarCurrentTaskPanel({
+  visibleCount,
+  pendingCount,
+  selectedTitle
+}: {
+  visibleCount: number;
+  pendingCount: number;
+  selectedTitle?: string;
+}) {
+  return (
+    <Panel
+      title="当前任务 / 下一步动作"
+      eyebrow="真实日期优先"
+      action={<span className="sm-badge sm-badge-info">{visibleCount} 个当前视图排期</span>}
+    >
+      <div className="metric-strip">
+        <span><b>{visibleCount}</b> 日历卡片</span>
+        <span><b>{pendingCount}</b> 待拖入日历</span>
+        <span><b>{selectedTitle ? "已选" : "未选"}</b> 卡片详情</span>
+      </div>
+      <div className="trusted-weekly-summary-foot">
+        <span>{selectedTitle ? `正在查看《${selectedTitle}》；点击其他卡片只打开详情，不会改数据。` : "点击空白日期/时间格新增排期，或把右侧真实待排内容拖入日历。"}</span>
+        <div className="inline-stack">
+          <a className="sm-button sm-button-primary" href="/content#new-video">计划新视频 / 新增排期</a>
+          <a className="sm-button sm-button-secondary" href="#publish-ledger">查看发布台账</a>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnapshot; workbench: ContentWorkbenchSnapshot }) {
   const [current, setCurrent] = useState(snapshot);
   const [currentWorkbench, setCurrentWorkbench] = useState(workbench);
@@ -284,6 +315,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
   const [ledgerStatus, setLedgerStatus] = useState<DashboardSnapshot["publishRecords"][number]["status"] | "all">("all");
   const [ledgerDate, setLedgerDate] = useState("");
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [createSlotAt, setCreateSlotAt] = useState<string | undefined>();
   const [message, setMessage] = useState("");
   const versionById = useMemo(() => new Map(currentWorkbench.platformVersions.map((version) => [version.id, version])), [currentWorkbench.platformVersions]);
   const contentById = useMemo(() => new Map(currentWorkbench.contents.map((content) => [content.id, content])), [currentWorkbench.contents]);
@@ -457,6 +489,11 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
         description="默认只显示真实可行动的排期稿件和人工发布台账；更多历史记录可在筛选中查看。"
       />
       <span className="sr-only">平台版本详情</span>
+      <CalendarCurrentTaskPanel
+        pendingCount={pendingSchedulingItems.length}
+        selectedTitle={selectedContent?.title}
+        visibleCount={visibleItems.length}
+      />
       <div className="calendar-toolbar">
         <label className="calendar-search">
           <Search aria-hidden="true" size={17} />
@@ -505,8 +542,9 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
             setSelectedId(id);
             setInspectorOpen(true);
           }}
+          onCreateAt={(scheduledAt) => setCreateSlotAt(scheduledAt)}
           pendingItems={scope === "all_local" ? [] : pendingSchedulingItems}
-          showEmptySlots={scope === "all_local"}
+          showEmptySlots={scope === "operating"}
           view={view}
         />
       </div>
@@ -537,6 +575,28 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
             version={selected}
             versions={selectedContentVersions}
           />
+        </div>
+      )}
+      {createSlotAt && (
+        <div className="calendar-inspector-shell" role="dialog" aria-label="新增排期">
+          <button className="calendar-inspector-close" onClick={() => setCreateSlotAt(undefined)} type="button" aria-label="关闭新增排期">
+            <X aria-hidden="true" size={18} />
+          </button>
+          <aside className="inspector-panel">
+            <div>
+              <p className="sm-eyebrow">新增排期</p>
+              <h2>创建一个新视频排期</h2>
+            </div>
+            <div className="inspector-row">
+              <span>选中时间</span>
+              <strong>{formatDateTime(createSlotAt)}</strong>
+            </div>
+            <p className="muted">这里先打开创建入口，不直接写入数据；保存四平台版本后会出现在日历中。</p>
+            <div className="inline-stack">
+              <a className="sm-button sm-button-primary" href="/content#new-video">去内容台创建</a>
+              <Button onClick={() => setCreateSlotAt(undefined)} variant="secondary">留在日历</Button>
+            </div>
+          </aside>
         </div>
       )}
     </AppShell>

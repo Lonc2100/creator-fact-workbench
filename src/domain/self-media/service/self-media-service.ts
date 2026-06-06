@@ -2054,6 +2054,7 @@ function buildPublishHandoffPackages(input: {
   const packages: PublishHandoffPackage[] = [];
   for (const version of input.platformVersions) {
     if (!isClosedLoopContentPlatform(version.platform)) continue;
+    if (version.status === "published") continue;
     const platform = version.platform;
     const content = input.contents.find((item) => item.id === version.contentId);
     if (!content) continue;
@@ -2244,8 +2245,9 @@ function buildPublishToMetricsWorkbench(input: {
     const minutesUntilDue = scheduledTime === undefined ? undefined : Math.round((scheduledTime - nowTime) / 60000);
     const ownSnapshots = input.trustedSnapshots.filter((snapshot) => snapshot.contentId === version.contentId && snapshot.platformVersionId === version.id);
     const latestOwnSnapshot = latestMetricAfter(ownSnapshots, version.publishedAt);
-    const publishedWaitingMetrics = version.status === "published" && !latestOwnSnapshot;
-    const publishedForRecovery = version.status === "published";
+    const isManuallyConfirmedPublish = Boolean(latestRecord);
+    const publishedWaitingMetrics = version.status === "published" && isManuallyConfirmedPublish && !latestOwnSnapshot;
+    const publishedForRecovery = version.status === "published" && isManuallyConfirmedPublish;
     const dueSoon = version.status === "scheduled" && scheduledTime !== undefined && scheduledTime <= nowTime + nearDueMs;
     const blockedOrFailed = version.status === "failed" || version.status === "blocked";
     if (!dueSoon && !publishedWaitingMetrics && !blockedOrFailed && !publishedForRecovery) continue;
@@ -2256,7 +2258,11 @@ function buildPublishToMetricsWorkbench(input: {
     else if (scheduledTime !== undefined && scheduledTime < nowTime) timing = "overdue";
     else if (scheduledTime !== undefined && new Date(scheduledTime).toISOString().slice(0, 10) === now.toISOString().slice(0, 10)) timing = "due_today";
 
-    const nextAction = publishedWaitingMetrics
+    const nextAction = latestRecord?.status === "submitted_review"
+      ? "已提交官方后台审核；等待平台审核结果，回来确认已发布或记录失败。"
+      : latestRecord?.status === "failed"
+        ? "发布失败已记录；回到内容草稿处理原因后重新排期。"
+        : publishedWaitingMetrics
       ? "已人工确认发布；下一步去 /import 手动抓取最新数据，再人工匹配回本地内容。"
       : blockedOrFailed
         ? "处理失败/阻塞原因后回到草稿或重新排期。"
