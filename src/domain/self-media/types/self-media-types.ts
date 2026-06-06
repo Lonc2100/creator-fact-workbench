@@ -14,6 +14,8 @@ export type PlatformVersionStatus = "draft" | "needs_review" | "scheduled" | "pu
 
 export type CalendarView = "week" | "month";
 
+export type ContentWorkOwnership = "user_owned_work" | "operator_owned_work";
+
 export type ImportDiffKind = "new" | "update" | "duplicate" | "conflict" | "invalid";
 
 export type ReviewActionStatus = "todo" | "doing" | "done" | "dropped";
@@ -50,6 +52,7 @@ export interface ContentItem {
   trustedScopeOverride?: "include" | "exclude";
   trustedScopeUpdatedAt?: string;
   trustedScopeUpdatedBy?: string;
+  workOwnership?: ContentWorkOwnership;
 }
 
 export interface PlatformChecklist {

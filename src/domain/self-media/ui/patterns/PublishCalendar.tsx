@@ -458,6 +458,9 @@ export function PublishCalendar({
         {items.length === 0 && pendingItems.length > 0 && (
           <p className="calendar-empty-real-queue-note" data-testid="calendar-empty-real-queue-note">当前没有已排期稿件；右侧显示真实待排草稿，不用假排期占位。</p>
         )}
+        {items.length === 0 && pendingItems.length === 0 && showEmptySlots && (
+          <p className="calendar-empty-real-queue-note" data-testid="calendar-empty-real-queue-note">点击空白时间格创建作品排期。</p>
+        )}
         <div className={cx("calendar-workflow-grid", pendingItems.length > 0 && "has-pending-queue")}>
           {view === "week" ? (
             <div
@@ -522,7 +525,7 @@ export function PublishCalendar({
               })}
             </div>
           )}
-          {(pendingItems.length > 0 || items.length === 0) && <PendingScheduleQueue items={pendingItems} onSelect={onSelect} />}
+          {pendingItems.length > 0 && <PendingScheduleQueue items={pendingItems} onSelect={onSelect} />}
         </div>
       </DndContext>
     </div>

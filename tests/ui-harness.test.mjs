@@ -221,6 +221,9 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /pendingSchedulingItems/);
   assert.match(calendarScreen, /isDefaultSchedulingRow/);
   assert.match(calendarScreen, /defaultSchedulingOriginKinds/);
+  assert.match(calendarScreen, /hasCalendarWorkOwnership/);
+  assert.match(calendarScreen, /user_owned_work/);
+  assert.match(calendarScreen, /operator_owned_work/);
   assert.match(calendarScreen, /CalendarDraftPoolPanel/);
   assert.match(calendarScreen, /calendar-draft-pool/);
   assert.match(calendarScreen, /素材池 \/ 待排草稿/);
@@ -228,7 +231,9 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /isAcceptanceOrTestCalendarText/);
   assert.match(calendarScreen, /本地验收数据 \/ 测试内容/);
   assert.match(calendarScreen, /calendar-acceptance-data-pool/);
-  assert.match(calendarScreen, /068|069|creator day workflow|MAINLINE/i);
+  assert.match(calendarScreen, /071|测试|验收|creator day workflow|MAINLINE/i);
+  assert.doesNotMatch(calendarScreen, /我的真实作品\/i/);
+  assert.match(calendarPattern, /点击空白时间格创建作品排期/);
   assert.match(calendarRoute, /getSelfMediaContentWorkbench/);
   assert.match(calendarRoute, /<CalendarPage snapshot=\{snapshot\} workbench=\{workbench\}/);
   assert.match(calendarScreen, /versionId/);

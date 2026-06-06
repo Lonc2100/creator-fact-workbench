@@ -4405,6 +4405,7 @@ test("trusted action item can become scheduled content and calendar entry", asyn
     assert.equal(converted.actionItem.platformVersionId, converted.platformVersion.id);
     assert.equal(converted.content.status, "scheduled");
     assert.equal(converted.content.platform, "douyin");
+    assert.equal(converted.content.workOwnership, "operator_owned_work");
     assert.equal(converted.queue.status, "scheduled");
     assert.equal(converted.platformVersion.status, "scheduled");
     assert.equal(converted.platformVersion.scheduledAt, "2026-06-06T09:00:00.000Z");
@@ -5226,6 +5227,7 @@ test("idea can become draft content and enter publish queue", () => {
     const converted = service.convertIdeaToContent({ id: created.idea.id, scheduledAt: "2026-06-04T09:00:00.000Z" });
     assert.equal(converted.idea.status, "produced");
     assert.equal(converted.content.status, "draft");
+    assert.equal(converted.content.workOwnership, "user_owned_work");
     assert.equal(converted.queue.status, "draft");
     assert.ok(repo.listContents().some((item) => item.id === converted.content.id));
     assert.ok(repo.listQueue().some((item) => item.id === converted.queue.id));
@@ -5729,6 +5731,7 @@ test("creator video idea creates four platform drafts and optional schedule", as
     assert.ok(result.platformVersions.every((item) => item.scheduledAt === "2026-06-08T12:00:00.000Z"));
     assert.ok(result.queueItems.every((item) => item.scheduledAt === "2026-06-08T12:00:00.000Z" && item.status === "scheduled"));
     assert.ok(result.drafts.every((draft) => draft.tags.length > 0 && draft.coverNote && /人工/.test(draft.platformAdvice)));
+    assert.equal(result.content.workOwnership, "user_owned_work");
     assert.ok(repo.listContents().some((item) => item.id === result.content.id && item.status === "scheduled"));
     assert.ok(repo.listPlatformVersions().every((item) => item.contentId !== result.content.id || item.status === "scheduled"));
     const workbench = await service.contentWorkbench();

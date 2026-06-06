@@ -104,8 +104,7 @@ function isDiagnosticCalendarText(value: string) {
 }
 
 function isAcceptanceOrTestCalendarText(value: string) {
-  if (/我的真实作品/i.test(value)) return false;
-  return /(^|[\s:/._-])(smoke|demo|fixture|debug|mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|05[0-9]|06[0-9]/i.test(value);
+  return /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI选题计划|AI短片复盘|我最喜欢的小雏菊|想拍一条短视频|05[0-9]|06[0-9]|07[0-1]/i.test(value);
 }
 
 function calendarClassificationText(
@@ -130,6 +129,10 @@ function calendarClassificationText(
   ].filter(Boolean).join(" ");
 }
 
+function hasCalendarWorkOwnership(content: ContentWorkbenchSnapshot["contents"][number] | DashboardSnapshot["contents"][number] | undefined) {
+  return content?.workOwnership === "user_owned_work" || content?.workOwnership === "operator_owned_work";
+}
+
 function isDefaultSchedulingRow(
   row: ContentWorkbenchSnapshot["contentRows"][number] | undefined,
   content: ContentWorkbenchSnapshot["contents"][number] | undefined,
@@ -137,6 +140,7 @@ function isDefaultSchedulingRow(
 ) {
   if (!row || !content) return false;
   if (!isOperatingPlatform(version.platform)) return false;
+  if (!hasCalendarWorkOwnership(content)) return false;
   if (!defaultSchedulingOriginKinds.has(row.originKind)) return false;
   if (row.originKind === "trusted_creator_center" && content.userExcludedFromTrustedScope) return false;
   if (isAcceptanceOrTestCalendarText(calendarClassificationText(undefined, version, content, row))) return false;

@@ -2945,7 +2945,8 @@ export class SelfMediaService {
       format: idea.platform === "wechat" ? "article" : idea.platform === "xiaohongshu" ? "image_text" : "short_video",
       topic: idea.title,
       scheduledAt: input.scheduledAt,
-      notes: idea.rationale
+      notes: idea.rationale,
+      workOwnership: "user_owned_work"
     };
     const queue: PublishQueueItem = {
       id: `queue-from-${content.id}`,
@@ -2992,6 +2993,7 @@ export class SelfMediaService {
       format: "short_video",
       topic: normalized.topic,
       scheduledAt,
+      workOwnership: "user_owned_work",
       notes: compactLines([
         "creator_draft:local_rule_v1",
         normalized.copilotAnalysis,
@@ -3622,6 +3624,7 @@ export class SelfMediaService {
       format: contentFormatForPlatform(trustedEvidence.platform),
       topic: item.title,
       scheduledAt,
+      workOwnership: "operator_owned_work",
       notes: [
         `actionItem:${item.id}`,
         item.sourceSuggestionId ? `sourceSuggestion:${item.sourceSuggestionId}` : undefined,
