@@ -80,3 +80,6 @@ Auditor 不能只说“建议优化”。必须指出文件、风险、验收方
 - 新增工具没有验收命令；
 - 文档说法和代码行为不一致；
 - Agent 必读文档超过当前任务需要。
+## 熵扫描入口
+
+定期清理先运行 `npm run scan:entropy`，再阅读 `.local/entropy-governance-scan/report.md` 和 `docs/entropy-governance.md`。扫描只读，不删除、不迁移、不写真实 DB；所有可删除项只能进入候选清单，等待用户逐项确认。

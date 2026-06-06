@@ -27,6 +27,7 @@
     "health:platform-data": "node scripts/platform-data-health.mjs",
     "check:real-capture-freshness": "node scripts/real-capture-freshness-check.mjs",
     "check:local-data-quarantine": "node scripts/local-data-quarantine-report.mjs",
+    "scan:entropy": "node scripts/entropy-governance-scan.mjs",
     "check:local-server-health": "node scripts/local-server-health.mjs",
     "audit:trusted-dashboard": "node scripts/trusted-dashboard-audit.mjs",
     "check:clean-profile": "tsx scripts/clean-profile-status.mjs",

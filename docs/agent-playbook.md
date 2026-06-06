@@ -21,6 +21,12 @@ Inbox -> Spec Aligned -> Assigned -> In Progress -> Review -> Done | Blocked
 
 The Orchestrator owns every state transition. A task cannot enter `In Progress` unless it has a task ID, scope, acceptance command, and handoff path in `docs/task-board.md`.
 
+## Entropy And Data Isolation
+
+Before cleanup, release closure, or filesystem governance tasks, run `npm run scan:entropy` and record the report path in the handoff. The scan is read-only and writes reports under `.local/entropy-governance-scan/`.
+
+Worker acceptance must use isolated databases by default. Smoke, E2E, fixture, demo, and acceptance data must not write to `.local/self-media.sqlite` unless the task explicitly states a live read-only check and the handoff records that no write path ran.
+
 ## Handoff
 
 Record durable context in `docs/context/` before relying on it.

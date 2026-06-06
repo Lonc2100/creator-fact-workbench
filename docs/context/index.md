@@ -20,4 +20,5 @@ Read only when relevant:
 - `../spec-governance.md`
 - `../quality-execution-system.md`
 - `../golden-principles.md`
+- `../entropy-governance.md`
 - `../cleanup-manifest.md`

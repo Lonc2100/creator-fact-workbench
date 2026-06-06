@@ -67,6 +67,13 @@ Auditor 审查清单：
 - 跑了什么验证；
 - 还有什么风险。
 
+固定扫描入口：
+
+- `npm run scan:entropy`
+- 规则源：`docs/entropy-governance.md`
+- 报告：`.local/entropy-governance-scan/report.md`
+- 约束：只读扫描，不删除文件，不写真实 DB。
+
 ## 5. 可降复杂度
 
 新增能力前先问：
