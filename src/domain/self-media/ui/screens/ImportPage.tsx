@@ -7,6 +7,7 @@ import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatDateTime, formatNumber } from "../foundations/format";
+import { platformLabels } from "../foundations/labels";
 import { ImportDiffTable } from "../patterns/ImportDiffTable";
 import { Badge } from "../primitives/Badge";
 import { Button } from "../primitives/Button";
@@ -894,7 +895,7 @@ function PostPublishRefreshPanel({
     <Panel
       id="post-publish-refresh"
       title="发布后回收当前任务"
-      eyebrow="当前任务 / 下一步动作"
+      eyebrow="发布后数据回收"
       action={<span className="sm-badge sm-badge-info">{currentRecoveryItems.length} 条当前待处理</span>}
     >
       <p className="muted" data-testid="post-publish-refresh-boundary">发布后刷新是本地手动抓取/同步，不是平台自动回调；系统只给候选，用户确认前不会把新平台内容指标归入本地内容。</p>
@@ -993,6 +994,67 @@ function PostPublishRefreshPanel({
       </div>
       <p className="muted">{workbench.scheduledRefresh.boundary}</p>
       {recoveryItems.length > currentRecoveryItems.length && <p className="muted">已归因或历史回收项已下移，不占用当前任务区。</p>}
+    </Panel>
+  );
+}
+
+function ImportFirstViewportGuide({ snapshot }: { snapshot: DashboardSnapshot }) {
+  const workbench = snapshot.publishToMetricsWorkbench;
+  const health = snapshot.platformDataHealth;
+  const currentRecoveryItems = workbench.postPublishRecoveryItems
+    .filter((item) => item.matchStatus !== "attributed")
+    .filter((item) => !isPausedWechatRecoveryText(`${item.contentTitle} ${item.versionTitle}`));
+  const recoveryPlatforms = Array.from(new Set(currentRecoveryItems.map((item) => item.platform)));
+  const stalePlatforms = health.platforms.filter((platform) => platform.realCaptureStatus !== "fresh");
+  const latestRealCaptureAt = health.summary.freshness.latestRealCaptureAt ?? snapshot.dataCaptureScheduleReliability.latestRealCaptureAt;
+  return (
+    <Panel
+      className="import-first-viewport-guide"
+      data-testid="import-first-viewport-guide"
+      title="现在怎么导入 / 回收数据"
+      eyebrow="手动导入"
+      action={<span className="sm-badge sm-badge-info">{formatNumber(currentRecoveryItems.length)} 条待回收</span>}
+    >
+      <div className="import-guide-steps">
+        <article>
+          <strong>1. 打开平台后台</strong>
+          <p>进入抖音、小红书、视频号或 B站创作中心，手动导出/刷新作品数据。</p>
+        </article>
+        <article>
+          <strong>2. 预览并保存</strong>
+          <p>使用四平台同步入口预览字段，确认后再保存到本地内容指标。</p>
+        </article>
+        <article>
+          <strong>3. 匹配发布后内容</strong>
+          <p>系统只给候选，人工确认后才把新指标归到本地作品。</p>
+        </article>
+      </div>
+      <div className="platform-import-status-summary">
+        <span><b>{formatDateTime(latestRealCaptureAt ?? undefined)}</b> 最近采集</span>
+        <span><b>{formatNumber(stalePlatforms.length)}</b> 平台需补抓</span>
+        <span><b>{formatNumber(recoveryPlatforms.length)}</b> 平台有发布后回收</span>
+        <span><b>{formatDateTime(workbench.scheduledRefresh.nextSuggestedAt)}</b> 下次建议</span>
+      </div>
+      <div className="import-guide-platforms" aria-label="需要导入或回收的平台">
+        {stalePlatforms.map((platform) => (
+          <span key={`stale-${platform.platform}`}>
+            {dataHealthPlatformLabels[platform.platform]} · {realCaptureStatusLabels[platform.realCaptureStatus]}
+          </span>
+        ))}
+        {recoveryPlatforms.map((platform) => (
+          <span key={`recovery-${platform}`}>
+            {platformLabels[platform]} · 发布后回收
+          </span>
+        ))}
+        {stalePlatforms.length === 0 && recoveryPlatforms.length === 0 && <span>四平台暂无明确待回收项。</span>}
+      </div>
+      <div className="trusted-weekly-summary-foot">
+        <span>暂停平台保持隐藏；B站账号级指标只保留 preview-only 边界。</span>
+        <div className="inline-stack">
+          <a className="sm-button sm-button-primary" href="#manual-refresh">手动抓取最新数据</a>
+          <a className="sm-button sm-button-secondary" href="#post-publish-refresh">查看发布后回收</a>
+        </div>
+      </div>
     </Panel>
   );
 }
@@ -1101,10 +1163,11 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       <PageHeader
         eyebrow="数据接入"
         title="数据导入"
-        description="第一屏只处理发布后回收当前任务；历史导入、手动导入和诊断默认折叠。"
+        description="第一屏只告诉你怎么手动抓取、预览保存和回收发布后指标；日志和系统健康默认折叠。"
         actions={<Button onClick={() => window.location.reload()} variant="secondary">刷新</Button>}
       />
       <div className="import-page-stack">
+        <ImportFirstViewportGuide snapshot={currentSnapshot} />
         <PostPublishRefreshPanel onConfirmMatch={confirmPlatformContentMatch} snapshot={currentSnapshot} />
         <details className="analytics-data-section">
           <summary>
@@ -1150,7 +1213,6 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                     <SelectInput value={preset} onChange={(event) => setPreset(event.target.value as CsvImportPreset)}>
                       <option value="douyin">抖音</option>
                       <option value="xiaohongshu">小红书</option>
-                      <option value="wechat">公众号</option>
                       <option value="video_account">视频号</option>
                       <option value="bilibili">B站</option>
                     </SelectInput>

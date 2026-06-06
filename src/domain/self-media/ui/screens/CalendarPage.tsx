@@ -308,6 +308,43 @@ function CalendarCurrentTaskPanel({
   );
 }
 
+function CalendarDraftPoolPanel({
+  items,
+  onSelect
+}: {
+  items: PendingScheduleDraftItem[];
+  onSelect: (platformVersionId: string) => void;
+}) {
+  return (
+    <details className="calendar-draft-pool" data-testid="calendar-draft-pool">
+      <summary>
+        <span>
+          <strong>素材池 / 待排草稿</strong>
+          <small>{items.length} 个未明确排期的作品草稿，默认不占日历主屏。</small>
+        </span>
+        <i>展开</i>
+      </summary>
+      <div className="calendar-draft-pool-body">
+        {items.length === 0 ? (
+          <p className="muted">暂无待排草稿。点击日历空白格可以直接创建新作品排期。</p>
+        ) : (
+          <div className="calendar-draft-pool-grid">
+            {items.slice(0, 12).map((item) => (
+              <article className="calendar-draft-pool-card" data-platform-version-id={item.platformVersionId} key={item.id}>
+                <PlatformBadge platform={item.platform} compact />
+                <strong>{item.title}</strong>
+                <small>{item.originLabel} · {platformVersionStatusLabels[item.status]}</small>
+                <Button onClick={() => onSelect(item.platformVersionId)} variant="secondary">打开排期详情</Button>
+              </article>
+            ))}
+          </div>
+        )}
+        {items.length > 12 && <p className="muted">已显示前 12 个；用搜索、平台或状态筛选缩小素材池。</p>}
+      </div>
+    </details>
+  );
+}
+
 export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnapshot; workbench: ContentWorkbenchSnapshot }) {
   const requestedVersionId = requestedVersionIdFromUrl();
   const [current, setCurrent] = useState(snapshot);
@@ -508,14 +545,9 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
       <PageHeader
         eyebrow="发布管理"
         title="发布日历"
-        description="默认只显示真实可行动的排期稿件和人工发布台账；更多历史记录可在筛选中查看。"
+        description="默认只看作品什么时候发布；素材池、历史台账和诊断记录默认收起。"
       />
       <span className="sr-only">平台版本详情</span>
-      <CalendarCurrentTaskPanel
-        pendingCount={pendingSchedulingItems.length}
-        selectedTitle={selectedContent?.title}
-        visibleCount={visibleItems.length}
-      />
       <div className="calendar-toolbar">
         <label className="calendar-search">
           <Search aria-hidden="true" size={17} />
@@ -550,9 +582,6 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
         <a className="sm-button sm-button-primary calendar-new-button" href="/content#new-video">
           <Plus aria-hidden="true" size={15} />计划新视频 / 新增排期
         </a>
-        <Button data-testid="calendar-clear-future-schedules" onClick={clearFutureSchedules} variant="danger">
-          <Trash2 aria-hidden="true" size={15} />清空未来排期
-        </Button>
       </div>
       {message && <p className="operation-message calendar-operation-message" data-testid="calendar-operation-message">{message}</p>}
       <div className="calendar-layout">
@@ -569,12 +598,29 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
             setCreateSlotAt(scheduledAt);
             setInspectorOpen(false);
           }}
-          pendingItems={scope === "all_local" ? [] : pendingSchedulingItems}
+          pendingItems={[]}
           showEmptySlots={scope === "operating"}
           view={view}
         />
       </div>
-      <div id="publish-ledger">
+      {scope === "operating" && (
+        <CalendarDraftPoolPanel
+          items={pendingSchedulingItems}
+          onSelect={(id) => {
+            setCreateSlotAt(undefined);
+            setSelectedId(id);
+            setInspectorOpen(true);
+          }}
+        />
+      )}
+      <details className="calendar-history-ledger" data-testid="calendar-history-ledger" id="publish-ledger">
+        <summary>
+          <span>
+            <strong>历史发布记录</strong>
+            <small>人工发布台账默认收起，不占用作品排期主屏。</small>
+          </span>
+          <i>展开</i>
+        </summary>
         <PublishLedgerPanel
           date={ledgerDate}
           scope={ledgerScope}
@@ -586,7 +632,10 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
           snapshot={current}
           status={ledgerStatus}
         />
-      </div>
+        <Button data-testid="calendar-clear-future-schedules" onClick={clearFutureSchedules} variant="danger">
+          <Trash2 aria-hidden="true" size={15} />清空未来排期
+        </Button>
+      </details>
       {inspectorOpen && (
         <div className="calendar-inspector-shell" role="dialog" aria-label="平台版本详情">
           <button className="calendar-inspector-close" onClick={() => setInspectorOpen(false)} type="button" aria-label="关闭平台版本详情">

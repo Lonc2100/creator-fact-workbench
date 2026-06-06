@@ -139,12 +139,9 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentRoute, /getSelfMediaContentWorkbench/);
   assert.doesNotMatch(contentRoute, /getSelfMediaDashboard/);
   assert.match(contentWorkbenchApi, /getSelfMediaContentWorkbench/);
-  assert.match(dashboardScreen, /打开内容草稿/);
-  assert.match(dashboardScreen, /contentId=/);
-  assert.match(dashboardScreen, /dashboard-publish-execution-workbench/);
-  assert.match(dashboardScreen, /发布执行台/);
-  assert.match(dashboardScreen, /StartCreatorDayFlowPanel/);
-  assert.match(dashboardScreen, /开始今天创作流程/);
+  assert.match(dashboardScreen, /DashboardSecondaryOperationsPanel/);
+  assert.match(dashboardScreen, /dashboard-secondary-operations/);
+  assert.match(dashboardScreen, /任务、发布台账和行动项默认收起，不占用数据看板/);
 });
 
 test("content workbench exposes filters sorting pagination and trusted-scope copy", () => {
@@ -217,7 +214,10 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /pendingSchedulingItems/);
   assert.match(calendarScreen, /isDefaultSchedulingRow/);
   assert.match(calendarScreen, /defaultSchedulingOriginKinds/);
-  assert.match(calendarScreen, /pendingItems=\{scope === "all_local" \? \[\] : pendingSchedulingItems\}/);
+  assert.match(calendarScreen, /CalendarDraftPoolPanel/);
+  assert.match(calendarScreen, /calendar-draft-pool/);
+  assert.match(calendarScreen, /素材池 \/ 待排草稿/);
+  assert.match(calendarScreen, /pendingItems=\{\[\]\}/);
   assert.match(calendarRoute, /getSelfMediaContentWorkbench/);
   assert.match(calendarRoute, /<CalendarPage snapshot=\{snapshot\} workbench=\{workbench\}/);
   assert.match(calendarScreen, /versionId/);
@@ -228,8 +228,6 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /requestedVersionIdFromUrl/);
   assert.match(calendarScreen, /setInspectorOpen\(true\)/);
   assert.match(calendarScreen, /计划新视频 \/ 新增排期/);
-  assert.match(calendarScreen, /CalendarCurrentTaskPanel/);
-  assert.match(calendarScreen, /真实日期优先/);
   assert.match(calendarScreen, /新增排期/);
   assert.match(calendarScreen, /calendar-create-schedule-input/);
   assert.match(calendarScreen, /contentCreateHref/);
@@ -243,7 +241,8 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarPattern, /calendar-card-drag-handle/);
   assert.match(calendarPattern, /onClick=\{openDetail\}/);
   assert.match(calendarScreen, /showEmptySlots=\{scope === "operating"\}/);
-  assert.match(calendarScreen, /平台指标仍以创作者中心数据为准/);
+  assert.match(calendarScreen, /历史发布记录/);
+  assert.match(calendarScreen, /人工发布台账默认收起，不占用作品排期主屏/);
   assert.match(calendarScreen, /publishRecords/);
   assert.doesNotMatch(calendarScreen, /providerRunId:|platformUrl:|platformPostId:/);
 });
@@ -361,7 +360,13 @@ test("content and calendar default views hide internal labels and require explic
 
 test("import page default view is data-only and folds diagnostics", () => {
   const importPage = read("src/domain/self-media/ui/screens/ImportPage.tsx");
-  assert.match(importPage, /第一屏只处理发布后回收当前任务/);
+  assert.match(importPage, /第一屏只告诉你怎么手动抓取、预览保存和回收发布后指标/);
+  assert.match(importPage, /ImportFirstViewportGuide/);
+  assert.match(importPage, /import-first-viewport-guide/);
+  assert.match(importPage, /现在怎么导入 \/ 回收数据/);
+  assert.match(importPage, /最近采集/);
+  assert.match(importPage, /平台需补抓/);
+  assert.match(importPage, /平台有发布后回收/);
   assert.match(importPage, /四平台同步与数据新鲜度/);
   assert.match(importPage, /function PlatformDataHealthPanel/);
   assert.match(importPage, /function PlatformImportStatusPanel/);
@@ -405,9 +410,10 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /item\.lastMessage \? operatorWarningLabel\(item\.lastMessage\) : "无"/);
 
   const defaultRender = importPage.slice(
-    importPage.indexOf("<PostPublishRefreshPanel"),
+    importPage.indexOf("<ImportFirstViewportGuide"),
     importPage.indexOf("<details className=\"analytics-data-section\">")
   );
+  assert.doesNotMatch(defaultRender, /<option value="wechat">公众号<\/option>/);
   const advancedRender = importPage.slice(importPage.indexOf("<details className=\"analytics-data-section import-advanced-diagnostics\""));
   for (const pattern of [/daily-self-media-ops-preflight/, /--preflight-health/, /preferredDashboardUrl/, /safeWeekly=/, /trustedData=/, /pageReady=/, /\brawDir\b/, /\brunId\b/, /\brun\s*id\b/i, /douyin_creator_center/, /xiaohongshu_creator_center/, /video_account_creator_center/, /bilibili_creator_center/, /private message endpoints/i, /redacted/i, /provider source id/i, /objectId/]) {
     assert.doesNotMatch(defaultRender, pattern, `import default view exposes ${pattern}`);
@@ -454,12 +460,12 @@ test("daily ops green state keeps dashboard import reviews defaults free of diag
   const reviewPattern = read("src/domain/self-media/ui/patterns/EvidenceReviewReport.tsx");
   const forbidden = /report\.json|report\.md|D:\\|npm run|http:\/\/127\.0\.0\.1|\/api\/self-media|runId|rawDir|evidenceFile|preflight|pageReady|apiReady|\bcommand\b|exitCode|smoke|fixture|demo\/fake|\bcookie\b|\btoken\b|\bheaders?\b|comment_content|danmu_text|danmu/i;
 
-  const dashboardDefault = [
-    dashboardScreen.slice(dashboardScreen.indexOf("function DailyOperatingChecklistPanel"), dashboardScreen.indexOf("function TrustedOperatingStrip")),
-    dashboardScreen.slice(dashboardScreen.indexOf("function TrustedWeeklySummaryPanel"), dashboardScreen.indexOf("function accountMetricSourceLabel"))
-  ].join("\n");
+  const dashboardDefault = dashboardScreen.slice(
+    dashboardScreen.indexOf("<AppShell active=\"/dashboard\">"),
+    dashboardScreen.indexOf("<DashboardSecondaryOperationsPanel")
+  );
   const importDefault = importPage.slice(
-    importPage.indexOf("<PlatformDataHealthPanel"),
+    importPage.indexOf("<ImportFirstViewportGuide"),
     importPage.indexOf("<details className=\"analytics-data-section import-advanced-diagnostics\"")
   );
   const reviewsDefault = [
@@ -482,6 +488,9 @@ test("dashboard default view is data-only and folds internal diagnostics", () =>
   const panelPrimitive = read("src/domain/self-media/ui/primitives/Panel.tsx");
   assert.match(dashboardScreen, /DailyOperatingChecklistPanel/);
   assert.match(dashboardScreen, /daily-operating-checklist/);
+  assert.match(dashboardScreen, /DashboardSecondaryOperationsPanel/);
+  assert.match(dashboardScreen, /dashboard-secondary-operations/);
+  assert.match(dashboardScreen, /任务、发布台账和行动项默认收起/);
   assert.match(dashboardScreen, /DashboardAdvancedDiagnosticsPanel/);
   assert.match(dashboardScreen, /dashboard-advanced-diagnostics/);
   assert.match(panelPrimitive, /\.\.\.sectionProps/);
@@ -503,19 +512,20 @@ test("dashboard default view is data-only and folds internal diagnostics", () =>
     assert.match(metricDashboard, new RegExp(testId));
   }
   for (const phrase of [
-    "今日数据动作",
-    "数据服务",
-    "数据新鲜度",
-    "抓取节奏",
-    "运营闭环",
-    "数据一致性",
-    "待处理行动项",
-    "待审核草稿",
-    "待发布排期",
-    "最近发布记录",
-    "周报摘要"
+    "总曝光",
+    "平台曝光占比",
+    "平台互动对比",
+    "内容表现排行"
   ]) {
-    assert.match(dashboardScreen, new RegExp(phrase));
+    assert.match(metricDashboard, new RegExp(phrase));
+  }
+  assert.match(dashboardScreen, /title="周报摘要"/);
+  const dashboardDefaultRender = dashboardScreen.slice(
+    dashboardScreen.indexOf("<AppShell active=\"/dashboard\">"),
+    dashboardScreen.indexOf("<DashboardSecondaryOperationsPanel")
+  );
+  for (const workflowPattern of [/StartCreatorDayFlowPanel/, /DailyOperatingChecklistPanel/, /PublishExecutionDashboardPanel/, /PostImportActionSuggestionsPanel/, /ActionTasksOperatingPanel/]) {
+    assert.doesNotMatch(dashboardDefaultRender, workflowPattern, "dashboard default should stay data and charts only");
   }
   assert.match(dashboardScreen, /businessIssueSummary/);
   assert.match(dashboardScreen, /台账不改变曝光和互动指标/);

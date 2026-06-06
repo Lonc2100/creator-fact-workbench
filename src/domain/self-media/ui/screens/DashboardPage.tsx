@@ -360,6 +360,60 @@ function PublishExecutionDashboardPanel({ snapshot }: { snapshot: DashboardSnaps
   );
 }
 
+function DashboardSecondaryOperationsPanel({
+  snapshot,
+  busySuggestionId,
+  busyActionId,
+  statusFilter,
+  sourceFilter,
+  onCreateActionItem,
+  onActionToContent,
+  onActionStatus,
+  onStatusFilter,
+  onSourceFilter
+}: {
+  snapshot: DashboardSnapshot;
+  busySuggestionId?: string;
+  busyActionId?: string;
+  statusFilter: ReviewActionItem["status"] | "active" | "all";
+  sourceFilter: keyof typeof actionSourceFilterLabels;
+  onCreateActionItem: (suggestionId: string) => Promise<void>;
+  onActionToContent: (item: ReviewActionItem) => Promise<void>;
+  onActionStatus: (item: ReviewActionItem, status: ReviewActionItem["status"]) => Promise<void>;
+  onStatusFilter: (status: ReviewActionItem["status"] | "active" | "all") => void;
+  onSourceFilter: (source: keyof typeof actionSourceFilterLabels) => void;
+}) {
+  return (
+    <details className="dashboard-secondary-operations" data-testid="dashboard-secondary-operations">
+      <summary>
+        <span>
+          <strong>运营动作与发布交接</strong>
+          <small>任务、发布台账和行动项默认收起，不占用数据看板。</small>
+        </span>
+        <i>展开</i>
+      </summary>
+      <div className="dashboard-secondary-operations-body">
+        <StartCreatorDayFlowPanel snapshot={snapshot} />
+        <DailyOperatingChecklistPanel snapshot={snapshot} />
+        <PublishExecutionDashboardPanel snapshot={snapshot} />
+        <div className="dashboard-action-grid">
+          <PostImportActionSuggestionsPanel busySuggestionId={busySuggestionId} onCreateActionItem={onCreateActionItem} snapshot={snapshot} />
+          <ActionTasksOperatingPanel
+            busyActionId={busyActionId}
+            onActionToContent={onActionToContent}
+            onActionStatus={onActionStatus}
+            onSourceFilter={onSourceFilter}
+            onStatusFilter={onStatusFilter}
+            snapshot={snapshot}
+            sourceFilter={sourceFilter}
+            statusFilter={statusFilter}
+          />
+        </div>
+      </div>
+    </details>
+  );
+}
+
 function StartCreatorDayFlowPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
   const workbench = snapshot.publishToMetricsWorkbench;
   const scheduledCount = workbench.executionItems.filter((item) => item.status === "scheduled").length;
@@ -1072,10 +1126,8 @@ export function DashboardPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         actions={<Button disabled>分析视图</Button>}
       />
       <div className="dashboard-page-stack">
-        <StartCreatorDayFlowPanel snapshot={current} />
-        <DailyOperatingChecklistPanel snapshot={current} />
-        <PublishExecutionDashboardPanel snapshot={current} />
         <TrustedOperatingStrip snapshot={current} />
+        <MetricDashboardGrid snapshot={current} />
         <TrustedWeeklySummaryPanel
           onCopySafeReport={copySafeWeeklyReport}
           onViewSafeReport={viewSafeWeeklyReport}
@@ -1083,24 +1135,22 @@ export function DashboardPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           safeReportMarkdown={safeReportMarkdown}
           snapshot={current}
         />
-        <p className="operation-message" data-testid="dashboard-operation-message">{message}</p>
-        <MetricDashboardGrid snapshot={current} />
-        <div className="dashboard-action-grid">
-          <PostImportActionSuggestionsPanel busySuggestionId={busySuggestionId} onCreateActionItem={createActionItemFromSuggestion} snapshot={current} />
-          <ActionTasksOperatingPanel
-            busyActionId={busyActionId}
-            onActionToContent={createContentFromActionItem}
-            onActionStatus={updateActionItemStatus}
-            onSourceFilter={setActionSourceFilter}
-            onStatusFilter={setActionStatusFilter}
-            snapshot={current}
-            sourceFilter={actionSourceFilter}
-            statusFilter={actionStatusFilter}
-          />
-        </div>
         <div className="dashboard-ops-grid">
           <AccountMetricTrendPanel snapshot={current} />
         </div>
+        <DashboardSecondaryOperationsPanel
+          busyActionId={busyActionId}
+          busySuggestionId={busySuggestionId}
+          onActionStatus={updateActionItemStatus}
+          onActionToContent={createContentFromActionItem}
+          onCreateActionItem={createActionItemFromSuggestion}
+          onSourceFilter={setActionSourceFilter}
+          onStatusFilter={setActionStatusFilter}
+          snapshot={current}
+          sourceFilter={actionSourceFilter}
+          statusFilter={actionStatusFilter}
+        />
+        <p className="operation-message" data-testid="dashboard-operation-message">{message}</p>
         <DashboardAdvancedDiagnosticsPanel onCopyCommand={copyOperatingCommand} snapshot={current} />
       </div>
     </AppShell>
