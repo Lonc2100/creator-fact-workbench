@@ -103,6 +103,33 @@ function isDiagnosticCalendarText(value: string) {
   return /(^|[\s:/._-])(smoke|demo|fixture|debug)([\s:/._-]|$)|烟测|浏览器烟测/i.test(value);
 }
 
+function isAcceptanceOrTestCalendarText(value: string) {
+  if (/我的真实作品/i.test(value)) return false;
+  return /(^|[\s:/._-])(smoke|demo|fixture|debug|mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|05[0-9]|06[0-9]/i.test(value);
+}
+
+function calendarClassificationText(
+  item: DashboardSnapshot["calendarItems"][number] | undefined,
+  version: ContentWorkbenchSnapshot["platformVersions"][number] | DashboardSnapshot["platformVersions"][number] | undefined,
+  content: ContentWorkbenchSnapshot["contents"][number] | DashboardSnapshot["contents"][number] | undefined,
+  row?: ContentWorkbenchSnapshot["contentRows"][number]
+) {
+  return [
+    item?.id,
+    item?.title,
+    item?.status,
+    version?.id,
+    version?.title,
+    version?.body,
+    version?.nextAction,
+    content?.id,
+    content?.title,
+    content?.notes,
+    row?.originLabel,
+    row?.originKind
+  ].filter(Boolean).join(" ");
+}
+
 function isDefaultSchedulingRow(
   row: ContentWorkbenchSnapshot["contentRows"][number] | undefined,
   content: ContentWorkbenchSnapshot["contents"][number] | undefined,
@@ -112,8 +139,18 @@ function isDefaultSchedulingRow(
   if (!isOperatingPlatform(version.platform)) return false;
   if (!defaultSchedulingOriginKinds.has(row.originKind)) return false;
   if (row.originKind === "trusted_creator_center" && content.userExcludedFromTrustedScope) return false;
+  if (isAcceptanceOrTestCalendarText(calendarClassificationText(undefined, version, content, row))) return false;
   if (row.originKind !== "trusted_creator_center" && isDiagnosticCalendarText(`${content.id} ${content.title} ${content.notes ?? ""} ${version.id} ${version.title}`)) return false;
   return true;
+}
+
+function isAcceptanceOrTestCalendarItem(
+  item: DashboardSnapshot["calendarItems"][number],
+  version: DashboardSnapshot["platformVersions"][number] | ContentWorkbenchSnapshot["platformVersions"][number] | undefined,
+  content: DashboardSnapshot["contents"][number] | ContentWorkbenchSnapshot["contents"][number] | undefined,
+  row?: ContentWorkbenchSnapshot["contentRows"][number]
+) {
+  return isAcceptanceOrTestCalendarText(calendarClassificationText(item, version, content, row));
 }
 
 function isOperatingCalendarItem(
@@ -345,6 +382,48 @@ function CalendarDraftPoolPanel({
   );
 }
 
+function CalendarAcceptanceDataPanel({
+  items,
+  versionById,
+  contentById
+}: {
+  items: DashboardSnapshot["calendarItems"];
+  versionById: Map<string, ContentWorkbenchSnapshot["platformVersions"][number]>;
+  contentById: Map<string, ContentWorkbenchSnapshot["contents"][number]>;
+}) {
+  return (
+    <details className="calendar-acceptance-data-pool" data-testid="calendar-acceptance-data-pool">
+      <summary>
+        <span>
+          <strong>本地验收数据 / 测试内容</strong>
+          <small>{items.length} 条已从默认日历隔离；只供开发审计，不进入用户作品排期。</small>
+        </span>
+        <i>展开</i>
+      </summary>
+      <div className="calendar-draft-pool-body">
+        {items.length === 0 ? (
+          <p className="muted">暂无被隔离的本地验收排期。</p>
+        ) : (
+          <div className="calendar-draft-pool-grid">
+            {items.slice(0, 12).map((item) => {
+              const version = versionById.get(item.platformVersionId);
+              const content = contentById.get(item.contentId) ?? (version ? contentById.get(version.contentId) : undefined);
+              return (
+                <article className="calendar-draft-pool-card" data-platform-version-id={item.platformVersionId} key={item.id}>
+                  <PlatformBadge platform={item.platform} compact />
+                  <strong>{content?.title ?? item.title}</strong>
+                  <small>{formatDateTime(item.scheduledAt)} · {platformVersionStatusLabels[item.status]}</small>
+                </article>
+              );
+            })}
+          </div>
+        )}
+        {items.length > 12 && <p className="muted">已显示前 12 条；切换到“全部本地/诊断”可继续排查。</p>}
+      </div>
+    </details>
+  );
+}
+
 export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnapshot; workbench: ContentWorkbenchSnapshot }) {
   const requestedVersionId = requestedVersionIdFromUrl();
   const [current, setCurrent] = useState(snapshot);
@@ -371,6 +450,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
         const version = versionById.get(item.platformVersionId);
         const content = contentById.get(item.contentId) ?? (version ? contentById.get(version.contentId) : undefined);
         const row = rowByContentId.get(item.contentId) ?? (version ? rowByContentId.get(version.contentId) : undefined);
+        if (scope === "operating" && isAcceptanceOrTestCalendarItem(item, version, content, row)) return false;
         return scope === "all_local" || isOperatingCalendarItem(item, version, content, row);
       })
       .filter((item) => (platform === "all" || item.platform === platform) && (status === "all" || item.status === status))
@@ -384,6 +464,15 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
         return content ? { ...item, title: content.title } : item;
       }),
     [contentById, current.calendarItems, platform, query, rowByContentId, scope, status, versionById]
+  );
+  const acceptanceCalendarItems = useMemo(
+    () => current.calendarItems.filter((item) => {
+      const version = versionById.get(item.platformVersionId);
+      const content = contentById.get(item.contentId) ?? (version ? contentById.get(version.contentId) : undefined);
+      const row = rowByContentId.get(item.contentId) ?? (version ? rowByContentId.get(version.contentId) : undefined);
+      return isAcceptanceOrTestCalendarItem(item, version, content, row);
+    }),
+    [contentById, current.calendarItems, rowByContentId, versionById]
   );
   const visibleVersionIds = useMemo(() => new Set(visibleItems.map((item) => item.platformVersionId)), [visibleItems]);
   const pendingSchedulingItems = useMemo(() => {
@@ -508,7 +597,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
           action: "confirm_publish",
           platformVersionId: input.platformVersionId,
           status: input.status,
-          note: input.status === "submitted_review" ? "日历发布交接包人工记录：已提交官方后台审核。" : input.status === "published" ? "日历人工确认发布" : "日历人工记录发布未成功，需要回到草稿处理。",
+          note: input.status === "submitted_review" ? "日历手动发布助手记录：已提交官方后台审核。" : input.status === "published" ? "日历人工确认发布" : "日历人工记录发布未成功，需要回到草稿处理。",
           confirmationSource: "manual"
         })
       });
@@ -611,6 +700,13 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
             setSelectedId(id);
             setInspectorOpen(true);
           }}
+        />
+      )}
+      {scope === "operating" && (
+        <CalendarAcceptanceDataPanel
+          contentById={contentById}
+          items={acceptanceCalendarItems}
+          versionById={versionById}
         />
       )}
       <details className="calendar-history-ledger" data-testid="calendar-history-ledger" id="publish-ledger">

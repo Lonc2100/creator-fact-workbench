@@ -106,7 +106,7 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /creator-new-video-panel/);
   assert.match(contentScreen, /当前任务 \/ 下一步动作/);
   assert.match(contentScreen, /引用到日历/);
-  assert.match(contentScreen, /发布交接包/);
+  assert.match(contentScreen, /手动发布助手/);
   assert.match(contentScreen, /\/api\/self-media\/creator-drafts/);
   assert.match(contentScreen, /action: "discuss"/);
   assert.match(contentScreen, /creator-copilot-discussion/);
@@ -125,7 +125,11 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /setResult\(null\)/);
   assert.match(contentScreen, /平台激励\/创作标签均为建议/);
   assert.match(contentScreen, /publish-execution-workbench/);
-  assert.match(contentScreen, /今日\/近期待发布/);
+  assert.match(contentScreen, /手动发布助手/);
+  assert.match(contentScreen, /selectedContentId \? allPackages\.filter/);
+  assert.match(contentScreen, /current\.contentRows\.some\(\(row\) => row\.content\.id === selectedContentId\)/);
+  assert.match(contentScreen, /不是自动发布/);
+  assert.match(contentScreen, /publish-handoff-not-scheduled/);
   assert.match(contentScreen, /人工确认已发布/);
   assert.match(contentScreen, /记录发布失败/);
   assert.match(contentScreen, /记录发布阻塞/);
@@ -177,6 +181,9 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarPattern, /calendar-confirm-publish/);
   assert.match(calendarPattern, /人工发布确认/);
   assert.match(calendarPattern, /只记录人工结果，便于复盘排期/);
+  assert.match(calendarPattern, /手动发布助手/);
+  assert.match(calendarPattern, /calendar-publish-not-ready/);
+  assert.match(calendarPattern, /calendar-confirm-not-ready/);
   assert.match(calendarPattern, /calendar-reschedule-input/);
   assert.match(calendarPattern, /calendar-reschedule-save/);
   assert.match(calendarPattern, /修改排期时间/);
@@ -218,6 +225,10 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /calendar-draft-pool/);
   assert.match(calendarScreen, /素材池 \/ 待排草稿/);
   assert.match(calendarScreen, /pendingItems=\{\[\]\}/);
+  assert.match(calendarScreen, /isAcceptanceOrTestCalendarText/);
+  assert.match(calendarScreen, /本地验收数据 \/ 测试内容/);
+  assert.match(calendarScreen, /calendar-acceptance-data-pool/);
+  assert.match(calendarScreen, /068|069|creator day workflow|MAINLINE/i);
   assert.match(calendarRoute, /getSelfMediaContentWorkbench/);
   assert.match(calendarRoute, /<CalendarPage snapshot=\{snapshot\} workbench=\{workbench\}/);
   assert.match(calendarScreen, /versionId/);
@@ -351,6 +362,7 @@ test("content and calendar default views hide internal labels and require explic
   assert.match(calendarScreen, /默认运营排期/);
   assert.match(calendarScreen, /全部本地\/诊断/);
   assert.match(calendarPattern, /暂无可行动排期/);
+  assert.match(calendarPattern, /items\.length === 0 && pendingItems\.length === 0 && !showEmptySlots/);
   assert.match(calendarPattern, /calendarCardGroupKey/);
   assert.match(calendarPattern, /calendar-content-schedule-inspector/);
   assert.match(calendarPattern, /versions\?: ContentPlatformVersion\[\]/);
@@ -363,7 +375,15 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /第一屏只告诉你怎么手动抓取、预览保存和回收发布后指标/);
   assert.match(importPage, /ImportFirstViewportGuide/);
   assert.match(importPage, /import-first-viewport-guide/);
-  assert.match(importPage, /现在怎么导入 \/ 回收数据/);
+  assert.match(importPage, /现在怎么导入 \/ 抓取数据/);
+  assert.match(importPage, /手动导入/);
+  assert.match(importPage, /浏览器辅助/);
+  assert.match(importPage, /官方 API 授权/);
+  assert.match(importPage, /为什么登录抖音\/视频号网页后，刷新本系统不会自动更新/);
+  assert.match(importPage, /本系统刷新页面不会读取该网页登录态/);
+  assert.match(importPage, /check-capture-auth-status/);
+  assert.match(importPage, /官方 API 未接入或未授权；浏览器辅助会话未连接/);
+  assert.match(importPage, /没有凭证时不会宣称每小时自动抓/);
   assert.match(importPage, /最近采集/);
   assert.match(importPage, /平台需补抓/);
   assert.match(importPage, /平台有发布后回收/);

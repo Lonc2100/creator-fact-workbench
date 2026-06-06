@@ -434,7 +434,7 @@ export function PublishCalendar({
     onReschedule?.({ platformVersionId: item.platformVersionId, scheduledAt: scheduledForDate(item, target.date, target.hour) });
   }
 
-  if (items.length === 0 && pendingItems.length === 0) {
+  if (items.length === 0 && pendingItems.length === 0 && !showEmptySlots) {
     return (
       <div className="grid gap-3" data-ui-boundary="publish-calendar-only" data-testid="publish-calendar">
         <EmptyState title="暂无可行动排期" description="默认日历只展示已排期、发布异常或等待人工确认的运营稿件；全部历史记录可切换范围查看。" />
@@ -706,20 +706,24 @@ function PlatformScheduleRow({
       </div>
       {handoffPackage && (
         <div className="publish-confirmation-strip" data-testid="calendar-publish-handoff">
-          <strong>发布交接包</strong>
-          <span>{handoffPackage.capability.label} · {handoffPackage.capability.note}</span>
+          <strong>手动发布助手</strong>
+          <span>{handoffPackage.capability.label} · 不是自动发布；复制文案/标签、打开平台后台，再由人工确认状态。</span>
           <div className="inline-stack">
             <Button data-testid="calendar-copy-publish-text" onClick={() => void copyCalendarText(`${platformLabels[version.platform]}发布文案`, handoffPackage.copy.publishText)} variant="secondary">复制发布文案</Button>
             <Button data-testid="calendar-copy-tags" onClick={() => void copyCalendarText(`${platformLabels[version.platform]}标签`, handoffPackage.copy.tagsText)} variant="secondary">复制标签</Button>
             <a className="sm-button sm-button-primary" data-testid="calendar-open-official-backend" href={handoffPackage.officialBackendUrl} rel="noreferrer" target="_blank">{handoffPackage.backendActionLabel}</a>
-            <Button
-              data-testid="calendar-submit-review"
-              disabled={!onConfirmPublish || !canConfirmPublish}
-              onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "submitted_review" })}
-              variant="secondary"
-            >
-              记录已提交审核
-            </Button>
+            {canConfirmPublish ? (
+              <Button
+                data-testid="calendar-submit-review"
+                disabled={!onConfirmPublish}
+                onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "submitted_review" })}
+                variant="secondary"
+              >
+                记录已提交审核
+              </Button>
+            ) : (
+              <span data-testid="calendar-publish-not-ready">先排期并进入待发布状态后，再记录提交审核或已发布。</span>
+            )}
           </div>
           {copyMessage && <span>{copyMessage}</span>}
         </div>
@@ -744,22 +748,28 @@ function PlatformScheduleRow({
           >
             设为已排期
           </Button>
-          <Button
-            data-testid="calendar-confirm-publish"
-            disabled={!onConfirmPublish || !canConfirmPublish}
-            onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "published" })}
-            variant="secondary"
-          >
-            人工确认已发布
-          </Button>
-          <Button
-            data-testid="calendar-confirm-failed"
-            disabled={!onConfirmPublish || !canConfirmPublish}
-            onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "failed" })}
-            variant="danger"
-          >
-            记录发布失败
-          </Button>
+          {canConfirmPublish ? (
+            <>
+              <Button
+                data-testid="calendar-confirm-publish"
+                disabled={!onConfirmPublish}
+                onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "published" })}
+                variant="secondary"
+              >
+                人工确认已发布
+              </Button>
+              <Button
+                data-testid="calendar-confirm-failed"
+                disabled={!onConfirmPublish}
+                onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "failed" })}
+                variant="danger"
+              >
+                记录发布失败
+              </Button>
+            </>
+          ) : (
+            <span data-testid="calendar-confirm-not-ready">未排期作品不会显示“记录已发布”主动作；先保存排期时间。</span>
+          )}
         </div>
       </div>
     </section>

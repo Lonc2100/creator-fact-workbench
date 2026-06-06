@@ -355,15 +355,10 @@ function PublishExecutionWorkbenchPanel({
   onSelect: (contentId: string, versionId: string) => void;
   selectedContentId?: string;
 }) {
-  const [copyMessage, setCopyMessage] = useState("发布交接包只复制本地内容，不调用真实发布 API。");
+  const [copyMessage, setCopyMessage] = useState("手动发布助手只复制本地内容，不调用真实发布 API。");
   const allPackages = snapshot.publishToMetricsWorkbench.publishHandoffPackages;
-  const packages = (selectedContentId
-    ? [
-        ...allPackages.filter((pkg) => pkg.contentId === selectedContentId),
-        ...allPackages.filter((pkg) => pkg.contentId !== selectedContentId)
-      ]
-    : allPackages).slice(0, 12);
-  const items = snapshot.publishToMetricsWorkbench.executionItems.slice(0, 8);
+  const packages = selectedContentId ? allPackages.filter((pkg) => pkg.contentId === selectedContentId).slice(0, 4) : [];
+  const items = selectedContentId ? snapshot.publishToMetricsWorkbench.executionItems.filter((item) => item.contentId === selectedContentId).slice(0, 4) : [];
   async function copyText(label: string, text: string) {
     if (!text.trim()) {
       setCopyMessage(`${label}暂无可复制内容。`);
@@ -382,17 +377,19 @@ function PublishExecutionWorkbenchPanel({
   }
   function handoffNote(pkg: PublishHandoffPackage) {
     return [
-      `发布交接包：${platformLabels[pkg.platform]}人工后台回填。`,
+      `手动发布助手：${platformLabels[pkg.platform]}人工后台回填。`,
       `能力状态：${pkg.capability.label}。`,
       pkg.complianceNote
     ].join(" ");
   }
   return (
     <Panel
-      title="发布交接包与今日/近期待发布"
-      eyebrow="发布执行台"
-      action={<span className="sm-badge sm-badge-info">{packages.length} 个平台包</span>}
+      title="手动发布助手"
+      eyebrow="人工发布"
+      action={<span className="sm-badge sm-badge-info">{packages.length} 个当前作品平台动作</span>}
     >
+      <p className="muted">当前不是自动发布；这里只帮你复制文案/标签、打开平台后台，并在人工操作后回填 submitted_review / published / blocked / failed。</p>
+      {!selectedContentId && <p className="muted">先在内容列表选择一个真实作品，助手才显示对应四个平台动作，不铺开旧发布包。</p>}
       <div className="platform-import-operation-summaries" data-testid="publish-handoff-package">
         {packages.map((pkg) => {
           const canConfirm = pkg.status === "scheduled";
@@ -411,39 +408,49 @@ function PublishExecutionWorkbenchPanel({
               <p>{pkg.copy.coverNote || "封面备注待补充"}</p>
               <p>{pkg.copy.scheduleText}</p>
               <p>{pkg.capability.note}</p>
+              <p>不是自动发布：复制文案/标签后，请到平台后台手动发布或提交审核。</p>
               {pkg.latestRecordStatus && <p>最近回填：{pkg.latestRecordStatus} · {formatDateTime(pkg.latestRecordAt)}</p>}
               <div className="inline-stack">
                 <Button data-testid="copy-publish-text" onClick={() => void copyText(`${platformLabels[pkg.platform]}发布文案`, pkg.copy.publishText)} variant="secondary">复制发布文案</Button>
                 <Button data-testid="copy-tags" onClick={() => void copyText(`${platformLabels[pkg.platform]}标签`, pkg.copy.tagsText)} variant="secondary">复制标签</Button>
                 <a className="sm-button sm-button-primary" data-testid="open-official-backend" href={pkg.officialBackendUrl} rel="noreferrer" target="_blank">{pkg.backendActionLabel}</a>
-                <Button
-                  data-testid="record-submitted-review"
-                  disabled={!canConfirm}
-                  onClick={() => onConfirmPublish({ platformVersionId: pkg.platformVersionId, status: "submitted_review", confirmationSource: "manual", note: `${handoffNote(pkg)} 已提交平台后台审核。` })}
-                  variant="secondary"
-                >
-                  记录已提交审核
-                </Button>
-                <Button
-                  data-testid="record-published"
-                  disabled={!canConfirm}
-                  onClick={() => onConfirmPublish({ platformVersionId: pkg.platformVersionId, status: "published", confirmationSource: "manual", note: `${handoffNote(pkg)} 已发布。` })}
-                  variant="primary"
-                >
-                  记录已发布
-                </Button>
-                <Button
-                  data-testid="record-failed"
-                  disabled={!canConfirm}
-                  onClick={() => onConfirmPublish({ platformVersionId: pkg.platformVersionId, status: "failed", confirmationSource: "manual", note: `${handoffNote(pkg)} 发布失败，需要回到草稿处理。` })}
-                  variant="ghost"
-                >
-                  记录失败
-                </Button>
+                {canConfirm ? (
+                  <>
+                    <Button
+                      data-testid="record-submitted-review"
+                      onClick={() => onConfirmPublish({ platformVersionId: pkg.platformVersionId, status: "submitted_review", confirmationSource: "manual", note: `${handoffNote(pkg)} 已提交平台后台审核。` })}
+                      variant="secondary"
+                    >
+                      记录已提交审核
+                    </Button>
+                    <Button
+                      data-testid="record-published"
+                      onClick={() => onConfirmPublish({ platformVersionId: pkg.platformVersionId, status: "published", confirmationSource: "manual", note: `${handoffNote(pkg)} 已发布。` })}
+                      variant="primary"
+                    >
+                      记录已发布
+                    </Button>
+                    <Button
+                      data-testid="record-failed"
+                      onClick={() => onConfirmPublish({ platformVersionId: pkg.platformVersionId, status: "failed", confirmationSource: "manual", note: `${handoffNote(pkg)} 发布失败，需要回到草稿处理。` })}
+                      variant="ghost"
+                    >
+                      记录失败
+                    </Button>
+                  </>
+                ) : (
+                  <span className="sm-badge sm-badge-warning" data-testid="publish-handoff-not-scheduled">未排期作品先保存排期；这里不显示“记录已发布”主按钮。</span>
+                )}
               </div>
             </article>
           );
         })}
+        {selectedContentId && packages.length === 0 && (
+          <article>
+            <strong>当前作品暂无可发布平台动作</strong>
+            <p>先生成并保存四个平台版本，或在平台版本编辑区保存排期后再回来。</p>
+          </article>
+        )}
       </div>
       <p className="muted">{copyMessage}</p>
       <div className="table-wrap" data-testid="publish-execution-workbench">
@@ -490,7 +497,7 @@ function PublishExecutionWorkbenchPanel({
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={5}>暂无到期或发布后待回收指标的四平台内容。</td>
+                <td colSpan={5}>{selectedContentId ? "当前作品暂无到期发布或发布后回收动作。" : "选择一个真实作品后，只显示该作品的发布和回收动作。"}</td>
               </tr>
             )}
           </tbody>
@@ -594,19 +601,19 @@ function ContentCurrentTaskPanel({ snapshot }: { snapshot: ContentWorkbenchSnaps
       <div className="metric-strip">
         <span><b>1</b> 新视频</span>
         <span><b>{reviewDrafts.length}</b> 待审核草稿</span>
-        <span><b>{scheduledPackages.length}</b> 发布交接包</span>
+        <span><b>{scheduledPackages.length}</b> 手动发布动作</span>
         <span><b>{snapshot.publishToMetricsWorkbench.executionItems.length}</b> 今日/近期待处理</span>
       </div>
       <div className="trusted-weekly-summary-foot">
-        <span>{nextPackage ? `下一步：处理 ${platformLabels[nextPackage.platform]}《${nextPackage.contentTitle}》发布交接包。` : "下一步：先创建新视频，保存四平台版本后再进入日历排期。"}</span>
+        <span>{nextPackage ? `下一步：处理 ${platformLabels[nextPackage.platform]}《${nextPackage.contentTitle}》手动发布动作。` : "下一步：先创建新视频，保存四平台版本后再进入日历排期。"}</span>
         <div className="inline-stack">
           <a className="sm-button sm-button-primary" href="#new-video">新视频</a>
           <a className="sm-button sm-button-secondary" href="/calendar">引用到日历</a>
           <a className="sm-button sm-button-secondary" href="#new-video">生成四平台版本</a>
-          <a className="sm-button sm-button-secondary" href="#publish-handoff">发布交接包</a>
+          <a className="sm-button sm-button-secondary" href="#publish-handoff">手动发布助手</a>
         </div>
       </div>
-      <p className="muted">参考多频道 composer 的工作法：先定一个内容，再确认四个平台版本、排期和人工发布交接；历史/全部内容放在下方筛选。</p>
+      <p className="muted">参考多频道 composer 的工作法：先定一个内容，再确认四个平台版本、排期和人工发布动作；历史/全部内容放在下方筛选。</p>
     </Panel>
   );
 }
@@ -667,15 +674,16 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
 
   useEffect(() => {
     if (filteredRows.length === 0) {
+      if (selectedContentId && current.contentRows.some((row) => row.content.id === selectedContentId)) return;
       if (selectedContentId) setSelectedContentId(undefined);
       if (selectedVersionId) setSelectedVersionId(undefined);
       return;
     }
-    if (selectedContentId && filteredRows.some((row) => row.content.id === selectedContentId)) return;
+    if (selectedContentId && current.contentRows.some((row) => row.content.id === selectedContentId)) return;
     const next = filteredRows[0];
     setSelectedContentId(next.content.id);
     setSelectedVersionId(next.platformVersions[0]?.id);
-  }, [current.platformVersions, filteredRows, selectedContentId]);
+  }, [current.contentRows, current.platformVersions, filteredRows, selectedContentId, selectedVersionId]);
 
   async function refreshDashboard() {
     const response = await fetch("/api/self-media/content-workbench");

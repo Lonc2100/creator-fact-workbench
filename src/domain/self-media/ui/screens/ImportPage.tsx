@@ -998,7 +998,15 @@ function PostPublishRefreshPanel({
   );
 }
 
-function ImportFirstViewportGuide({ snapshot }: { snapshot: DashboardSnapshot }) {
+function ImportFirstViewportGuide({
+  snapshot,
+  authCheckMessage,
+  onAuthCheck
+}: {
+  snapshot: DashboardSnapshot;
+  authCheckMessage: string;
+  onAuthCheck: () => void;
+}) {
   const workbench = snapshot.publishToMetricsWorkbench;
   const health = snapshot.platformDataHealth;
   const currentRecoveryItems = workbench.postPublishRecoveryItems
@@ -1011,23 +1019,33 @@ function ImportFirstViewportGuide({ snapshot }: { snapshot: DashboardSnapshot })
     <Panel
       className="import-first-viewport-guide"
       data-testid="import-first-viewport-guide"
-      title="现在怎么导入 / 回收数据"
-      eyebrow="手动导入"
+      title="现在怎么导入 / 抓取数据"
+      eyebrow="数据刷新现实"
       action={<span className="sm-badge sm-badge-info">{formatNumber(currentRecoveryItems.length)} 条待回收</span>}
     >
       <div className="import-guide-steps">
         <article>
-          <strong>1. 打开平台后台</strong>
-          <p>进入抖音、小红书、视频号或 B站创作中心，手动导出/刷新作品数据。</p>
+          <strong>A. 手动导入</strong>
+          <p>上传或粘贴平台后台导出的 CSV / XLSX / JSON，预览字段后再保存到本地作品指标。</p>
         </article>
         <article>
-          <strong>2. 预览并保存</strong>
-          <p>使用四平台同步入口预览字段，确认后再保存到本地内容指标。</p>
+          <strong>B. 浏览器辅助</strong>
+          <p>你登录平台后台后，由本地浏览器助手读取当前页面；不保存密码，也不保存敏感请求明细。</p>
         </article>
         <article>
-          <strong>3. 匹配发布后内容</strong>
-          <p>系统只给候选，人工确认后才把新指标归到本地作品。</p>
+          <strong>C. 官方 API 授权</strong>
+          <p>需要平台开放能力、应用审核、OAuth / token / scope；未授权时不能自动抓取。</p>
         </article>
+      </div>
+      <div className="capture-reality-box" data-testid="capture-reality-explainer">
+        <strong>为什么登录抖音/视频号网页后，刷新本系统不会自动更新？</strong>
+        <p>网页登录态只在平台网页和当前浏览器会话里；本系统刷新页面不会读取该网页登录态，也不会绕过授权自动抓取。要更新数据，必须选择手动导入、启动浏览器辅助读取当前页，或完成官方 API 授权。</p>
+      </div>
+      <div className="capture-mode-status-grid" data-testid="capture-mode-status-grid">
+        <span><b>抖音</b> 需 OAuth 授权或浏览器辅助；当前未接入自动 API 抓取。</span>
+        <span><b>视频号</b> 需浏览器辅助或明确官方能力；刷新本系统不会读取视频号助手登录态。</span>
+        <span><b>小红书</b> 未确认公开稳定创作者数据 API；先按手动/浏览器辅助处理。</span>
+        <span><b>B站</b> 视频/账号能力需授权；账号指标保持 preview-only，不进入 durable totals。</span>
       </div>
       <div className="platform-import-status-summary">
         <span><b>{formatDateTime(latestRealCaptureAt ?? undefined)}</b> 最近采集</span>
@@ -1049,9 +1067,10 @@ function ImportFirstViewportGuide({ snapshot }: { snapshot: DashboardSnapshot })
         {stalePlatforms.length === 0 && recoveryPlatforms.length === 0 && <span>四平台暂无明确待回收项。</span>}
       </div>
       <div className="trusted-weekly-summary-foot">
-        <span>暂停平台保持隐藏；B站账号级指标只保留 preview-only 边界。</span>
+        <span>{authCheckMessage || "自动抓取只能基于已授权 API 或浏览器辅助会话；没有凭证时不会宣称每小时自动抓。"}</span>
         <div className="inline-stack">
-          <a className="sm-button sm-button-primary" href="#manual-refresh">手动抓取最新数据</a>
+          <Button data-testid="check-capture-auth-status" onClick={onAuthCheck} variant="secondary">立即检查登录/授权状态</Button>
+          <a className="sm-button sm-button-primary" href="#manual-refresh">手动导入 / 浏览器辅助</a>
           <a className="sm-button sm-button-secondary" href="#post-publish-refresh">查看发布后回收</a>
         </div>
       </div>
@@ -1089,6 +1108,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreviewResult | null>(null);
   const [message, setMessage] = useState("等待预览");
+  const [authCheckMessage, setAuthCheckMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const realRows = preview?.realPreviewRows ?? [];
@@ -1167,7 +1187,11 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         actions={<Button onClick={() => window.location.reload()} variant="secondary">刷新</Button>}
       />
       <div className="import-page-stack">
-        <ImportFirstViewportGuide snapshot={currentSnapshot} />
+        <ImportFirstViewportGuide
+          authCheckMessage={authCheckMessage}
+          onAuthCheck={() => setAuthCheckMessage("检查结果：官方 API 未接入或未授权；浏览器辅助会话未连接。请先手动导入，或启动浏览器辅助并在平台后台页面确认。")}
+          snapshot={currentSnapshot}
+        />
         <PostPublishRefreshPanel onConfirmMatch={confirmPlatformContentMatch} snapshot={currentSnapshot} />
         <details className="analytics-data-section">
           <summary>

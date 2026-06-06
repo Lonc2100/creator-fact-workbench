@@ -795,6 +795,49 @@ button:disabled {
   line-height: 1.45;
 }
 
+.capture-reality-box {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0;
+  border: 1px solid rgba(126, 91, 34, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 250, 236, 0.76);
+  padding: 10px;
+}
+
+.capture-reality-box strong {
+  color: var(--sm-text-strong);
+  font-size: 13px;
+}
+
+.capture-reality-box p {
+  margin: 0;
+  color: var(--sm-text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.capture-mode-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.capture-mode-status-grid span {
+  border: 1px solid rgba(42, 35, 28, 0.09);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.66);
+  color: var(--sm-text-muted);
+  padding: 8px;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.capture-mode-status-grid b {
+  color: var(--sm-text-strong);
+}
+
 .import-guide-platforms {
   display: flex;
   flex-wrap: wrap;
@@ -3661,6 +3704,7 @@ button:disabled {
 
 .dashboard-secondary-operations,
 .calendar-draft-pool,
+.calendar-acceptance-data-pool,
 .calendar-history-ledger {
   border-top: 1px solid var(--sm-border-subtle);
   padding-top: 10px;
@@ -3675,6 +3719,7 @@ button:disabled {
 
 .dashboard-secondary-operations > summary,
 .calendar-draft-pool > summary,
+.calendar-acceptance-data-pool > summary,
 .calendar-history-ledger > summary {
   display: flex;
   align-items: center;
@@ -3688,6 +3733,7 @@ button:disabled {
 
 .dashboard-secondary-operations > summary::-webkit-details-marker,
 .calendar-draft-pool > summary::-webkit-details-marker,
+.calendar-acceptance-data-pool > summary::-webkit-details-marker,
 .calendar-history-ledger > summary::-webkit-details-marker {
   display: none;
 }
@@ -3700,6 +3746,7 @@ button:disabled {
 
 .dashboard-secondary-operations > summary span,
 .calendar-draft-pool > summary span,
+.calendar-acceptance-data-pool > summary span,
 .calendar-history-ledger > summary span {
   display: inline-grid;
   gap: 2px;
@@ -3712,6 +3759,7 @@ button:disabled {
 
 .dashboard-secondary-operations > summary strong,
 .calendar-draft-pool > summary strong,
+.calendar-acceptance-data-pool > summary strong,
 .calendar-history-ledger > summary strong {
   color: var(--sm-text);
   font-size: 13px;
@@ -5561,6 +5609,7 @@ button:disabled {
   .dashboard-insight-list,
   .analytics-insight-strip,
   .calendar-draft-pool-grid,
+  .capture-mode-status-grid,
   .import-guide-steps,
   .trusted-weekly-platforms,
   .metric-source-grid,

@@ -434,7 +434,7 @@ function StartCreatorDayFlowPanel({ snapshot }: { snapshot: DashboardSnapshot })
         <span><b>{formatNumber(matchCount)}</b> 指标匹配</span>
       </div>
       <div className="trusted-weekly-summary-foot">
-        <span>{nextItem ? `建议先处理：${nextItem.contentTitle} / ${platformLabels[nextItem.platform]} / ${nextItem.nextAction}` : "从新视频开始：写想法、生成四平台版本、放进日历，再按发布交接包执行。"}</span>
+        <span>{nextItem ? `建议先处理：${nextItem.contentTitle} / ${platformLabels[nextItem.platform]} / ${nextItem.nextAction}` : "从新视频开始：写想法、生成四平台版本、放进日历，再按手动发布助手执行。"}</span>
         <div className="inline-stack">
           <a className="sm-button sm-button-primary" href="/content#new-video">开始新视频</a>
           <a className="sm-button sm-button-secondary" href="/calendar">打开日历</a>
