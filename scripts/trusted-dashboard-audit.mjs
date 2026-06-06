@@ -10,7 +10,8 @@ const trustedSources = [
 ];
 const trustedSourceSet = new Set(trustedSources);
 const closedLoopPlatforms = ["douyin", "xiaohongshu", "video_account", "bilibili"];
-const demoPattern = /\b(smoke|demo|test|fixture|op-save)\b|O2|烟测|浏览器烟测|BiliOpSave/i;
+const acceptancePattern = /(^|[\s:/._-])(mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI选题计划|AI短片复盘|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估|05[0-9]|06[0-9]|07[0-2]/i;
+const demoPattern = /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|op-save)([\s:/._-]|$)|O2|烟测|浏览器烟测|BiliOpSave/i;
 
 function argValue(name) {
   const prefix = `--${name}=`;
@@ -75,7 +76,14 @@ function safeText(...values) {
 
 function isTestOrDemoContent(content, snapshot) {
   const text = safeText(content?.id, content?.title, content?.topic, content?.notes, snapshot?.id, snapshot?.contentId, snapshot?.platformVersionId);
-  return demoPattern.test(text);
+  return acceptancePattern.test(text) || demoPattern.test(text);
+}
+
+function contentDataDomain(content, snapshot) {
+  if (content?.dataDomain) return content.dataDomain;
+  if (snapshot?.dataDomain) return snapshot.dataDomain;
+  if (isTestOrDemoContent(content, snapshot)) return acceptancePattern.test(safeText(content?.id, content?.title, content?.topic, content?.notes, snapshot?.id, snapshot?.contentId, snapshot?.platformVersionId)) ? "acceptance_run" : "demo_seed";
+  return trustedSourceSet.has(snapshot?.source) ? "user_work" : "imported_metric";
 }
 
 function isUserExcludedFromTrustedScope(content) {
@@ -94,6 +102,8 @@ function isTrustedSnapshot(snapshot, contentsById) {
   if (!trustedSourceSet.has(snapshot.source)) return false;
   const content = contentsById.get(snapshot.contentId);
   if (isUserExcludedFromTrustedScope(content)) return false;
+  if (contentDataDomain(content, snapshot) !== "user_work") return false;
+  if (snapshot.dataDomain && snapshot.dataDomain !== "user_work") return false;
   const eligible = provenanceEligible(snapshot.provenance);
   if (eligible !== undefined) return eligible;
   if (content?.trustedScopeOverride === "include") return true;

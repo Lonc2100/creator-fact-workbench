@@ -19,6 +19,7 @@ import type {
   ConfirmPlatformVersionPublishResult,
   ContentDraftReviewRequest,
   ContentDraftReviewResult,
+  ContentDataDomain,
   ContentTrustScopePatchRequest,
   ContentWorkbenchContentRow,
   ContentWorkbenchSnapshot,
@@ -298,7 +299,9 @@ function normalizeCreatorIdeaInput(input: CreatorVideoIdeaRequest | CreatorVideo
     materialNotes: input.materialNotes?.trim() || undefined,
     scheduledAt: input.scheduledAt?.trim() || undefined,
     revisionPrompt: input.revisionPrompt?.trim() || undefined,
-    copilotAnalysis: "creator_copilot_discussion:local_rule_v1"
+    copilotAnalysis: "creator_copilot_discussion:local_rule_v1",
+    acceptanceRunId: input.acceptanceRunId?.trim() || undefined,
+    dataDomain: input.dataDomain
   };
 }
 
@@ -392,9 +395,81 @@ function isTrustedRealCreatorCenterSource(source: ImportSource | "manual" | "rev
   return trustedRealCreatorCenterSources.includes(source as typeof trustedRealCreatorCenterSources[number]);
 }
 
+const acceptanceRunTextPattern = /(^|[\s:/._-])(mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI选题计划|AI短片复盘|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估|05[0-9]|06[0-9]|07[0-2]/i;
+const demoSeedTextPattern = /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|op-save)([\s:/._-]|$)|O2|烟测|浏览器烟测|BiliOpSave/i;
+
 function legacyTextSuggestsTestOrDemoContent(content: ContentItem | undefined, snapshot?: MetricSnapshot) {
   const text = [content?.id, content?.title, content?.topic, content?.notes, snapshot?.id, snapshot?.contentId, snapshot?.platformVersionId].filter(Boolean).join(" ");
-  return /\b(smoke|demo|test|fixture|op-save)\b|O2|烟测|浏览器烟测|BiliOpSave/i.test(text);
+  return acceptanceRunTextPattern.test(text) || demoSeedTextPattern.test(text);
+}
+
+function contentDomainClassificationText(content: ContentItem | undefined, extra?: Array<string | undefined>) {
+  return [
+    content?.id,
+    content?.title,
+    content?.topic,
+    content?.notes,
+    content?.acceptanceRunId,
+    ...(extra ?? [])
+  ].filter(Boolean).join(" ");
+}
+
+function explicitIsolatedDomainFromText(text: string): { dataDomain: ContentDataDomain; reason: string } | undefined {
+  if (acceptanceRunTextPattern.test(text)) return { dataDomain: "acceptance_run", reason: "acceptance_or_regression_marker" };
+  if (demoSeedTextPattern.test(text)) return { dataDomain: "demo_seed", reason: "demo_seed_or_fixture_marker" };
+  return undefined;
+}
+
+function classifyContentDataDomain(input: {
+  content: ContentItem;
+  snapshots?: MetricSnapshot[];
+  source?: ImportSource | "manual";
+  provenance?: ImportProvenanceMetadata;
+  extraText?: Array<string | undefined>;
+}): { dataDomain: ContentDataDomain; reason: string; acceptanceRunId?: string } {
+  const text = contentDomainClassificationText(input.content, input.extraText);
+  const acceptanceRunId = input.content.acceptanceRunId ?? input.provenance?.acceptanceRunId;
+  const snapshotSources = new Set((input.snapshots ?? []).map((snapshot) => snapshot.source));
+  if (acceptanceRunId) return { dataDomain: "acceptance_run", reason: "acceptance_run_id", acceptanceRunId };
+  if (input.provenance?.isTestFixture === true) return { dataDomain: "demo_seed", reason: "provenance_test_fixture" };
+  const isolatedByText = explicitIsolatedDomainFromText(text);
+  if (isolatedByText) {
+    return {
+      ...isolatedByText,
+      acceptanceRunId: isolatedByText.dataDomain === "acceptance_run" ? "title-classified-acceptance-run" : undefined
+    };
+  }
+  if (input.provenance?.dataDomain) return { dataDomain: input.provenance.dataDomain, reason: "provenance_data_domain", acceptanceRunId };
+  if (
+    input.provenance?.trustedScopeEligible === true &&
+    (
+      (input.source && isTrustedRealCreatorCenterSource(input.source)) ||
+      [...snapshotSources].some((source) => isTrustedRealCreatorCenterSource(source)) ||
+      input.content.dataDomain === "user_work" ||
+      input.content.workOwnership === "user_owned_work"
+    )
+  ) {
+    return { dataDomain: "user_work", reason: "trusted_provenance_user_work", acceptanceRunId };
+  }
+  if (input.content.dataDomain === "acceptance_run" || input.content.dataDomain === "demo_seed") {
+    return { dataDomain: input.content.dataDomain, reason: "explicit_isolated_content_data_domain", acceptanceRunId };
+  }
+  if ((input.source && isTrustedRealCreatorCenterSource(input.source)) || [...snapshotSources].some((source) => isTrustedRealCreatorCenterSource(source))) {
+    return { dataDomain: "user_work", reason: "trusted_creator_center_user_work", acceptanceRunId };
+  }
+  if (input.content.dataDomain) return { dataDomain: input.content.dataDomain, reason: "explicit_content_data_domain", acceptanceRunId };
+  if (input.content.userConfirmedForLibrary || input.content.workOwnership === "user_owned_work") {
+    return { dataDomain: "user_work", reason: "explicit_user_owned_work", acceptanceRunId };
+  }
+  if (input.content.workOwnership === "operator_owned_work") {
+    return { dataDomain: "system_log", reason: "operator_generated_workflow", acceptanceRunId };
+  }
+  if (input.source || snapshotSources.size > 0) return { dataDomain: "imported_metric", reason: "imported_metric_or_untrusted_source", acceptanceRunId };
+  return { dataDomain: "system_log", reason: "unconfirmed_local_record", acceptanceRunId };
+}
+
+function isDefaultUserWorkContent(content: ContentItem | undefined) {
+  return content?.dataDomain === "user_work";
 }
 
 function isUserExcludedFromTrustedScope(content: ContentItem | undefined) {
@@ -412,9 +487,13 @@ function isTrustedRealMetricSnapshot(snapshot: MetricSnapshot, contentsById: Map
   if (!isTrustedRealCreatorCenterSource(snapshot.source)) return false;
   const content = contentsById.get(snapshot.contentId);
   if (isUserExcludedFromTrustedScope(content)) return false;
+  const inferredDomain = content?.dataDomain ?? (content ? classifyContentDataDomain({ content, snapshots: [snapshot], source: snapshot.source, provenance: snapshot.provenance }).dataDomain : undefined);
+  if (inferredDomain !== "user_work") return false;
+  if (snapshot.dataDomain && snapshot.dataDomain !== "user_work") return false;
   const provenanceEligible = isTrustedScopeEligibleByProvenance(snapshot.provenance);
   if (provenanceEligible !== undefined) return provenanceEligible;
   if (content?.trustedScopeOverride === "include") return true;
+  if (content?.dataDomain === "user_work" || snapshot.dataDomain === "user_work") return true;
   return !legacyTextSuggestsTestOrDemoContent(content, snapshot);
 }
 
@@ -2446,6 +2525,61 @@ export class SelfMediaService {
     private readonly bilibiliPersonalProvider = new BilibiliPersonalProvider()
   ) {}
 
+  private backfillContentDataDomains() {
+    const snapshots = this.repo.listMetricSnapshots();
+    const snapshotsByContentId = new Map<string, MetricSnapshot[]>();
+    for (const snapshot of snapshots) {
+      snapshotsByContentId.set(snapshot.contentId, [...(snapshotsByContentId.get(snapshot.contentId) ?? []), snapshot]);
+    }
+
+    const updatedContentById = new Map<string, ContentItem>();
+    for (const content of this.repo.listContents()) {
+      const relatedSnapshots = snapshotsByContentId.get(content.id) ?? [];
+      const classification = classifyContentDataDomain({ content, snapshots: relatedSnapshots });
+      const existingIsContradicted = content.dataDomain === "user_work" && classification.dataDomain !== "user_work";
+      const promotedToUserWork = content.dataDomain !== "user_work" && classification.dataDomain === "user_work";
+      const needsUpdate =
+        !content.dataDomain ||
+        existingIsContradicted ||
+        promotedToUserWork ||
+        (classification.acceptanceRunId && content.acceptanceRunId !== classification.acceptanceRunId);
+      if (!needsUpdate) {
+        updatedContentById.set(content.id, content);
+        continue;
+      }
+      const updated: ContentItem = {
+        ...content,
+        dataDomain: classification.dataDomain,
+        dataDomainUpdatedAt: new Date().toISOString(),
+        dataDomainReason: classification.reason,
+        acceptanceRunId: classification.acceptanceRunId ?? content.acceptanceRunId
+      };
+      this.repo.upsertEntity("contents", updated.id, updated);
+      updatedContentById.set(updated.id, updated);
+    }
+
+    for (const snapshot of snapshots) {
+      const content = updatedContentById.get(snapshot.contentId);
+      const dataDomain: MetricSnapshot["dataDomain"] =
+        content?.dataDomain === "user_work" ? "user_work" :
+        content?.dataDomain === "acceptance_run" ? "acceptance_run" :
+        content?.dataDomain === "demo_seed" ? "demo_seed" :
+        "imported_metric";
+      if (snapshot.dataDomain === dataDomain) continue;
+      this.repo.upsertEntity("metricSnapshots", snapshot.id, { ...snapshot, dataDomain, updatedAt: new Date().toISOString() });
+    }
+
+    for (const run of this.repo.listImports()) {
+      const dataDomain: ImportRun["dataDomain"] =
+        run.provenance?.dataDomain === "acceptance_run" ? "acceptance_run" :
+        run.provenance?.dataDomain === "demo_seed" || run.provenance?.isTestFixture ? "demo_seed" :
+        isTrustedRealCreatorCenterSource(run.source) ? "user_work" :
+        "imported_metric";
+      if (run.dataDomain === dataDomain) continue;
+      this.repo.recordImport({ ...run, dataDomain });
+    }
+  }
+
   recordPlatformOperationHistory(action: PlatformImportOperationAction, summary: PlatformImportOperationSummary) {
     const warnings = [summary.errorMessage, ...summary.warnings].filter((item): item is string => Boolean(item)).map(sanitizeOperationWarning).filter(Boolean);
     const history: OperationHistory = {
@@ -2461,7 +2595,8 @@ export class SelfMediaService {
       warningSummary: warnings.slice(0, 2).join(" / "),
       runId: summary.runId,
       provenance: summary.provenance,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      dataDomain: "system_log"
     };
     this.repo.upsertEntity("operationHistory", history.id, history);
     writeLog(this.repo, {
@@ -2600,9 +2735,19 @@ export class SelfMediaService {
   importPayload(payload: ProviderImportPayload, provenanceOverride?: ImportProvenanceMetadata) {
     const traceId = createTraceId("import");
     const provenance = mergeProvenance(payload.provenance, provenanceOverride);
-    const payloadWithProvenance = provenance ? { ...payload, provenance } : payload;
+    const taggedContents = payload.contents.map((content): ContentItem => {
+      const classification = classifyContentDataDomain({ content, source: payload.source, provenance });
+      return {
+        ...content,
+        dataDomain: content.dataDomain ?? classification.dataDomain,
+        dataDomainUpdatedAt: content.dataDomainUpdatedAt ?? new Date().toISOString(),
+        dataDomainReason: content.dataDomainReason ?? classification.reason,
+        acceptanceRunId: content.acceptanceRunId ?? classification.acceptanceRunId
+      };
+    });
+    const payloadWithProvenance = { ...payload, contents: taggedContents, provenance };
     const run = this.repo.savePayload(payloadWithProvenance);
-    for (const content of payload.contents) {
+    for (const content of taggedContents) {
       const existing = this.repo.getEntity<ContentPlatformVersion>("platformVersions", `version-${content.id}-${content.platform}`);
       const version: ContentPlatformVersion = {
         id: `version-${content.id}-${content.platform}`,
@@ -2642,12 +2787,18 @@ export class SelfMediaService {
           source: payload.source,
           importRunId: run.id,
           provenance,
+          dataDomain: this.repo.getEntity<ContentItem>("contents", metric.contentId)?.dataDomain === "user_work" ? "user_work" : this.repo.getEntity<ContentItem>("contents", metric.contentId)?.dataDomain === "acceptance_run" ? "acceptance_run" : this.repo.getEntity<ContentItem>("contents", metric.contentId)?.dataDomain === "demo_seed" ? "demo_seed" : "imported_metric",
           updatedAt: new Date().toISOString()
         };
         this.repo.upsertEntity("metricSnapshots", snapshot.id, snapshot);
       }
     }
     run.traceId = traceId;
+    run.dataDomain =
+      provenance?.dataDomain === "acceptance_run" ? "acceptance_run" :
+      provenance?.dataDomain === "demo_seed" || provenance?.isTestFixture ? "demo_seed" :
+      isTrustedRealCreatorCenterSource(payload.source) ? "user_work" :
+      "imported_metric";
     this.repo.recordImport(run);
     writeLog(this.repo, {
       level: "info",
@@ -2948,6 +3099,11 @@ export class SelfMediaService {
       notes: idea.rationale,
       workOwnership: "user_owned_work"
     };
+    const classification = classifyContentDataDomain({ content, extraText: [idea.id, idea.source, idea.rationale] });
+    content.dataDomain = classification.dataDomain;
+    content.dataDomainUpdatedAt = new Date().toISOString();
+    content.dataDomainReason = classification.reason;
+    content.acceptanceRunId = classification.acceptanceRunId;
     const queue: PublishQueueItem = {
       id: `queue-from-${content.id}`,
       contentId: content.id,
@@ -2985,7 +3141,7 @@ export class SelfMediaService {
     const contentId = `content-creator-${stableHash(`${normalized.title}|${normalized.topic}|${normalized.brief}|${Date.now()}`)}`;
     const scheduledAt = normalized.scheduledAt;
     const status: PlatformVersionStatus = scheduledAt ? "scheduled" : "needs_review";
-    const content: ContentItem = {
+    const baseContent: ContentItem = {
       id: contentId,
       title: normalized.title,
       platform: "douyin",
@@ -2994,15 +3150,26 @@ export class SelfMediaService {
       topic: normalized.topic,
       scheduledAt,
       workOwnership: "user_owned_work",
+      acceptanceRunId: normalized.acceptanceRunId,
       notes: compactLines([
         "creator_draft:local_rule_v1",
         normalized.copilotAnalysis,
+        normalized.acceptanceRunId ? `acceptanceRunId:${normalized.acceptanceRunId}` : undefined,
         normalized.brief,
         normalized.revisionPrompt ? `revisionPrompt:${normalized.revisionPrompt}` : undefined,
         normalized.scriptNotes ? `scriptNotes:${normalized.scriptNotes}` : undefined,
         normalized.materialNotes ? `materialNotes:${normalized.materialNotes}` : undefined,
         "平台激励/创作标签为本地建议，发布前需人工确认。"
       ]).join("\n")
+    };
+    const classification = classifyContentDataDomain({ content: { ...baseContent, dataDomain: normalized.dataDomain } });
+    const content: ContentItem = {
+      ...baseContent,
+      workOwnership: classification.dataDomain === "user_work" ? "user_owned_work" : undefined,
+      dataDomain: classification.dataDomain,
+      dataDomainUpdatedAt: now,
+      dataDomainReason: classification.reason,
+      acceptanceRunId: classification.acceptanceRunId ?? normalized.acceptanceRunId
     };
     this.repo.upsertEntity("contents", content.id, content);
 
@@ -3328,7 +3495,8 @@ export class SelfMediaService {
         providerRunId: input.providerRunId,
         confirmedBy: input.confirmedBy,
         idempotencyKey,
-        traceId
+        traceId,
+        dataDomain: "publish_ledger"
       };
     this.repo.upsertEntity("publishRecords", publishRecord.id, publishRecord);
     writeLog(this.repo, {
@@ -3343,6 +3511,7 @@ export class SelfMediaService {
   }
 
   publishToMetricsWorkbench(now = new Date()): PublishToMetricsWorkbench {
+    this.backfillContentDataDomains();
     const contents = this.repo.listContents();
     const platformVersions = this.repo.listPlatformVersions();
     const queue = this.repo.listQueue();
@@ -3485,6 +3654,7 @@ export class SelfMediaService {
       followersDelta: input.followersDelta ?? 0,
       source: input.source ?? "manual",
       provenance: input.provenance,
+      dataDomain: isTrustedRealCreatorCenterSource(input.source ?? "manual") ? "user_work" : "imported_metric",
       updatedAt: new Date().toISOString()
     };
     this.repo.upsertEntity("metricSnapshots", snapshot.id, snapshot);
@@ -3625,6 +3795,9 @@ export class SelfMediaService {
       topic: item.title,
       scheduledAt,
       workOwnership: "operator_owned_work",
+      dataDomain: "system_log",
+      dataDomainUpdatedAt: now,
+      dataDomainReason: "operator_generated_workflow",
       notes: [
         `actionItem:${item.id}`,
         item.sourceSuggestionId ? `sourceSuggestion:${item.sourceSuggestionId}` : undefined,
@@ -3737,6 +3910,7 @@ export class SelfMediaService {
 
   saveReview(input: SaveReviewRequest) {
     const traceId = createTraceId("saved-review");
+    this.backfillContentDataDomains();
     const allContents = this.repo.listContents();
     const ideas = this.repo.listIdeas();
     const queue = this.repo.listQueue();
@@ -3840,6 +4014,7 @@ export class SelfMediaService {
 
   async contentWorkbench(): Promise<ContentWorkbenchSnapshot> {
     await this.ensureSeedData();
+    this.backfillContentDataDomains();
     const contents = this.repo.listContents();
     const allMetrics = this.repo.listMetrics();
     const platformVersions = this.repo.listPlatformVersions();
@@ -3888,6 +4063,7 @@ export class SelfMediaService {
 
   async dashboard(): Promise<DashboardSnapshot> {
     await this.ensureSeedData();
+    this.backfillContentDataDomains();
     const allContents = this.repo.listContents();
     const allMetrics = this.repo.listMetrics();
     const ideas = this.repo.listIdeas();
@@ -3902,8 +4078,7 @@ export class SelfMediaService {
     const contentsById = new Map(allContents.map((content) => [content.id, content]));
     const metricSnapshots = allMetricSnapshots.filter((snapshot) => isTrustedRealMetricSnapshot(snapshot, contentsById));
     const trustedContentIds = new Set(metricSnapshots.map((snapshot) => snapshot.contentId));
-    const workflowContentIds = new Set(actionItems.map((item) => item.contentDraftId).filter((id): id is string => Boolean(id)));
-    const visibleContentIds = new Set([...trustedContentIds, ...workflowContentIds]);
+    const visibleContentIds = new Set([...trustedContentIds].filter((id) => isDefaultUserWorkContent(contentsById.get(id))));
     const trustedContents = allContents.filter((content) => trustedContentIds.has(content.id));
     const contents = allContents.filter((content) => visibleContentIds.has(content.id));
     const metrics = metricSnapshots.map(trustedReviewMetricFromSnapshot);

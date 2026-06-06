@@ -3866,7 +3866,7 @@ test("bilibili operation preview and save record history while account diagnosti
             {
               Archive: {
                 aid: 116658358257510,
-                bvid: "BVBiliOpSaveOne",
+                bvid: "BVRealCreatorSaveOne",
                 title: "B站 operation 保存",
                 ptime: 1780314116,
                 comment_content: "raw comment secret",
@@ -3887,7 +3887,7 @@ test("bilibili operation preview and save record history while account diagnosti
     writeRawCapture(rawDir, "survey.json", {
       capturedAt: "2026-06-04T03:25:54.902Z",
       urlSanitized: "https://member.bilibili.com/c/data/oversea/web/survey",
-      body: { data: { "20260602": { arc_inc: [{ aid: 116658358257510, bvid: "BVBiliOpSaveOne", play: 999999 }], arc_play: [{ aid: 116658358257510, play: 888888 }] } } }
+      body: { data: { "20260602": { arc_inc: [{ aid: 116658358257510, bvid: "BVRealCreatorSaveOne", play: 999999 }], arc_play: [{ aid: 116658358257510, play: 888888 }] } } }
     });
     repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
     const service = new SelfMediaService(repo);
@@ -3895,7 +3895,7 @@ test("bilibili operation preview and save record history while account diagnosti
     const save = await runSelfMediaPlatformImportOperation({ action: "save", platform: "bilibili" }, { service, rawDirs: { bilibili: rawDir } });
     const snapshot = await service.dashboard();
     const savedReview = service.saveReview({ period: "weekly" });
-    const contentId = "bilibili-BVBiliOpSaveOne";
+    const contentId = "bilibili-BVRealCreatorSaveOne";
     const metricSnapshots = repo.listMetricSnapshots().filter((item) => item.contentId === contentId && item.source === "bilibili_creator_center");
     const history = snapshot.operationHistory.filter((item) => item.platform === "bilibili");
     const serializedSaved = JSON.stringify({
@@ -4406,6 +4406,7 @@ test("trusted action item can become scheduled content and calendar entry", asyn
     assert.equal(converted.content.status, "scheduled");
     assert.equal(converted.content.platform, "douyin");
     assert.equal(converted.content.workOwnership, "operator_owned_work");
+    assert.equal(converted.content.dataDomain, "system_log");
     assert.equal(converted.queue.status, "scheduled");
     assert.equal(converted.platformVersion.status, "scheduled");
     assert.equal(converted.platformVersion.scheduledAt, "2026-06-06T09:00:00.000Z");
@@ -4414,7 +4415,7 @@ test("trusted action item can become scheduled content and calendar entry", asyn
     assert.equal(repo.listQueue().filter((item) => item.id === converted.queue.id).length, 1);
 
     const after = await service.dashboard();
-    assert.ok(after.contents.some((item) => item.id === converted.content.id));
+    assert.equal(after.contents.some((item) => item.id === converted.content.id), false);
     assert.ok(after.calendarItems.some((item) => item.platformVersionId === converted.platformVersion.id && item.scheduledAt === "2026-06-06T09:00:00.000Z"));
     assert.doesNotMatch(JSON.stringify(converted), /raw payload|cookie|token|headers|comment body|danmu/i);
   } finally {
@@ -4488,7 +4489,8 @@ test("action content draft review edits content version and queue without pollut
     assert.equal(afterSchedule.weeklyReview.metrics.totalViews, 2400);
     assert.equal(afterSchedule.realDataScope.trustedContentCount, 1);
     assert.equal(afterSchedule.realDataScope.trustedMetricSnapshotCount, 1);
-    assert.ok(afterSchedule.contents.some((item) => item.id === converted.content.id && item.status === "scheduled"));
+    assert.equal(repo.getEntity("contents", converted.content.id)?.status, "scheduled");
+    assert.equal(afterSchedule.contents.some((item) => item.id === converted.content.id), false);
 
     const confirmation = service.confirmPlatformVersionPublish({
       platformVersionId: converted.platformVersion.id,
@@ -4898,7 +4900,7 @@ test("unmarked real creator-center snapshots remain eligible for default dashboa
   }
 });
 
-test("real provenance prevents test demo words in title from being excluded", async () => {
+test("real provenance does not override acceptance demo title isolation", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-provenance-title-"));
   let repo: SqliteSelfMediaRepo | undefined;
   try {
@@ -4912,11 +4914,13 @@ test("real provenance prevents test demo words in title from being excluded", as
     });
     const storedSnapshot = repo.listMetricSnapshots().find((item) => item.contentId === "creator-real-title-contains-words");
     const dashboard = await service.dashboard();
+    const storedContent = repo.listContents().find((item) => item.id === "creator-real-title-contains-words");
     assert.equal(storedSnapshot?.provenance?.trustedScopeEligible, true);
-    assert.ok(dashboard.contents.some((item) => item.id === "creator-real-title-contains-words"));
-    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "creator-real-title-contains-words"));
-    assert.equal(dashboard.weeklyReview.metrics.totalViews, 1500);
-    assert.equal(dashboard.realDataScope.trustedContentCount, 1);
+    assert.equal(storedContent?.dataDomain, "demo_seed");
+    assert.equal(dashboard.contents.some((item) => item.id === "creator-real-title-contains-words"), false);
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "creator-real-title-contains-words"), false);
+    assert.equal(dashboard.weeklyReview.metrics.totalViews, 0);
+    assert.equal(dashboard.realDataScope.trustedContentCount, 0);
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });
@@ -5228,6 +5232,7 @@ test("idea can become draft content and enter publish queue", () => {
     assert.equal(converted.idea.status, "produced");
     assert.equal(converted.content.status, "draft");
     assert.equal(converted.content.workOwnership, "user_owned_work");
+    assert.equal(converted.content.dataDomain, "user_work");
     assert.equal(converted.queue.status, "draft");
     assert.ok(repo.listContents().some((item) => item.id === converted.content.id));
     assert.ok(repo.listQueue().some((item) => item.id === converted.queue.id));
@@ -5403,7 +5408,7 @@ test("publish execution workbench guides manual publish refresh and confirmed me
     repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
     const service = new SelfMediaService(repo);
     const draft = service.createCreatorVideoDraft({
-      title: "发布到指标闭环测试",
+      title: "发布到指标闭环",
       topic: "发布闭环",
       brief: "验证排期到点、人工确认发布、手动抓取后再人工匹配指标。",
       scheduledAt: "2026-06-06T09:00:00.000Z"
@@ -5567,8 +5572,8 @@ test("creator day workflow runs from schedule and platform drafts to handoff pub
     const service = new SelfMediaService(repo);
     const scheduledAt = "2026-06-06T09:00:00.000Z";
     const discussion = service.createCreatorVideoDiscussion({
-      title: "Creator day workflow daily run",
-      topic: "creator day workflow",
+      title: "Creator daily production run",
+      topic: "creator daily production",
       brief: "Schedule first, create discussion and platform versions, use handoff publishing, then recover metrics.",
       scheduledAt
     });
@@ -5610,7 +5615,7 @@ test("creator day workflow runs from schedule and platform drafts to handoff pub
     });
     assert.equal(published.version.status, "published");
 
-    const importedContentId = "dy-creator-day-workflow";
+    const importedContentId = "dy-creator-day-real-work";
     const imported = service.importRequest({
       mode: "json",
       json: {
@@ -5718,9 +5723,9 @@ test("creator video idea creates four platform drafts and optional schedule", as
     repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
     const service = new SelfMediaService(repo);
     const result = service.createCreatorVideoDraft({
-      title: "AI短片复盘怎么做",
-      topic: "AI短片复盘",
-      brief: "用一条真实短片拆解选题、脚本和封面。",
+      title: "六月内容计划怎么做",
+      topic: "六月内容计划",
+      brief: "用一条真实内容拆解选题、脚本和封面。",
       scriptNotes: "开头先给结论，再讲三个步骤。",
       materialNotes: "保留时间线截图和最终成片画面。",
       scheduledAt: "2026-06-08T12:00:00.000Z"
@@ -5732,12 +5737,81 @@ test("creator video idea creates four platform drafts and optional schedule", as
     assert.ok(result.queueItems.every((item) => item.scheduledAt === "2026-06-08T12:00:00.000Z" && item.status === "scheduled"));
     assert.ok(result.drafts.every((draft) => draft.tags.length > 0 && draft.coverNote && /人工/.test(draft.platformAdvice)));
     assert.equal(result.content.workOwnership, "user_owned_work");
+    assert.equal(result.content.dataDomain, "user_work");
     assert.ok(repo.listContents().some((item) => item.id === result.content.id && item.status === "scheduled"));
     assert.ok(repo.listPlatformVersions().every((item) => item.contentId !== result.content.id || item.status === "scheduled"));
     const workbench = await service.contentWorkbench();
     assert.ok(workbench.contentRows.some((row) => row.content.id === result.content.id && row.originKind === "local_draft"));
     const calendarItems = service.calendar().filter((item) => item.contentId === result.content.id && item.scheduledAt === "2026-06-08T12:00:00.000Z");
     assert.equal(calendarItems.length, 4);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("production defaults isolate acceptance titles even when they look like real works", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-data-domain-isolation-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const acceptance = service.createCreatorVideoDraft({
+      title: "真实作品：六月内容计划",
+      topic: "真实内容评估",
+      brief: "072 验收测试创建，不能进入默认用户日历或看板。",
+      scheduledAt: "2026-06-10T12:00:00.000Z"
+    });
+    const userWork = service.createCreatorVideoDraft({
+      title: "用户作品：六月内容计划",
+      topic: "六月内容计划",
+      brief: "用户明确创建的真实作品排期。",
+      scheduledAt: "2026-06-11T12:00:00.000Z"
+    });
+
+    assert.equal(acceptance.content.dataDomain, "acceptance_run");
+    assert.equal(acceptance.content.acceptanceRunId, "title-classified-acceptance-run");
+    assert.equal(acceptance.content.workOwnership, undefined);
+    assert.equal(userWork.content.dataDomain, "user_work");
+    assert.equal(userWork.content.workOwnership, "user_owned_work");
+
+    const workbench = await service.contentWorkbench();
+    assert.equal(workbench.contentRows.find((row) => row.content.id === acceptance.content.id)?.content.dataDomain, "acceptance_run");
+    assert.equal(workbench.contentRows.find((row) => row.content.id === userWork.content.id)?.content.dataDomain, "user_work");
+
+    const dashboard = await service.dashboard();
+    assert.equal(dashboard.contents.some((item) => item.id === acceptance.content.id), false);
+    assert.equal(dashboard.platformVersions.some((item) => item.contentId === acceptance.content.id), false);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("trusted dashboard excludes acceptance and seed titles from imported metrics", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-import-data-domain-isolation-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    service.importPayload({
+      source: "douyin_creator_center",
+      contents: [
+        { id: "trusted-user-work-real", title: "用户作品六月更新", platform: "douyin", status: "published", format: "short_video", topic: "六月内容", publishedAt: "2026-06-01T09:00:00.000Z" },
+        { id: "acceptance-seed-work-072", title: "AI选题计划", platform: "douyin", status: "published", format: "short_video", topic: "072验收", publishedAt: "2026-06-01T09:00:00.000Z" }
+      ],
+      metrics: [
+        { id: "metric-trusted-user-work-real", contentId: "trusted-user-work-real", platform: "douyin", capturedAt: "2026-06-02T09:00:00.000Z", views: 1200, likes: 100, comments: 10, saves: 8, shares: 6, followersDelta: 3 },
+        { id: "metric-acceptance-seed-work-072", contentId: "acceptance-seed-work-072", platform: "douyin", capturedAt: "2026-06-02T09:00:00.000Z", views: 999999, likes: 999, comments: 99, saves: 88, shares: 77, followersDelta: 66 }
+      ]
+    });
+
+    const dashboard = await service.dashboard();
+    assert.equal(repo.listContents().find((item) => item.id === "trusted-user-work-real")?.dataDomain, "user_work");
+    assert.equal(repo.listContents().find((item) => item.id === "acceptance-seed-work-072")?.dataDomain, "acceptance_run");
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "trusted-user-work-real"));
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "acceptance-seed-work-072"), false);
+    assert.equal(dashboard.weeklyReview.metrics.totalViews, 1200);
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });
@@ -5751,7 +5825,7 @@ test("creator copilot discusses rough idea, regenerates, and saves scheduled fou
     repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
     const service = new SelfMediaService(repo);
     const first = service.createCreatorVideoDiscussion({
-      brief: "想拍一条讲我怎么用 AI 把一周自媒体数据变成选题和脚本的短视频。",
+      brief: "准备一条讲我怎么用 AI 把一周自媒体数据变成选题和脚本的短视频。",
       materialNotes: "有看板截图和一张排期表。"
     });
     assert.equal(first.drafts.length, 4);
@@ -5772,6 +5846,7 @@ test("creator copilot discusses rough idea, regenerates, and saves scheduled fou
 
     const saved = service.createCreatorVideoDraft(regenerated.idea);
     assert.equal(saved.platformVersions.length, 4);
+    assert.equal(saved.content.dataDomain, "user_work");
     assert.ok(saved.content.notes.includes("creator_copilot_discussion:local_rule_v1"));
     assert.ok(repo.listPlatformVersions().every((item) => item.contentId !== saved.content.id || item.status === "scheduled"));
     assert.ok(service.calendar().some((item) => item.contentId === saved.content.id && item.scheduledAt === "2026-06-09T12:30:00.000Z"));
@@ -5829,7 +5904,17 @@ test("saved review stores action items and evidence-backed insights", async () =
     repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
     const service = new SelfMediaService(repo);
     await service.dashboard();
-    const version = service.upsertPlatformVersion({ contentId: "content-ai-short-001", platform: "douyin", title: "AI短片复盘", status: "scheduled" });
+    repo.upsertEntity("contents", "content-user-review-001", {
+      id: "content-user-review-001",
+      title: "用户周报复盘",
+      platform: "douyin",
+      status: "published",
+      format: "short_video",
+      topic: "周报复盘",
+      dataDomain: "user_work",
+      workOwnership: "user_owned_work"
+    });
+    const version = service.upsertPlatformVersion({ contentId: "content-user-review-001", platform: "douyin", title: "用户周报复盘", status: "scheduled" });
     service.upsertMetricSnapshot({ platformVersionId: version.version.id, snapshotDate: "2026-06-01", views: 2200, likes: 100, source: "douyin_creator_center" });
     const saved = service.saveReview({ period: "weekly" });
     assert.equal(saved.review.period, "weekly");

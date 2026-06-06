@@ -16,6 +16,8 @@ export type CalendarView = "week" | "month";
 
 export type ContentWorkOwnership = "user_owned_work" | "operator_owned_work";
 
+export type ContentDataDomain = "user_work" | "acceptance_run" | "demo_seed" | "imported_metric" | "publish_ledger" | "system_log";
+
 export type ImportDiffKind = "new" | "update" | "duplicate" | "conflict" | "invalid";
 
 export type ReviewActionStatus = "todo" | "doing" | "done" | "dropped";
@@ -28,6 +30,8 @@ export interface ImportProvenanceMetadata {
   isTestFixture?: boolean;
   operationKind?: ImportOperationKind;
   trustedScopeEligible?: boolean;
+  dataDomain?: ContentDataDomain;
+  acceptanceRunId?: string;
 }
 
 export interface PlatformAccount {
@@ -53,6 +57,11 @@ export interface ContentItem {
   trustedScopeUpdatedAt?: string;
   trustedScopeUpdatedBy?: string;
   workOwnership?: ContentWorkOwnership;
+  dataDomain?: ContentDataDomain;
+  dataDomainUpdatedAt?: string;
+  dataDomainReason?: string;
+  acceptanceRunId?: string;
+  userConfirmedForLibrary?: boolean;
 }
 
 export interface PlatformChecklist {
@@ -112,6 +121,7 @@ export interface PublishRecord {
   confirmedBy?: string;
   idempotencyKey?: string;
   traceId: string;
+  dataDomain?: Extract<ContentDataDomain, "publish_ledger">;
 }
 
 export interface PlatformMetric {
@@ -143,6 +153,7 @@ export interface MetricSnapshot {
   importRunId?: string;
   provenance?: ImportProvenanceMetadata;
   updatedAt: string;
+  dataDomain?: Extract<ContentDataDomain, "imported_metric" | "demo_seed" | "acceptance_run" | "user_work">;
 }
 
 export interface AccountMetricSnapshot {
@@ -791,6 +802,7 @@ export interface ImportRun {
   traceId?: string;
   warnings?: string[];
   provenance?: ImportProvenanceMetadata;
+  dataDomain?: Extract<ContentDataDomain, "imported_metric" | "demo_seed" | "acceptance_run" | "user_work">;
 }
 
 export interface PlatformImportStatus {
@@ -881,6 +893,7 @@ export interface OperationHistory {
   runId: string;
   provenance?: ImportProvenanceMetadata;
   createdAt: string;
+  dataDomain?: Extract<ContentDataDomain, "system_log">;
 }
 
 export interface PlatformImportOperationResult {
@@ -1008,6 +1021,7 @@ export interface WorkbenchLog {
   createdAt: string;
   traceId: string;
   data?: Record<string, unknown>;
+  dataDomain?: Extract<ContentDataDomain, "system_log">;
 }
 
 export interface AuditRecord {
@@ -1246,6 +1260,8 @@ export interface CreatorVideoIdeaRequest {
   scheduledAt?: string;
   revisionPrompt?: string;
   copilotAnalysis?: string;
+  acceptanceRunId?: string;
+  dataDomain?: Extract<ContentDataDomain, "user_work" | "acceptance_run">;
 }
 
 export interface CreatorPlatformDraft {
@@ -1267,6 +1283,8 @@ export interface CreatorVideoDiscussionRequest {
   scheduledAt?: string;
   revisionPrompt?: string;
   previousAnalysis?: string;
+  acceptanceRunId?: string;
+  dataDomain?: Extract<ContentDataDomain, "user_work" | "acceptance_run">;
 }
 
 export interface CreatorPlatformDifference {

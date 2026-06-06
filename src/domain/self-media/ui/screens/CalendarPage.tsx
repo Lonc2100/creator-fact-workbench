@@ -23,7 +23,6 @@ const diagnosticStatusFilters: Array<PlatformVersionStatus | "all"> = ["all", "d
 const ledgerStatusFilters: Array<DashboardSnapshot["publishRecords"][number]["status"] | "all"> = ["all", "submitted_review", "published", "failed", "blocked", "confirmed"];
 const pendingVersionStatuses = new Set<PlatformVersionStatus>(["draft", "needs_review"]);
 const pendingQueueStatuses = new Set<PublishQueueItem["status"]>(["draft", "needs_review", "queued"]);
-const defaultSchedulingOriginKinds = new Set<ContentWorkbenchSnapshot["contentRows"][number]["originKind"]>(["trusted_creator_center", "local_draft", "action_item_generated", "idea_converted"]);
 const publishRecordStatusLabels: Record<DashboardSnapshot["publishRecords"][number]["status"], string> = {
   submitted_review: "已提交审核",
   published: "已发布",
@@ -104,7 +103,7 @@ function isDiagnosticCalendarText(value: string) {
 }
 
 function isAcceptanceOrTestCalendarText(value: string) {
-  return /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI选题计划|AI短片复盘|我最喜欢的小雏菊|想拍一条短视频|05[0-9]|06[0-9]|07[0-1]/i.test(value);
+  return /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI选题计划|AI短片复盘|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估|05[0-9]|06[0-9]|07[0-2]/i.test(value);
 }
 
 function calendarClassificationText(
@@ -129,8 +128,12 @@ function calendarClassificationText(
   ].filter(Boolean).join(" ");
 }
 
-function hasCalendarWorkOwnership(content: ContentWorkbenchSnapshot["contents"][number] | DashboardSnapshot["contents"][number] | undefined) {
-  return content?.workOwnership === "user_owned_work" || content?.workOwnership === "operator_owned_work";
+function isDefaultUserWorkCalendarContent(content: ContentWorkbenchSnapshot["contents"][number] | DashboardSnapshot["contents"][number] | undefined) {
+  return content?.dataDomain === "user_work";
+}
+
+function isLocalAcceptanceOrTestContent(content: ContentWorkbenchSnapshot["contents"][number] | DashboardSnapshot["contents"][number] | undefined) {
+  return content?.dataDomain === "acceptance_run" || content?.dataDomain === "demo_seed";
 }
 
 function isDefaultSchedulingRow(
@@ -140,8 +143,7 @@ function isDefaultSchedulingRow(
 ) {
   if (!row || !content) return false;
   if (!isOperatingPlatform(version.platform)) return false;
-  if (!hasCalendarWorkOwnership(content)) return false;
-  if (!defaultSchedulingOriginKinds.has(row.originKind)) return false;
+  if (!isDefaultUserWorkCalendarContent(content)) return false;
   if (row.originKind === "trusted_creator_center" && content.userExcludedFromTrustedScope) return false;
   if (isAcceptanceOrTestCalendarText(calendarClassificationText(undefined, version, content, row))) return false;
   if (row.originKind !== "trusted_creator_center" && isDiagnosticCalendarText(`${content.id} ${content.title} ${content.notes ?? ""} ${version.id} ${version.title}`)) return false;
@@ -154,7 +156,7 @@ function isAcceptanceOrTestCalendarItem(
   content: DashboardSnapshot["contents"][number] | ContentWorkbenchSnapshot["contents"][number] | undefined,
   row?: ContentWorkbenchSnapshot["contentRows"][number]
 ) {
-  return isAcceptanceOrTestCalendarText(calendarClassificationText(item, version, content, row));
+  return isLocalAcceptanceOrTestContent(content) || isAcceptanceOrTestCalendarText(calendarClassificationText(item, version, content, row));
 }
 
 function isOperatingCalendarItem(

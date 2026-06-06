@@ -19,7 +19,7 @@ type DensityMode = "comfortable" | "compact";
 const platformFilters: Array<Platform | "all"> = ["all", "douyin", "xiaohongshu", "video_account", "bilibili", "other"];
 
 const sourceFilters: Array<{ value: SourceFilter; label: string }> = [
-  { value: "operating_default", label: "运营视图" },
+  { value: "operating_default", label: "真实作品" },
   { value: "trusted_dashboard", label: "进入运营看板" },
   { value: "action_item_generated", label: "行动项草稿" },
   { value: "local_draft", label: "待审/排期草稿" },
@@ -68,21 +68,21 @@ function rowPublishedAt(row: ContentWorkbenchContentRow) {
   return Math.max(timeValue(row.content.publishedAt), ...row.platformVersions.map((version) => timeValue(version.publishedAt)));
 }
 
-function hasActionableVersion(row: ContentWorkbenchContentRow) {
-  return row.platformVersions.some((version) => ["needs_review", "scheduled", "failed", "blocked"].includes(version.status)) ||
-    row.queueItems.some((item) => ["needs_review", "queued", "scheduled", "publishing", "failed", "blocked"].includes(item.status));
+function isUserWorkContentRow(row: ContentWorkbenchContentRow) {
+  return row.content.dataDomain === "user_work" || row.content.userConfirmedForLibrary === true;
+}
+
+function isLocalAcceptanceOrTestContentRow(row: ContentWorkbenchContentRow) {
+  return row.content.dataDomain === "acceptance_run" || row.content.dataDomain === "demo_seed";
 }
 
 function isOperatingContentRow(row: ContentWorkbenchContentRow) {
-  if (row.includedInTrustedDashboardReview) return true;
-  if (row.originKind === "action_item_generated") return true;
-  if ((row.originKind === "local_draft" || row.originKind === "idea_converted") && hasActionableVersion(row)) return true;
-  return false;
+  return isUserWorkContentRow(row);
 }
 
 function operatingPriority(row: ContentWorkbenchContentRow) {
+  if (!isUserWorkContentRow(row)) return 0;
   if (row.platformVersions.some((version) => version.status === "failed" || version.status === "blocked")) return 5;
-  if (row.originKind === "action_item_generated") return 4;
   if (row.platformVersions.some((version) => version.status === "needs_review")) return 3;
   if (row.platformVersions.some((version) => version.status === "scheduled")) return 2;
   if (row.includedInTrustedDashboardReview) return 1;
@@ -139,6 +139,18 @@ function requestedScheduledAtFromUrl() {
   return localDateTimeInputValue(new URLSearchParams(window.location.search).get("scheduledAt") ?? undefined);
 }
 
+function requestedAcceptanceRunIdFromUrl() {
+  if (typeof window === "undefined") return undefined;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("acceptanceRunId") ?? params.get("acceptance_run_id") ?? undefined;
+}
+
+function requestedDataDomainFromUrl() {
+  if (typeof window === "undefined") return undefined;
+  const value = new URLSearchParams(window.location.search).get("dataDomain");
+  return value === "acceptance_run" || value === "user_work" ? value : undefined;
+}
+
 function CreatorVideoPanel({
   onCreated
 }: {
@@ -150,6 +162,8 @@ function CreatorVideoPanel({
   const [scriptNotes, setScriptNotes] = useState("");
   const [materialNotes, setMaterialNotes] = useState("");
   const [scheduledAt, setScheduledAt] = useState(() => requestedScheduledAtFromUrl());
+  const [acceptanceRunId] = useState(() => requestedAcceptanceRunIdFromUrl());
+  const [requestedDataDomain] = useState(() => requestedDataDomainFromUrl());
   const scheduleInputRef = useRef<HTMLInputElement | null>(null);
   const [revisionPrompt, setRevisionPrompt] = useState("");
   const [discussion, setDiscussion] = useState<CreatorVideoDiscussionResult | null>(null);
@@ -168,7 +182,9 @@ function CreatorVideoPanel({
       materialNotes: materialNotes || undefined,
       scheduledAt: isoFromLocalDateTime(currentScheduledAt),
       revisionPrompt: revisionPrompt || undefined,
-      previousAnalysis: discussion?.analysis.direction
+      previousAnalysis: discussion?.analysis.direction,
+      acceptanceRunId,
+      dataDomain: requestedDataDomain ?? (acceptanceRunId ? "acceptance_run" : undefined)
     };
   }
 
@@ -618,6 +634,50 @@ function ContentCurrentTaskPanel({ snapshot }: { snapshot: ContentWorkbenchSnaps
   );
 }
 
+function LocalAcceptanceContentPanel({ rows }: { rows: ContentWorkbenchContentRow[] }) {
+  return (
+    <details className="calendar-acceptance-data-pool content-acceptance-data-pool" data-testid="content-acceptance-data-pool">
+      <summary>
+        <span>
+          <strong>本地验收/测试内容</strong>
+          <small>验收、测试、demo、seed 内容默认隔离，不进入作品库默认视图。</small>
+        </span>
+        <i>展开</i>
+      </summary>
+      <div className="table-wrap">
+        <table className="sm-table">
+          <thead>
+            <tr>
+              <th>内容</th>
+              <th>数据域</th>
+              <th>来源</th>
+              <th>平台版本</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.content.id}>
+                <td>
+                  <strong>{row.content.title}</strong>
+                  <small>{row.content.acceptanceRunId ?? row.content.dataDomainReason ?? row.content.id}</small>
+                </td>
+                <td><span className="sm-badge sm-badge-warning">{row.content.dataDomain}</span></td>
+                <td>{row.originLabel}</td>
+                <td>{row.platformVersions.length} 个</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={4}>暂无本地验收/测试内容。</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }) {
   const [current, setCurrent] = useState(snapshot);
   const [query, setQuery] = useState("");
@@ -667,6 +727,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
   const scheduledCount = current.platformVersions.filter((item) => item.status === "scheduled").length;
   const blockedCount = current.platformVersions.filter((item) => item.status === "blocked" || item.status === "failed").length;
   const operatingDefaultCount = current.contentRows.filter(isOperatingContentRow).length;
+  const acceptanceRows = current.contentRows.filter(isLocalAcceptanceOrTestContentRow);
 
   useEffect(() => {
     setPage(1);
@@ -693,13 +754,19 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
   }
 
   async function handleCreatorDraftCreated(result: CreatorVideoDraftResult) {
-    setSelectedContentId(result.content.id);
-    setSelectedVersionId(result.platformVersions[0]?.id);
-    setSourceFilter("local_draft");
-    setStatusFilter(result.content.scheduledAt ? "version:scheduled" : "all");
+    const isUserWork = result.content.dataDomain === "user_work";
+    setSelectedContentId(isUserWork ? result.content.id : undefined);
+    setSelectedVersionId(isUserWork ? result.platformVersions[0]?.id : undefined);
+    setSourceFilter(isUserWork ? "local_draft" : "operating_default");
+    setStatusFilter(isUserWork && result.content.scheduledAt ? "version:scheduled" : "all");
     setSort("updated_desc");
     const next = await refreshDashboard();
-    if (!next.contentRows.some((row) => row.content.id === result.content.id)) setMessage("新视频已保存，但当前筛选未显示；切换到全部本地/诊断可查看。");
+    if (!isUserWork) {
+      const firstUserWork = next.contentRows.find(isOperatingContentRow);
+      setSelectedContentId(firstUserWork?.content.id);
+      setSelectedVersionId(firstUserWork?.platformVersions[0]?.id);
+      setMessage("新内容已保存到本地验收/测试内容折叠区，不进入默认作品库或日历。");
+    } else if (!next.contentRows.some((row) => row.content.id === result.content.id)) setMessage("新视频已保存，但当前筛选未显示；切换到全部本地/诊断可查看。");
     else setMessage("新视频已保存为内容和四个平台版本，可继续编辑或去日历查看排期。");
   }
 
@@ -795,13 +862,13 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
       <PageHeader
         eyebrow="内容运营"
         title="内容管理"
-        description="默认只显示可直接运营的内容、待审核/已排期稿件和行动项草稿；全量历史记录在诊断筛选里查看。"
+        description="默认只显示真实用户作品；验收、测试、demo、导入回放和后台记录默认隔离。"
         actions={
           <>
             <span className="sm-badge sm-badge-info">{operatingDefaultCount} 条默认可见</span>
             <span className="sm-badge sm-badge-success">{current.summary.trustedDashboardContentCount} 条进运营看板</span>
             <span className="sm-badge sm-badge-success">{scheduledCount} 条已排期</span>
-            <span className="sm-badge sm-badge-info">{current.summary.actionGeneratedDraftCount} 条行动草稿</span>
+            <span className="sm-badge sm-badge-warning">{acceptanceRows.length} 条验收隔离</span>
             <span className="sm-badge sm-badge-info">{current.summary.publishRecordCount} 条人工发布记录</span>
             {blockedCount > 0 && <span className="sm-badge sm-badge-warning">{blockedCount} 条需处理</span>}
           </>
@@ -824,6 +891,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
       </div>
       <WorkbenchSummaryPanel snapshot={current} />
       <TrustedScopeCurationPanel snapshot={current} onToggle={patchTrustedScope} />
+      <LocalAcceptanceContentPanel rows={acceptanceRows} />
       <Panel title="内容列表筛选" eyebrow="默认运营视图">
         <div className="content-workbench-toolbar" data-testid="content-workbench-filters">
           <label className="content-workbench-search">
@@ -876,7 +944,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
             <Button disabled={safePage >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))} variant="secondary">下一页</Button>
           </div>
         </div>
-        <p className="muted">进入运营看板 / 不进运营看板只说明默认运营看板和复盘是否采用该内容的创作者中心内容级指标；手动补录、外部导入和行动项草稿仍可在这里查看编辑，但不会因此进入运营指标总数。</p>
+        <p className="muted">默认运营视图只显示 dataDomain=user_work 的真实用户作品；手动补录、外部导入、验收内容和行动项草稿仍可在诊断筛选里查看，但不会因此进入默认作品库。</p>
       </Panel>
       <div className="content-layout">
         <div className="content-main-stack">
