@@ -82,6 +82,7 @@ import type {
   ProviderImportPayload,
   PublishCalendarItem,
   PublishExecutionItem,
+  PublishHandoffPackage,
   PublishQueueItem,
   PublishQueueStatus,
   PublishRecord,
@@ -1937,8 +1938,113 @@ function isClosedLoopContentPlatform(platform: Platform): platform is ClosedLoop
   return closedLoopContentPlatforms.includes(platform as ClosedLoopContentPlatform);
 }
 
+const publishHandoffBackendMeta: Record<ClosedLoopContentPlatform, Pick<PublishHandoffPackage, "officialBackendUrl" | "backendActionLabel" | "defaultMode" | "capability" | "complianceNote">> = {
+  douyin: {
+    officialBackendUrl: "https://creator.douyin.com/",
+    backendActionLabel: "打开抖音创作者中心",
+    defaultMode: "manual_backend",
+    capability: {
+      status: "future_official_api_candidate",
+      label: "未来可接官方 API",
+      note: "官方开放平台存在视频创建能力，但需应用、OAuth 与权限资质；默认不自动发布。"
+    },
+    complianceNote: "当前只生成发布包并打开官方后台；不调用真实发布 API，不保存登录凭据或请求明细。"
+  },
+  xiaohongshu: {
+    officialBackendUrl: "https://creator.xiaohongshu.com/",
+    backendActionLabel: "打开小红书创作服务平台",
+    defaultMode: "manual_backend",
+    capability: {
+      status: "manual_backend_only",
+      label: "默认人工后台发布",
+      note: "未确认面向本场景的一键草稿/发布 API；按官方后台人工提交。"
+    },
+    complianceNote: "当前只生成发布包并打开官方后台；不采集账号登录材料，不模拟隐藏请求。"
+  },
+  video_account: {
+    officialBackendUrl: "https://channels.weixin.qq.com/",
+    backendActionLabel: "打开视频号助手",
+    defaultMode: "manual_backend",
+    capability: {
+      status: "manual_backend_only",
+      label: "默认人工后台发布",
+      note: "视频号助手以网页登录人工发布为准；不确认草稿箱 API。"
+    },
+    complianceNote: "当前只生成发布包并打开官方后台；不保存微信登录态或请求明细。"
+  },
+  bilibili: {
+    officialBackendUrl: "https://member.bilibili.com/platform/upload/video/frame",
+    backendActionLabel: "打开 B站创作中心投稿",
+    defaultMode: "manual_backend",
+    capability: {
+      status: "future_official_api_candidate",
+      label: "未来可接官方 API",
+      note: "开放平台能力需身份、应用和权限确认；默认不自动投稿。账号指标仍为 preview-only。"
+    },
+    complianceNote: "当前只生成发布包并打开官方后台；不调用真实投稿 API，不保存登录凭据或请求明细。"
+  }
+};
+
 function platformToImportOperationKey(platform: ClosedLoopContentPlatform): PlatformImportOperationPlatform {
   return platform === "video_account" ? "video-account" : platform;
+}
+
+function buildPublishHandoffText(input: { content: ContentItem; version: ContentPlatformVersion }) {
+  const tagsText = (input.version.tags ?? []).map((tag) => tag.startsWith("#") ? tag : `#${tag}`).join(" ");
+  return [
+    `标题：${input.version.title || input.content.title}`,
+    "",
+    input.version.body,
+    "",
+    input.version.script ? `脚本/口播：\n${input.version.script}` : undefined,
+    input.version.coverNote ? `封面备注：${input.version.coverNote}` : undefined,
+    tagsText ? `标签：${tagsText}` : undefined,
+    input.version.scheduledAt ? `计划发布时间：${input.version.scheduledAt}` : undefined
+  ].filter((line): line is string => Boolean(line)).join("\n");
+}
+
+function buildPublishHandoffPackages(input: {
+  contents: ContentItem[];
+  platformVersions: ContentPlatformVersion[];
+  publishRecords: PublishRecord[];
+}): PublishHandoffPackage[] {
+  const packages: PublishHandoffPackage[] = [];
+  for (const version of input.platformVersions) {
+    if (!isClosedLoopContentPlatform(version.platform)) continue;
+    const platform = version.platform;
+    const content = input.contents.find((item) => item.id === version.contentId);
+    if (!content) continue;
+    const latestRecord = [...input.publishRecords]
+      .filter((record) => record.platformVersionId === version.id)
+      .sort((a, b) => b.happenedAt.localeCompare(a.happenedAt))[0];
+    const tagsText = (version.tags ?? []).map((tag) => tag.startsWith("#") ? tag : `#${tag}`).join(" ");
+    const meta = publishHandoffBackendMeta[platform];
+    packages.push({
+      id: `publish-handoff-${version.id}`,
+      platformVersionId: version.id,
+      contentId: content.id,
+      platform,
+      contentTitle: content.title,
+      versionTitle: version.title,
+      scheduledAt: version.scheduledAt,
+      status: version.status,
+      latestRecordStatus: latestRecord?.status,
+      latestRecordAt: latestRecord?.happenedAt,
+      officialBackendUrl: meta.officialBackendUrl,
+      backendActionLabel: meta.backendActionLabel,
+      defaultMode: meta.defaultMode,
+      capability: meta.capability,
+      copy: {
+        publishText: buildPublishHandoffText({ content, version }),
+        tagsText,
+        coverNote: version.coverNote,
+        scheduleText: version.scheduledAt ?? "未排期，请先在日历确认发布时间。"
+      },
+      statusActions: ["submitted_review", "published", "failed"],
+      complianceNote: meta.complianceNote
+    });
+  }
+  return packages.sort((a, b) => (a.scheduledAt ?? "").localeCompare(b.scheduledAt ?? "") || creatorPlatformDraftLabels[a.platform].localeCompare(creatorPlatformDraftLabels[b.platform]));
 }
 
 function normalizeMatchText(value: string | undefined) {
@@ -2124,6 +2230,11 @@ function buildPublishToMetricsWorkbench(input: {
 
   return {
     generatedAt: input.generatedAt,
+    publishHandoffPackages: buildPublishHandoffPackages({
+      contents: input.contents,
+      platformVersions: input.platformVersions,
+      publishRecords: input.publishRecords
+    }),
     executionItems: executionItems.sort((a, b) => (a.scheduledAt ?? a.publishedAt ?? "").localeCompare(b.scheduledAt ?? b.publishedAt ?? "")),
     postPublishRefresh: postPublishRefresh.sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")),
     matchCandidates: allMatchCandidates.sort((a, b) => b.score - a.score),
@@ -3030,7 +3141,8 @@ export class SelfMediaService {
     const traceId = createTraceId("publish-confirm");
     const version = this.repo.getEntity<ContentPlatformVersion>("platformVersions", input.platformVersionId);
     if (!version) throw new Error(`找不到平台版本：${input.platformVersionId}`);
-    if (input.status !== version.status && !platformVersionTransitions[version.status].includes(input.status)) throw new Error(`非法平台版本发布确认：${version.status} -> ${input.status}`);
+    const nextVersionStatus = input.status === "submitted_review" ? version.status : input.status;
+    if (nextVersionStatus !== version.status && !platformVersionTransitions[version.status].includes(nextVersionStatus)) throw new Error(`非法平台版本发布确认：${version.status} -> ${input.status}`);
     const note = input.note ?? input.failureReason;
     if ((input.status === "failed" || input.status === "blocked") && !note) throw new Error("发布失败或阻塞确认必须提供原因。");
 
@@ -3052,10 +3164,12 @@ export class SelfMediaService {
     const confirmedAt = existingRecord?.happenedAt ?? happenedAt;
     const nextAction = input.status === "published"
       ? "已人工确认发布；下一步去 /import 手动抓取最新数据并人工匹配指标。"
-      : note;
+      : input.status === "submitted_review"
+        ? "已人工提交官方后台审核；等待平台审核通过后再回填已发布，失败则记录失败原因。"
+        : note;
     const updated: ContentPlatformVersion = {
       ...version,
-      status: input.status,
+      status: nextVersionStatus,
       publishedAt: input.status === "published" ? confirmedAt : version.publishedAt,
       failureReason: input.status === "failed" || input.status === "blocked" ? note : version.failureReason,
       nextAction: nextAction ?? version.nextAction,
@@ -3087,9 +3201,9 @@ export class SelfMediaService {
       level: "info",
       event: "self_media.platform_version_publish_confirmed",
       scope: "service",
-      message: `Confirmed platform version ${updated.id} as ${updated.status}.`,
+      message: `Confirmed platform version ${updated.id} as ${input.status}.`,
       traceId,
-      data: { id: updated.id, status: updated.status, confirmationSource, idempotent: Boolean(existingRecord) }
+      data: { id: updated.id, status: input.status, versionStatus: updated.status, confirmationSource, idempotent: Boolean(existingRecord) }
     });
     return { version: updated, publishRecord, traceId, idempotent: Boolean(existingRecord) };
   }

@@ -92,12 +92,14 @@ export interface PublishCalendarItem {
   checklistTotal: number;
 }
 
+export type PublishRecordStatus = "submitted_review" | "published" | "failed" | "blocked" | "confirmed";
+
 export interface PublishRecord {
   id: string;
   platformVersionId: string;
   contentId: string;
   platform: Platform;
-  status: "published" | "failed" | "blocked" | "confirmed";
+  status: PublishRecordStatus;
   happenedAt: string;
   note?: string;
   platformPostId?: string;
@@ -321,6 +323,39 @@ export interface PublishExecutionItem {
   calendarUrl: string;
 }
 
+export type PublishHandoffCapabilityStatus = "future_official_api_candidate" | "manual_backend_only";
+export type PublishHandoffDefaultMode = "manual_backend";
+export type PublishHandoffStatusAction = "submitted_review" | "published" | "failed";
+
+export interface PublishHandoffPackage {
+  id: string;
+  platformVersionId: string;
+  contentId: string;
+  platform: ClosedLoopContentPlatform;
+  contentTitle: string;
+  versionTitle: string;
+  scheduledAt?: string;
+  status: PlatformVersionStatus;
+  latestRecordStatus?: PublishRecordStatus;
+  latestRecordAt?: string;
+  officialBackendUrl: string;
+  backendActionLabel: string;
+  defaultMode: PublishHandoffDefaultMode;
+  capability: {
+    status: PublishHandoffCapabilityStatus;
+    label: string;
+    note: string;
+  };
+  copy: {
+    publishText: string;
+    tagsText: string;
+    coverNote: string;
+    scheduleText: string;
+  };
+  statusActions: PublishHandoffStatusAction[];
+  complianceNote: string;
+}
+
 export interface PlatformContentMatchCandidate {
   id: string;
   platform: ClosedLoopContentPlatform;
@@ -355,6 +390,7 @@ export interface PostPublishRefreshCandidate {
 
 export interface PublishToMetricsWorkbench {
   generatedAt: string;
+  publishHandoffPackages: PublishHandoffPackage[];
   executionItems: PublishExecutionItem[];
   postPublishRefresh: PostPublishRefreshCandidate[];
   matchCandidates: PlatformContentMatchCandidate[];
@@ -1277,7 +1313,7 @@ export interface PlatformVersionPatchRequest {
 
 export interface ConfirmPlatformVersionPublishRequest {
   platformVersionId: string;
-  status: "published" | "failed" | "blocked";
+  status: "submitted_review" | "published" | "failed" | "blocked";
   happenedAt?: string;
   note?: string;
   failureReason?: string;

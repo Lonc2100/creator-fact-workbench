@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, ContentPlatformVersionRequest, ContentStatus, ContentWorkbenchContentRow, ContentWorkbenchOriginKind, ContentWorkbenchSnapshot, CreatorVideoDiscussionResult, CreatorVideoDraftResult, Platform, PlatformVersionPatchRequest, PlatformVersionStatus } from "../../types";
+import type { ConfirmPlatformVersionPublishRequest, ContentDraftReviewRequest, ContentPlatformVersionRequest, ContentStatus, ContentWorkbenchContentRow, ContentWorkbenchOriginKind, ContentWorkbenchSnapshot, CreatorVideoDiscussionResult, CreatorVideoDraftResult, Platform, PlatformVersionPatchRequest, PlatformVersionStatus, PublishHandoffPackage } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
@@ -339,13 +339,86 @@ function PublishExecutionWorkbenchPanel({
   onConfirmPublish: (payload: ConfirmPlatformVersionPublishRequest) => Promise<void>;
   onSelect: (contentId: string, versionId: string) => void;
 }) {
+  const [copyMessage, setCopyMessage] = useState("发布交接包只复制本地内容，不调用真实发布 API。");
+  const packages = snapshot.publishToMetricsWorkbench.publishHandoffPackages.slice(0, 12);
   const items = snapshot.publishToMetricsWorkbench.executionItems.slice(0, 8);
+  async function copyText(label: string, text: string) {
+    if (!text.trim()) {
+      setCopyMessage(`${label}暂无可复制内容。`);
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
+      setCopyMessage(`${label}已准备好；当前浏览器不支持自动写入剪贴板。`);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyMessage(`${label}已复制。`);
+    } catch {
+      setCopyMessage(`${label}复制失败，请在内容编辑区手动复制。`);
+    }
+  }
+  function handoffNote(pkg: PublishHandoffPackage) {
+    return [
+      `发布交接包：${platformLabels[pkg.platform]}人工后台回填。`,
+      `能力状态：${pkg.capability.label}。`,
+      pkg.complianceNote
+    ].join(" ");
+  }
   return (
     <Panel
-      title="今日/近期待发布"
+      title="发布交接包与今日/近期待发布"
       eyebrow="发布执行台"
-      action={<span className="sm-badge sm-badge-info">{items.length} 条待确认</span>}
+      action={<span className="sm-badge sm-badge-info">{packages.length} 个平台包</span>}
     >
+      <div className="platform-import-operation-summaries" data-testid="publish-handoff-package">
+        {packages.map((pkg) => {
+          const canConfirm = pkg.status === "scheduled";
+          return (
+            <article className={pkg.capability.status === "future_official_api_candidate" ? "is-passed" : ""} key={pkg.id}>
+              <header>
+                <PlatformBadge compact platform={pkg.platform} />
+                <span className="sm-badge sm-badge-info">{pkg.capability.label}</span>
+              </header>
+              <strong>{pkg.versionTitle}</strong>
+              <p>{pkg.copy.coverNote || "封面备注待补充"}</p>
+              <p>{pkg.copy.scheduleText}</p>
+              <p>{pkg.capability.note}</p>
+              {pkg.latestRecordStatus && <p>最近回填：{pkg.latestRecordStatus} · {formatDateTime(pkg.latestRecordAt)}</p>}
+              <div className="inline-stack">
+                <Button data-testid="copy-publish-text" onClick={() => void copyText(`${platformLabels[pkg.platform]}发布文案`, pkg.copy.publishText)} variant="secondary">复制发布文案</Button>
+                <Button data-testid="copy-tags" onClick={() => void copyText(`${platformLabels[pkg.platform]}标签`, pkg.copy.tagsText)} variant="secondary">复制标签</Button>
+                <a className="sm-button sm-button-primary" data-testid="open-official-backend" href={pkg.officialBackendUrl} rel="noreferrer" target="_blank">{pkg.backendActionLabel}</a>
+                <Button
+                  data-testid="record-submitted-review"
+                  disabled={!canConfirm}
+                  onClick={() => onConfirmPublish({ platformVersionId: pkg.platformVersionId, status: "submitted_review", confirmationSource: "manual", note: `${handoffNote(pkg)} 已提交平台后台审核。` })}
+                  variant="secondary"
+                >
+                  记录已提交审核
+                </Button>
+                <Button
+                  data-testid="record-published"
+                  disabled={!canConfirm}
+                  onClick={() => onConfirmPublish({ platformVersionId: pkg.platformVersionId, status: "published", confirmationSource: "manual", note: `${handoffNote(pkg)} 已发布。` })}
+                  variant="primary"
+                >
+                  记录已发布
+                </Button>
+                <Button
+                  data-testid="record-failed"
+                  disabled={!canConfirm}
+                  onClick={() => onConfirmPublish({ platformVersionId: pkg.platformVersionId, status: "failed", confirmationSource: "manual", note: `${handoffNote(pkg)} 发布失败，需要回到草稿处理。` })}
+                  variant="ghost"
+                >
+                  记录失败
+                </Button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+      <p className="muted">{copyMessage}</p>
       <div className="table-wrap" data-testid="publish-execution-workbench">
         <table className="sm-table">
           <thead>
@@ -637,7 +710,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
       return;
     }
     setSelectedVersionId(result.version.id);
-    setMessage(result.version.status === "published" ? "已记录人工发布确认。" : "已记录发布异常，回到草稿处理下一步。");
+    setMessage(payload.status === "submitted_review" ? "已记录提交审核；等待平台审核后再回填已发布或失败。" : result.version.status === "published" ? "已记录人工发布确认。" : "已记录发布异常，回到草稿处理下一步。");
     await refreshDashboard();
   }
 

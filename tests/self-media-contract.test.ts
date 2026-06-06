@@ -5480,6 +5480,62 @@ test("publish execution workbench guides manual publish refresh and confirmed me
   }
 });
 
+test("publish handoff packages prepare four official-backend manual publish flows without API calls", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-publish-handoff-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const draft = service.createCreatorVideoDraft({
+      title: "四平台发布交接包测试",
+      topic: "发布交接",
+      brief: "验证不能一键推草稿箱时，生成四个平台发布文案、标签、后台入口和人工状态回填。",
+      scheduledAt: "2026-06-06T09:00:00.000Z"
+    });
+
+    const workbench = service.publishToMetricsWorkbench(new Date("2026-06-06T08:00:00.000Z"));
+    const packages = workbench.publishHandoffPackages.filter((item) => item.contentId === draft.content.id);
+    assert.deepEqual(packages.map((item) => item.platform).sort(), ["bilibili", "douyin", "video_account", "xiaohongshu"]);
+    assert.equal(packages.some((item) => item.platform === "wechat"), false);
+    assert.ok(packages.every((item) => item.defaultMode === "manual_backend"));
+    assert.equal(packages.find((item) => item.platform === "douyin")?.capability.status, "future_official_api_candidate");
+    assert.equal(packages.find((item) => item.platform === "bilibili")?.capability.status, "future_official_api_candidate");
+    assert.equal(packages.find((item) => item.platform === "xiaohongshu")?.capability.status, "manual_backend_only");
+    assert.equal(packages.find((item) => item.platform === "video_account")?.capability.status, "manual_backend_only");
+    assert.ok(packages.every((item) => item.statusActions.includes("submitted_review") && item.statusActions.includes("published") && item.statusActions.includes("failed")));
+    assert.ok(packages.every((item) => item.copy.publishText.includes("标题：") && item.copy.publishText.includes("封面备注：") && item.copy.tagsText.includes("#")));
+    assert.ok(packages.every((item) => item.officialBackendUrl.startsWith("https://")));
+    assert.doesNotMatch(JSON.stringify(workbench), /\bcookie\b|\btoken\b|\bpassword\b|\bheaders?\b|raw payload/i);
+
+    const xhsPackage = packages.find((item) => item.platform === "xiaohongshu");
+    assert.ok(xhsPackage);
+    const submitted = service.confirmPlatformVersionPublish({
+      platformVersionId: xhsPackage.platformVersionId,
+      status: "submitted_review",
+      happenedAt: "2026-06-06T09:30:00.000Z",
+      confirmationSource: "manual",
+      note: "已在小红书官方后台提交审核"
+    });
+    assert.equal(submitted.publishRecord.status, "submitted_review");
+    assert.equal(submitted.version.status, "scheduled");
+    assert.equal(submitted.version.publishedAt, undefined);
+    assert.match(submitted.version.nextAction ?? "", /等待平台审核/);
+
+    const published = service.confirmPlatformVersionPublish({
+      platformVersionId: xhsPackage.platformVersionId,
+      status: "published",
+      happenedAt: "2026-06-06T10:30:00.000Z",
+      confirmationSource: "manual",
+      note: "审核通过后人工回填已发布"
+    });
+    assert.equal(published.version.status, "published");
+    assert.equal(repo.listPublishRecords().filter((item) => item.platformVersionId === xhsPackage.platformVersionId).length, 2);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("failed publish confirmation requires a reason and records manual failure semantics", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-publish-failed-"));
   let repo: SqliteSelfMediaRepo | undefined;

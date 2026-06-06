@@ -12,6 +12,7 @@ import { Panel } from "../primitives/Panel";
 import { cx } from "../foundations/cx";
 
 const publishRecordStatusLabels: Record<PublishRecord["status"], string> = {
+  submitted_review: "已提交审核",
   published: "已发布",
   failed: "发布失败",
   blocked: "发布阻塞",

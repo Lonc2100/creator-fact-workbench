@@ -120,6 +120,7 @@ function versionStatusLabel(status: DashboardSnapshot["platformVersions"][number
 
 function publishRecordStatusLabel(status: DashboardSnapshot["publishRecords"][number]["status"]) {
   const labels: Record<DashboardSnapshot["publishRecords"][number]["status"], string> = {
+    submitted_review: "已提交审核",
     published: "已发布",
     failed: "失败",
     blocked: "阻塞",

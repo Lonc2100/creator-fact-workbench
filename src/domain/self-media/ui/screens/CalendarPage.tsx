@@ -20,11 +20,12 @@ const operatingPlatformFilters: Array<Platform | "all"> = ["all", "douyin", "xia
 const diagnosticPlatformFilters: Array<Platform | "all"> = ["all", "douyin", "xiaohongshu", "wechat", "video_account", "bilibili"];
 const operatingStatusFilters: Array<PlatformVersionStatus | "all"> = ["all", "needs_review", "scheduled", "published", "blocked", "failed"];
 const diagnosticStatusFilters: Array<PlatformVersionStatus | "all"> = ["all", "draft", "needs_review", "scheduled", "published", "blocked", "failed"];
-const ledgerStatusFilters: Array<DashboardSnapshot["publishRecords"][number]["status"] | "all"> = ["all", "published", "failed", "blocked", "confirmed"];
+const ledgerStatusFilters: Array<DashboardSnapshot["publishRecords"][number]["status"] | "all"> = ["all", "submitted_review", "published", "failed", "blocked", "confirmed"];
 const pendingVersionStatuses = new Set<PlatformVersionStatus>(["draft", "needs_review"]);
 const pendingQueueStatuses = new Set<PublishQueueItem["status"]>(["draft", "needs_review", "queued"]);
 const defaultSchedulingOriginKinds = new Set<ContentWorkbenchSnapshot["contentRows"][number]["originKind"]>(["trusted_creator_center", "local_draft", "action_item_generated", "idea_converted"]);
 const publishRecordStatusLabels: Record<DashboardSnapshot["publishRecords"][number]["status"], string> = {
+  submitted_review: "已提交审核",
   published: "已发布",
   failed: "发布失败",
   blocked: "发布阻塞",
@@ -416,7 +417,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
           action: "confirm_publish",
           platformVersionId: input.platformVersionId,
           status: input.status,
-          note: input.status === "published" ? "日历人工确认发布" : "日历人工记录发布未成功，需要回到草稿处理。",
+          note: input.status === "submitted_review" ? "日历发布交接包人工记录：已提交官方后台审核。" : input.status === "published" ? "日历人工确认发布" : "日历人工记录发布未成功，需要回到草稿处理。",
           confirmationSource: "manual"
         })
       });
@@ -424,7 +425,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
       if (!response.ok) throw new Error(result.errorMessage ?? "发布结果记录失败");
       setSelectedId(result.version.id);
       await refreshDashboard();
-      setMessage(result.version.status === "published" ? "已记录人工发布确认。" : "已记录发布异常，回到草稿处理下一步。");
+      setMessage(input.status === "submitted_review" ? "已记录提交审核；等待平台审核后再回填已发布或失败。" : result.version.status === "published" ? "已记录人工发布确认。" : "已记录发布异常，回到草稿处理下一步。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "发布结果记录失败");
     }
@@ -529,6 +530,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
           </button>
           <PlatformVersionInspector
             contentTitle={selectedContent?.title}
+            handoffPackages={current.publishToMetricsWorkbench.publishHandoffPackages}
             onConfirmPublish={confirmPublish}
             onReschedule={scheduleVersion}
             onStatusPatch={patchVersionStatus}

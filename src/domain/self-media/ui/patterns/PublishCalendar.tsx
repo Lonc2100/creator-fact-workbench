@@ -2,7 +2,7 @@
 
 import { DndContext, type DragEndEvent, useDraggable, useDroppable } from "@dnd-kit/core";
 import { useEffect, useState, type CSSProperties } from "react";
-import type { ContentPlatformVersion, PublishCalendarItem } from "../../types";
+import type { ConfirmPlatformVersionPublishRequest, ContentPlatformVersion, PublishCalendarItem, PublishHandoffPackage } from "../../types";
 import { PlatformBadge, PlatformIcon } from "../components/PlatformBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { cx } from "../foundations/cx";
@@ -494,6 +494,7 @@ export function PlatformVersionInspector({
   version,
   versions,
   contentTitle,
+  handoffPackages = [],
   onReschedule,
   onStatusPatch,
   onConfirmPublish
@@ -501,9 +502,10 @@ export function PlatformVersionInspector({
   version?: ContentPlatformVersion;
   versions?: ContentPlatformVersion[];
   contentTitle?: string;
+  handoffPackages?: PublishHandoffPackage[];
   onReschedule?: (input: { platformVersionId: string; scheduledAt: string }) => Promise<void>;
   onStatusPatch?: (input: { id: string; status: ContentPlatformVersion["status"]; scheduledAt?: string }) => Promise<void>;
-  onConfirmPublish?: (input: { platformVersionId: string; status: "published" | "failed" }) => Promise<void>;
+  onConfirmPublish?: (input: { platformVersionId: string; status: ConfirmPlatformVersionPublishRequest["status"] }) => Promise<void>;
 }) {
   const contentVersions = versions?.length ? versions : version ? [version] : [];
 
@@ -536,6 +538,7 @@ export function PlatformVersionInspector({
       <div className="calendar-platform-schedule-list" data-testid="calendar-content-schedule-inspector">
         {sortedVersions.map((item) => (
           <PlatformScheduleRow
+            handoffPackage={handoffPackages.find((pkg) => pkg.platformVersionId === item.id)}
             key={item.id}
             onConfirmPublish={onConfirmPublish}
             onReschedule={onReschedule}
@@ -555,16 +558,19 @@ export function PlatformVersionInspector({
 
 function PlatformScheduleRow({
   version,
+  handoffPackage,
   onReschedule,
   onStatusPatch,
   onConfirmPublish
 }: {
   version: ContentPlatformVersion;
+  handoffPackage?: PublishHandoffPackage;
   onReschedule?: (input: { platformVersionId: string; scheduledAt: string }) => Promise<void>;
   onStatusPatch?: (input: { id: string; status: ContentPlatformVersion["status"]; scheduledAt?: string }) => Promise<void>;
-  onConfirmPublish?: (input: { platformVersionId: string; status: "published" | "failed" }) => Promise<void>;
+  onConfirmPublish?: (input: { platformVersionId: string; status: ConfirmPlatformVersionPublishRequest["status"] }) => Promise<void>;
 }) {
   const [scheduledAt, setScheduledAt] = useState(localDateTime(version.scheduledAt));
+  const [copyMessage, setCopyMessage] = useState("");
 
   useEffect(() => {
     setScheduledAt(localDateTime(version.scheduledAt));
@@ -576,6 +582,23 @@ function PlatformScheduleRow({
   const blocker = version.failureReason ?? (version.status === "blocked" ? "该平台版本已标记阻塞，等待人工补充原因。" : undefined);
   const nextScheduledAt = isoFromLocal(scheduledAt);
   const canReturnToReview = version.status === "failed" || version.status === "blocked";
+  const canConfirmPublish = version.status === "scheduled";
+  async function copyCalendarText(label: string, text: string) {
+    if (!text.trim()) {
+      setCopyMessage(`${label}暂无可复制内容。`);
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
+      setCopyMessage(`${label}已准备好；当前浏览器不支持自动写入剪贴板。`);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyMessage(`${label}已复制。`);
+    } catch {
+      setCopyMessage(`${label}复制失败，请在内容编辑页手动复制。`);
+    }
+  }
   return (
     <section className="calendar-platform-schedule-row" data-platform-version-id={version.id}>
       <header className="calendar-platform-schedule-head">
@@ -642,6 +665,26 @@ function PlatformScheduleRow({
         <span>下一步</span>
         <p>{version.nextAction ?? `${platformLabels[version.platform]}版本等待人工确认。`}</p>
       </div>
+      {handoffPackage && (
+        <div className="publish-confirmation-strip" data-testid="calendar-publish-handoff">
+          <strong>发布交接包</strong>
+          <span>{handoffPackage.capability.label} · {handoffPackage.capability.note}</span>
+          <div className="inline-stack">
+            <Button data-testid="calendar-copy-publish-text" onClick={() => void copyCalendarText(`${platformLabels[version.platform]}发布文案`, handoffPackage.copy.publishText)} variant="secondary">复制发布文案</Button>
+            <Button data-testid="calendar-copy-tags" onClick={() => void copyCalendarText(`${platformLabels[version.platform]}标签`, handoffPackage.copy.tagsText)} variant="secondary">复制标签</Button>
+            <a className="sm-button sm-button-primary" data-testid="calendar-open-official-backend" href={handoffPackage.officialBackendUrl} rel="noreferrer" target="_blank">{handoffPackage.backendActionLabel}</a>
+            <Button
+              data-testid="calendar-submit-review"
+              disabled={!onConfirmPublish || !canConfirmPublish}
+              onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "submitted_review" })}
+              variant="secondary"
+            >
+              记录已提交审核
+            </Button>
+          </div>
+          {copyMessage && <span>{copyMessage}</span>}
+        </div>
+      )}
       <div className="publish-confirmation-strip">
         <strong>状态与人工发布确认</strong>
         <span>只记录人工结果，便于复盘排期。</span>
@@ -664,7 +707,7 @@ function PlatformScheduleRow({
           </Button>
           <Button
             data-testid="calendar-confirm-publish"
-            disabled={!onConfirmPublish || version.status !== "scheduled"}
+            disabled={!onConfirmPublish || !canConfirmPublish}
             onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "published" })}
             variant="secondary"
           >
@@ -672,7 +715,7 @@ function PlatformScheduleRow({
           </Button>
           <Button
             data-testid="calendar-confirm-failed"
-            disabled={!onConfirmPublish || version.status !== "scheduled"}
+            disabled={!onConfirmPublish || !canConfirmPublish}
             onClick={() => onConfirmPublish?.({ platformVersionId: version.id, status: "failed" })}
             variant="danger"
           >

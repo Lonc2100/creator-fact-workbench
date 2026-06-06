@@ -209,6 +209,7 @@ test("operator UX polish keeps default copy Chinese and quiet", () => {
   const reviewPattern = read("src/domain/self-media/ui/patterns/EvidenceReviewReport.tsx");
   const sidebarNav = read("src/domain/self-media/ui/components/SidebarNav.tsx");
   const overviewPage = read("src/domain/self-media/ui/screens/OverviewPage.tsx");
+  const selfMediaService = read("src/domain/self-media/service/self-media-service.ts");
 
   for (const [label, source] of [
     ["dashboard", dashboardScreen],
@@ -241,6 +242,13 @@ test("operator UX polish keeps default copy Chinese and quiet", () => {
   assert.match(contentScreen, /variant=\{item\.userExcludedFromTrustedScope \? "secondary" : "ghost"\}/);
   assert.match(contentScreen, /"不进看板"/);
   assert.match(contentScreen, /创作者中心内容/);
+  assert.match(contentScreen, /data-testid="publish-handoff-package"/);
+  assert.match(contentScreen, /copy-publish-text/);
+  assert.match(contentScreen, /copy-tags/);
+  assert.match(contentScreen, /open-official-backend/);
+  assert.match(contentScreen, /record-submitted-review/);
+  assert.match(selfMediaService, /未来可接官方 API/);
+  assert.match(selfMediaService, /默认人工后台发布/);
   assert.match(dashboardScreen, /B站稿件内容/);
   assert.match(importPage, /创作者中心内容级真实数据/);
   assert.match(reviewsPage, /可信真实创作者中心内容级数据/);
@@ -250,6 +258,10 @@ test("operator UX polish keeps default copy Chinese and quiet", () => {
   assert.doesNotMatch(overviewPage, /内部指标快照驱动|eyebrow="Status"|eyebrow="Focus"/);
   assert.doesNotMatch([dashboardScreen, contentScreen, importPage, reviewsPage, reviewPattern].join("\n"), /creator-center|archives 内容级指标|B站 archives/);
   assert.match(calendarPattern, />今天<\/em>/);
+  assert.match(calendarPattern, /data-testid="calendar-publish-handoff"/);
+  assert.match(calendarPattern, /calendar-open-official-backend/);
+  assert.match(calendarPattern, /calendar-submit-review/);
+  assert.match(calendarScreen, /submitted_review/);
   assert.match(sidebarNav, /自媒体运营后台/);
   assert.doesNotMatch(sidebarNav, /\/ui-lab|界面规范|UI Lab/);
   assert.doesNotMatch(sidebarNav, /Self-media operating system|UI Lab|Design lab|label: "Home"|label: "Create"|label: "Plan"|label: "Data"|label: "Review"/);
