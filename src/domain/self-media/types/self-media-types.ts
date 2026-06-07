@@ -953,6 +953,57 @@ export interface PlatformImportOperationResult {
   warnings: string[];
 }
 
+export type DouyinAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "save" | "close";
+
+export type DouyinAuthedBrowserLoginState = "not_opened" | "needs_login" | "user_confirmed" | "logged_in_or_accessible" | "unknown" | "closed" | "error";
+
+export interface DouyinBrowserVisibleRow {
+  id: string;
+  title: string;
+  publishedAt?: string;
+  capturedAt: string;
+  views: number;
+  likes: number;
+  comments: number;
+  saves: number;
+  shares: number;
+  followersDelta: number;
+  itemUrl?: string;
+  extractionSource: "visible_dom";
+  confidence: "visible_content_row" | "fallback_visible_card";
+  warnings: string[];
+}
+
+export interface DouyinAuthedBrowserCaptureRequest {
+  action: DouyinAuthedBrowserCaptureAction;
+  userConfirmedLogin?: boolean;
+  userConfirmedContentMetrics?: boolean;
+}
+
+export interface DouyinAuthedBrowserCaptureResult {
+  action: DouyinAuthedBrowserCaptureAction;
+  ok: boolean;
+  loginState: DouyinAuthedBrowserLoginState;
+  browserOpened: boolean;
+  pageUrl?: string;
+  openedAt?: string;
+  capturedAt?: string;
+  rows: DouyinBrowserVisibleRow[];
+  contentCount: number;
+  metricCount: number;
+  importRunId?: string;
+  dashboardUrl?: string;
+  message: string;
+  warnings: string[];
+  safety: {
+    noPasswordSaved: true;
+    noCookieTokenHeaderSaved: true;
+    noRawRequestSaved: true;
+    contentLevelOnly: true;
+    accountMetricsExcluded: true;
+  };
+}
+
 export type PublishQueueStatus = "draft" | "needs_review" | "queued" | "scheduled" | "publishing" | "published" | "failed" | "blocked";
 
 export interface PublishQueueItem {

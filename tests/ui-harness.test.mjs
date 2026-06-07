@@ -386,11 +386,12 @@ test("content and calendar default views hide internal labels and require explic
 
 test("import page default view is data-only and folds diagnostics", () => {
   const importPage = read("src/domain/self-media/ui/screens/ImportPage.tsx");
-  assert.match(importPage, /第一屏只告诉你怎么手动抓取、预览保存和回收发布后指标/);
+  assert.match(importPage, /第一屏优先处理登录抓取和发布后回收/);
   assert.match(importPage, /ImportFirstViewportGuide/);
   assert.match(importPage, /import-first-viewport-guide/);
-  assert.match(importPage, /现在怎么导入 \/ 抓取数据/);
-  assert.match(importPage, /手动导入/);
+  assert.match(importPage, /登录抓取优先/);
+  assert.match(importPage, /登录抓取/);
+  assert.match(importPage, /本地导出兜底/);
   assert.match(importPage, /浏览器辅助/);
   assert.match(importPage, /官方 API 授权/);
   assert.match(importPage, /为什么登录抖音\/视频号网页后，刷新本系统不会自动更新/);
@@ -404,6 +405,15 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /未确认稳定创作者内容级数据 API/);
   assert.match(importPage, /账号指标 preview-only/);
   assert.match(importPage, /trustedAutoCaptureScheduler/);
+  assert.match(importPage, /登录抓取优先/);
+  assert.match(importPage, /login-capture-primary/);
+  assert.match(importPage, /推荐主入口/);
+  assert.match(importPage, /检查登录抓取状态/);
+  assert.match(importPage, /本地导出兜底/);
+  assert.match(importPage, /local-export-fallback/);
+  assert.match(importPage, /CSV \/ XLSX 仍可用，但不是推荐路线/);
+  assert.ok(importPage.indexOf("login-capture-primary") < importPage.indexOf("local-export-fallback"));
+  assert.ok(importPage.indexOf("post-publish-refresh") < importPage.indexOf("local-export-fallback"));
   assert.match(importPage, /当前模式/);
   assert.match(importPage, /抓取状态/);
   assert.match(importPage, /最近抓取/);
@@ -412,11 +422,26 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /可信定时已启用/);
   assert.match(importPage, /自动抓取：/);
   assert.match(importPage, /check-capture-auth-status/);
-  assert.match(importPage, /官方 API 未接入或未授权；浏览器辅助会话未连接/);
+  assert.match(importPage, /官方 API 未接入或未授权；请优先启动浏览器辅助/);
   assert.match(importPage, /没有凭证时不会宣称每小时自动抓/);
   assert.match(importPage, /最近采集/);
   assert.match(importPage, /平台需补抓/);
   assert.match(importPage, /平台有发布后回收/);
+  assert.match(importPage, /douyin-authed-browser-capture-mvp/);
+  assert.match(importPage, /抖音登录后抓取 MVP/);
+  assert.match(importPage, /临时受控浏览器/);
+  assert.match(importPage, /作品管理\/数据表现/);
+  assert.match(importPage, /douyin-authed-browser-login-confirm/);
+  assert.match(importPage, /douyin-authed-browser-save-confirm/);
+  assert.match(importPage, /douyin-authed-browser-open/);
+  assert.match(importPage, /douyin-authed-browser-status/);
+  assert.match(importPage, /douyin-authed-browser-capture/);
+  assert.match(importPage, /douyin-authed-browser-save/);
+  assert.match(importPage, /douyin-authed-browser-close/);
+  assert.match(importPage, /douyin-authed-browser-dashboard-link/);
+  assert.match(importPage, /\/api\/self-media\/platform-imports\/browser-capture\/douyin/);
+  assert.match(importPage, /不包含账号总览或敏感互动内容/);
+  assert.match(importPage, /抓取结果只保存内容级可信指标/);
   assert.match(importPage, /douyin-local-file-mvp/);
   assert.match(importPage, /抖音本地导出回收 MVP/);
   assert.match(importPage, /官方 API 需要授权和权限开通/);
@@ -450,7 +475,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /四平台同步与数据新鲜度/);
   assert.match(importPage, /function PlatformDataHealthPanel/);
   assert.match(importPage, /function PlatformImportStatusPanel/);
-  assert.match(importPage, /手动抓取最新数据/);
+  assert.match(importPage, /登录抓取/);
   assert.match(importPage, /发布后回收当前任务/);
   assert.match(importPage, /post-publish-refresh/);
   assert.match(importPage, /postPublishRecoveryItems/);
@@ -674,4 +699,15 @@ test("dashboard number audit live mode is read-only against existing 3200", () =
   assert.match(script, /realDatabaseWrites: false/);
   assert.match(script, /serverStarted: options\.live \? false : true/);
   assert.match(script, /databaseDeletion: false/);
+});
+
+test("douyin authed browser capture route keeps credential material outside the import contract", () => {
+  const route = read("src/app/api/self-media/platform-imports/browser-capture/douyin/route.ts");
+  assert.match(route, /chromium\.launch/);
+  assert.match(route, /browser\.newContext/);
+  assert.doesNotMatch(route, /launchPersistentContext|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)/);
+  assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"\]/);
+  assert.match(route, /extractVisibleRows/);
+  assert.match(route, /importDouyinBrowserVisibleRows/);
+  assert.match(route, /accountMetricsExcluded: true/);
 });

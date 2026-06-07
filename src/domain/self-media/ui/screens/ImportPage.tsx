@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CsvImportPreset, DashboardSnapshot, ImportPreviewResult, PlatformImportOperationAction, PlatformImportOperationCapability, PlatformImportOperationPlatform, PlatformImportOperationResult, PlatformImportStatus, RealImportPreviewRow } from "../../types";
+import type { CsvImportPreset, DashboardSnapshot, DouyinAuthedBrowserCaptureResult, DouyinBrowserVisibleRow, ImportPreviewResult, PlatformImportOperationAction, PlatformImportOperationCapability, PlatformImportOperationPlatform, PlatformImportOperationResult, PlatformImportStatus, RealImportPreviewRow } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
@@ -358,6 +358,53 @@ function fileToBase64(file: File) {
 
 function summaryWarnings(summary: PlatformImportOperationResult["summaries"][number]) {
   return summary.errorMessage ? [summary.errorMessage, ...summary.warnings] : summary.warnings;
+}
+
+function DouyinAuthedBrowserRows({ rows }: { rows: DouyinBrowserVisibleRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <div className="real-preview-empty">
+        <strong>暂无抖音页面抓取预览</strong>
+        <span>打开抖音后台并登录后，进入作品管理或数据表现列表，再点击抓取当前页作品。</span>
+      </div>
+    );
+  }
+  return (
+    <div className="table-wrap douyin-authed-browser-preview">
+      <table className="sm-table" data-testid="douyin-authed-browser-preview">
+        <thead>
+          <tr>
+            <th>作品</th>
+            <th>播放</th>
+            <th>点赞</th>
+            <th>评论</th>
+            <th>收藏</th>
+            <th>分享</th>
+            <th>可信度</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>
+                <strong>{row.title}</strong>
+                <small>{row.publishedAt ? formatDateTime(row.publishedAt) : "发布时间未识别"} · {row.id}</small>
+              </td>
+              <td>{formatNumber(row.views)}</td>
+              <td>{formatNumber(row.likes)}</td>
+              <td>{formatNumber(row.comments)}</td>
+              <td>{formatNumber(row.saves)}</td>
+              <td>{formatNumber(row.shares)}</td>
+              <td>
+                <Badge tone={row.confidence === "visible_content_row" ? "success" : "warning"}>{row.confidence === "visible_content_row" ? "作品行" : "页面卡片"}</Badge>
+                {row.warnings.length > 0 && <small>{operatorWarnings(row.warnings).join(" / ")}</small>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function OperationSummaryList({ summaries, capabilities }: { summaries: PlatformImportOperationResult["summaries"]; capabilities: PlatformImportOperationCapability[] }) {
@@ -1196,22 +1243,22 @@ function ImportFirstViewportGuide({
     <Panel
       className="import-first-viewport-guide"
       data-testid="import-first-viewport-guide"
-      title="现在怎么导入 / 抓取数据"
+      title="登录抓取优先"
       eyebrow="数据刷新现实"
       action={<span className="sm-badge sm-badge-info">{formatNumber(currentRecoveryItems.length)} 条待回收</span>}
     >
       <div className="import-guide-steps">
         <article>
-          <strong>A. 手动导入</strong>
-          <p>上传或粘贴平台后台导出的 CSV / XLSX / JSON，预览字段后再保存到本地作品指标。</p>
-        </article>
-        <article>
-          <strong>B. 浏览器辅助</strong>
+          <strong>A. 登录抓取</strong>
           <p>你登录平台后台后，由本地浏览器助手读取当前页面；不保存密码，也不保存敏感请求明细。</p>
         </article>
         <article>
-          <strong>C. 官方 API 授权</strong>
-          <p>需要平台开放能力、应用审核、OAuth / token / scope；未授权时不能自动抓取。</p>
+          <strong>B. 官方 API 授权</strong>
+          <p>需要平台开放能力、应用审核、OAuth、访问令牌和授权范围；未授权时不能自动抓取。</p>
+        </article>
+        <article>
+          <strong>C. 本地导出兜底</strong>
+          <p>CSV / XLSX 入口保留为备用方案；只有登录抓取不可用或平台后台支持导出时再展开。</p>
         </article>
       </div>
       <div className="capture-reality-box" data-testid="capture-reality-explainer">
@@ -1250,7 +1297,8 @@ function ImportFirstViewportGuide({
         <span>{authCheckMessage || "自动抓取只能基于已授权 API 或浏览器辅助会话；没有凭证时不会宣称每小时自动抓。"}</span>
         <div className="inline-stack">
           <Button data-testid="check-capture-auth-status" onClick={onAuthCheck} variant="secondary">立即检查登录/授权状态</Button>
-          <a className="sm-button sm-button-primary" href="#manual-refresh">手动导入 / 浏览器辅助</a>
+          <a className="sm-button sm-button-primary" href="#login-capture-primary">进入登录抓取</a>
+          <a className="sm-button sm-button-secondary" href="#local-export-fallback">本地导出兜底</a>
           <a className="sm-button sm-button-secondary" href="#post-publish-refresh">查看发布后回收</a>
         </div>
       </div>
@@ -1306,6 +1354,10 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [douyinPreview, setDouyinPreview] = useState<ImportPreviewResult | null>(null);
   const [douyinConfirmed, setDouyinConfirmed] = useState(false);
   const [douyinMessage, setDouyinMessage] = useState("等待抖音导出表");
+  const [douyinBrowserResult, setDouyinBrowserResult] = useState<DouyinAuthedBrowserCaptureResult | null>(null);
+  const [douyinBrowserLoginConfirmed, setDouyinBrowserLoginConfirmed] = useState(false);
+  const [douyinBrowserMetricsConfirmed, setDouyinBrowserMetricsConfirmed] = useState(false);
+  const [douyinBrowserMessage, setDouyinBrowserMessage] = useState("等待打开抖音后台");
   const [xiaohongshuCsv, setXiaohongshuCsv] = useState(sampleXiaohongshuLocalExportCsv);
   const [xiaohongshuFile, setXiaohongshuFile] = useState<File | null>(null);
   const [xiaohongshuPreview, setXiaohongshuPreview] = useState<ImportPreviewResult | null>(null);
@@ -1320,6 +1372,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [authCheckMessage, setAuthCheckMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDouyinLoading, setIsDouyinLoading] = useState(false);
+  const [isDouyinBrowserLoading, setIsDouyinBrowserLoading] = useState(false);
   const [isXiaohongshuLoading, setIsXiaohongshuLoading] = useState(false);
   const [isBilibiliLoading, setIsBilibiliLoading] = useState(false);
 
@@ -1330,6 +1383,9 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const canSaveDouyinLocalFile = douyinStats.confirmable > 0 && douyinConfirmed;
   const canSaveXiaohongshuLocalFile = xiaohongshuStats.confirmable > 0 && xiaohongshuConfirmed;
   const canSaveBilibiliLocalFile = bilibiliStats.confirmable > 0 && bilibiliConfirmed;
+  const douyinBrowserRows = douyinBrowserResult?.rows ?? [];
+  const canSaveDouyinBrowserCapture = douyinBrowserRows.length > 0 && douyinBrowserLoginConfirmed && douyinBrowserMetricsConfirmed;
+  const handleCaptureAuthCheck = () => setAuthCheckMessage("检查结果：官方 API 未接入或未授权；请优先启动浏览器辅助并在平台后台完成登录确认。本地导出仅作为兜底。");
 
   function resetDouyinPreview(nextMessage?: string) {
     setDouyinPreview(null);
@@ -1409,6 +1465,47 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       setDouyinMessage(error instanceof Error ? error.message : "抖音本地导出处理失败");
     } finally {
       setIsDouyinLoading(false);
+    }
+  }
+
+  async function runDouyinAuthedBrowserCapture(action: DouyinAuthedBrowserCaptureResult["action"]) {
+    setIsDouyinBrowserLoading(true);
+    const labels: Record<DouyinAuthedBrowserCaptureResult["action"], string> = {
+      open: "正在打开抖音后台",
+      status: "正在检查登录状态",
+      capture_preview: "正在抓取当前页作品",
+      save: "正在保存抖音内容级指标",
+      close: "正在关闭临时浏览器"
+    };
+    setDouyinBrowserMessage(labels[action]);
+    try {
+      const response = await fetch("/api/self-media/platform-imports/browser-capture/douyin", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action,
+          userConfirmedLogin: douyinBrowserLoginConfirmed,
+          userConfirmedContentMetrics: douyinBrowserMetricsConfirmed
+        })
+      });
+      const body = await response.json() as DouyinAuthedBrowserCaptureResult;
+      setDouyinBrowserResult(body);
+      setDouyinBrowserMessage(body.message);
+      if (!response.ok) return;
+      if (action === "capture_preview") setDouyinBrowserMetricsConfirmed(false);
+      if (action === "save") {
+        const dashboardResponse = await fetch("/api/self-media/dashboard");
+        setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
+        setDouyinBrowserMetricsConfirmed(false);
+      }
+      if (action === "close") {
+        setDouyinBrowserLoginConfirmed(false);
+        setDouyinBrowserMetricsConfirmed(false);
+      }
+    } catch (error) {
+      setDouyinBrowserMessage(error instanceof Error ? error.message : "抖音浏览器辅助失败");
+    } finally {
+      setIsDouyinBrowserLoading(false);
     }
   }
 
@@ -1533,15 +1630,126 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       <PageHeader
         eyebrow="数据接入"
         title="数据导入"
-        description="第一屏只告诉你怎么手动抓取、预览保存和回收发布后指标；日志和系统健康默认折叠。"
+        description="第一屏优先处理登录抓取和发布后回收；本地导出保留为折叠兜底，日志和系统健康默认折叠。"
         actions={<Button onClick={() => window.location.reload()} variant="secondary">刷新</Button>}
       />
       <div className="import-page-stack">
         <ImportFirstViewportGuide
           authCheckMessage={authCheckMessage}
-          onAuthCheck={() => setAuthCheckMessage("检查结果：官方 API 未接入或未授权；浏览器辅助会话未连接。请先手动导入，或启动浏览器辅助并在平台后台页面确认。")}
+          onAuthCheck={handleCaptureAuthCheck}
           snapshot={currentSnapshot}
         />
+        <Panel
+          className="login-capture-primary"
+          data-testid="login-capture-primary"
+          id="login-capture-primary"
+          title="登录抓取"
+          eyebrow="推荐主入口"
+          action={<Badge tone={currentSnapshot.trustedAutoCaptureScheduler.schedulerEnabledCount > 0 ? "success" : "warning"}>{currentSnapshot.trustedAutoCaptureScheduler.schedulerEnabledCount > 0 ? "有可信定时" : "待连接"}</Badge>}
+        >
+          <div className="import-guide-steps">
+            <article>
+              <strong>1. 打开平台后台并登录</strong>
+              <p>先进入抖音、小红书、视频号或 B站官方后台，确认页面里能看到本人作品数据。</p>
+            </article>
+            <article>
+              <strong>2. 检查授权 / 会话</strong>
+              <p>只有官方 API 已授权，或本地浏览器辅助会话可用时，系统才允许抓取或补抓。</p>
+            </article>
+            <article>
+              <strong>3. 预览后保存</strong>
+              <p>抓到的数据仍需先预览；不保存密码、登录凭证、请求头或原始请求。</p>
+            </article>
+          </div>
+          <div className="capture-mode-status-grid" data-testid="login-capture-primary-status">
+            {currentSnapshot.trustedAutoCaptureScheduler.statuses.map((status) => (
+              <span key={`login-capture-${status.platform}`}>
+                <b>{platformLabels[status.platform]}</b> {captureModeLabels[status.captureMode]} / {captureConnectionStatusLabels[status.captureConnectionStatus]} / {status.needsManualAction ? "需人工操作" : "可继续"}
+              </span>
+            ))}
+          </div>
+          <div className="trusted-weekly-summary-foot">
+            <span>{authCheckMessage || "默认路线是登录抓取；本地导出只是兜底，不代表系统会读取网页登录态。"}</span>
+            <div className="inline-stack">
+              <Button data-testid="check-capture-auth-status-primary" onClick={handleCaptureAuthCheck} variant="primary">检查登录抓取状态</Button>
+              <a className="sm-button sm-button-secondary" href="#post-publish-refresh">发布后回收</a>
+              <a className="sm-button sm-button-secondary" href="#local-export-fallback">展开本地导出兜底</a>
+            </div>
+          </div>
+        </Panel>
+        <Panel
+          className="douyin-authed-browser-capture-mvp"
+          data-testid="douyin-authed-browser-capture-mvp"
+          title="抖音登录后抓取 MVP"
+          eyebrow="浏览器辅助"
+          action={<Badge tone={douyinBrowserRows.length > 0 ? "success" : douyinBrowserResult?.browserOpened ? "info" : "warning"}>{douyinBrowserRows.length > 0 ? `${douyinBrowserRows.length} 条可预览` : douyinBrowserResult?.browserOpened ? "会话已开" : "待登录"}</Badge>}
+        >
+          <div className="import-guide-steps">
+            <article>
+              <strong>1. 打开抖音后台</strong>
+              <p>系统会打开一个临时受控浏览器；你自己完成登录、验证码或风控确认。</p>
+            </article>
+            <article>
+              <strong>2. 抓取当前页作品</strong>
+              <p>进入作品管理或数据表现列表后，只读取页面上可见的作品级标题和指标。</p>
+            </article>
+            <article>
+              <strong>3. 预览后保存</strong>
+              <p>保存来源固定为 douyin_creator_center；账号级总览、粉丝画像、私信和评论正文不进入内容指标。</p>
+            </article>
+          </div>
+          <div className="capture-reality-box" data-testid="douyin-authed-browser-safety">
+            <strong>安全边界</strong>
+            <p>本流程不接收、不保存账号密码、登录令牌、请求头、浏览器存储或原始请求；关闭临时浏览器后不保留登录态。抓取结果只保存内容级可信指标。</p>
+          </div>
+          <div className="form-grid">
+            <label className="import-confirm-check">
+              <input
+                checked={douyinBrowserLoginConfirmed}
+                data-testid="douyin-authed-browser-login-confirm"
+                onChange={(event) => setDouyinBrowserLoginConfirmed(event.target.checked)}
+                type="checkbox"
+              />
+              <span>我已在弹出的抖音后台完成登录，并切到作品管理/数据表现这类内容级页面。</span>
+            </label>
+            <label className="import-confirm-check">
+              <input
+                checked={douyinBrowserMetricsConfirmed}
+                data-testid="douyin-authed-browser-save-confirm"
+                disabled={douyinBrowserRows.length === 0 || isDouyinBrowserLoading}
+                onChange={(event) => setDouyinBrowserMetricsConfirmed(event.target.checked)}
+                type="checkbox"
+              />
+              <span>我确认下方预览是本人抖音后台当前页的作品级指标；不包含账号总览或敏感互动内容。</span>
+            </label>
+            <div className="import-preview-actions">
+              <Button data-testid="douyin-authed-browser-open" onClick={() => runDouyinAuthedBrowserCapture("open")} variant="secondary" disabled={isDouyinBrowserLoading}>{isDouyinBrowserLoading ? "处理中" : "打开抖音后台"}</Button>
+              <Button data-testid="douyin-authed-browser-status" onClick={() => runDouyinAuthedBrowserCapture("status")} variant="ghost" disabled={isDouyinBrowserLoading}>确认已登录</Button>
+              <Button data-testid="douyin-authed-browser-capture" onClick={() => runDouyinAuthedBrowserCapture("capture_preview")} variant="secondary" disabled={isDouyinBrowserLoading || !douyinBrowserLoginConfirmed}>抓取当前页作品</Button>
+              <Button data-testid="douyin-authed-browser-save" onClick={() => runDouyinAuthedBrowserCapture("save")} variant="primary" disabled={isDouyinBrowserLoading || !canSaveDouyinBrowserCapture}>保存到可信看板</Button>
+              <Button data-testid="douyin-authed-browser-close" onClick={() => runDouyinAuthedBrowserCapture("close")} variant="ghost" disabled={isDouyinBrowserLoading}>关闭临时浏览器</Button>
+              <a className="sm-button sm-button-secondary" data-testid="douyin-authed-browser-dashboard-link" href="/dashboard">查看数据看板</a>
+              <span>{douyinBrowserMessage}</span>
+            </div>
+          </div>
+          <div className="real-preview-summary">
+            <span><b>{douyinBrowserResult?.loginState ?? "not_opened"}</b> 登录状态</span>
+            <span><b>{formatNumber(douyinBrowserRows.length)}</b> 可见作品</span>
+            <span><b>{formatNumber(douyinBrowserResult?.metricCount ?? 0)}</b> 内容指标</span>
+            <span><b>{douyinBrowserResult?.ok && douyinBrowserResult.action === "save" ? "已保存" : "未保存"}</b> 保存状态</span>
+          </div>
+          <DouyinAuthedBrowserRows rows={douyinBrowserRows} />
+        </Panel>
+        <PostPublishRefreshPanel onConfirmMatch={confirmPlatformContentMatch} snapshot={currentSnapshot} />
+        <details className="analytics-data-section local-export-fallback" data-testid="local-export-fallback" id="local-export-fallback">
+          <summary>
+            <span>
+              <strong>本地导出兜底</strong>
+              <small>CSV / XLSX 仍可用，但不是推荐路线</small>
+            </span>
+            <i>展开</i>
+          </summary>
+          <div className="import-preview-stack">
         <Panel
           className="douyin-local-file-mvp"
           data-testid="douyin-local-file-mvp"
@@ -1749,7 +1957,8 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
           <RealPreviewRows rows={bilibiliStats.rows} />
         </Panel>
-        <PostPublishRefreshPanel onConfirmMatch={confirmPlatformContentMatch} snapshot={currentSnapshot} />
+          </div>
+        </details>
         <details className="analytics-data-section">
           <summary>
             <span>

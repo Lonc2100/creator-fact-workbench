@@ -41,6 +41,7 @@ import type {
   DailyPlatformOpsGateTrustedAuditView,
   DailyPlatformOpsGateView,
   DashboardSnapshot,
+  DouyinBrowserVisibleRow,
   EvidenceInsight,
   Experiment,
   ActionItemFromSuggestionRequest,
@@ -409,8 +410,9 @@ function legacyTextSuggestsTestOrDemoContent(content: ContentItem | undefined, s
 }
 
 function contentDomainClassificationText(content: ContentItem | undefined, extra?: Array<string | undefined>) {
+  const stableGeneratedId = content?.id && /^content-creator-[a-z0-9]+$/i.test(content.id) ? undefined : content?.id;
   return [
-    content?.id,
+    stableGeneratedId,
     content?.title,
     content?.topic,
     content?.notes,
@@ -3126,6 +3128,14 @@ export class SelfMediaService {
 
   importDouyinPersonalCaptures(input: unknown, provenance?: ImportProvenanceMetadata) {
     return this.importPayload(this.parseDouyinPersonalCaptures(input), provenance);
+  }
+
+  parseDouyinBrowserVisibleRows(input: unknown) {
+    return this.douyinPersonalProvider.fromBrowserVisibleRows(Array.isArray(input) ? (input as DouyinBrowserVisibleRow[]) : []);
+  }
+
+  importDouyinBrowserVisibleRows(input: unknown, provenance?: ImportProvenanceMetadata) {
+    return this.importPayload(this.parseDouyinBrowserVisibleRows(input), provenance);
   }
 
   parseXiaohongshuPersonalCaptures(input: unknown) {

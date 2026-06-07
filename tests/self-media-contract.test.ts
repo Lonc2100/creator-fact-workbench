@@ -946,6 +946,61 @@ test("douyin personal captures import into metric snapshots without raw payload 
   }
 });
 
+test("douyin authed browser visible rows import content metrics without saving login material", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-douyin-browser-capture-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const rows = [
+      {
+        id: "dy-browser-085",
+        title: "抖音登录后抓取闭环",
+        publishedAt: "2026-06-01T09:00:00.000Z",
+        capturedAt: "2026-06-07T10:00:00.000Z",
+        views: 2300,
+        likes: 188,
+        comments: 26,
+        saves: 41,
+        shares: 17,
+        followersDelta: 0,
+        itemUrl: "https://www.douyin.com/video/dy-browser-085?token=should-not-save",
+        extractionSource: "visible_dom" as const,
+        confidence: "visible_content_row" as const,
+        warnings: []
+      }
+    ];
+
+    const previewPayload = service.parseDouyinBrowserVisibleRows(rows);
+    assert.equal(previewPayload.source, "douyin_creator_center");
+    assert.equal(previewPayload.contents.length, 1);
+    assert.equal(previewPayload.metrics[0].views, 2300);
+    assert.ok(previewPayload.warnings?.some((item) => item.includes("douyin_authed_browser_capture")));
+
+    const result = service.importDouyinBrowserVisibleRows(rows, {
+      isTestFixture: false,
+      operationKind: "platform_save",
+      trustedScopeEligible: true,
+      dataDomain: "user_work"
+    });
+    const snapshot = repo.listMetricSnapshots().find((item) => item.contentId === "dy-browser-085");
+    const dashboard = await service.dashboard();
+    assert.equal(result.run.status, "success");
+    assert.equal(result.run.source, "douyin_creator_center");
+    assert.equal(snapshot?.source, "douyin_creator_center");
+    assert.equal(snapshot?.dataDomain, "user_work");
+    assert.equal(snapshot?.views, 2300);
+    assert.equal(repo.getEntity("contents", "dy-browser-085")?.dataDomain, "user_work");
+    assert.ok(dashboard.contents.some((item) => item.id === "dy-browser-085"));
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "dy-browser-085" && item.source === "douyin_creator_center"));
+    assert.equal(dashboard.weeklyReview.metrics.totalViews, 2300);
+    assert.doesNotMatch(JSON.stringify(repo.listMetricSnapshots()), /cookie|token|header|raw request|should-not-save/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("xiaohongshu personal provider maps sanitized creator captures into internal payload", () => {
   const captures = [
     {

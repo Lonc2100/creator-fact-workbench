@@ -1,4 +1,4 @@
-import type { ContentItem, PlatformMetric, ProviderImportPayload } from "../types";
+import type { ContentItem, DouyinBrowserVisibleRow, PlatformMetric, ProviderImportPayload } from "../types";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -104,6 +104,57 @@ function safeRef(value: string) {
 }
 
 export class DouyinPersonalProvider {
+  fromBrowserVisibleRows(rows: DouyinBrowserVisibleRow[]): ProviderImportPayload {
+    const warnings = [
+      "douyin_authed_browser_capture: 用户在临时受控浏览器中手动登录后，本地只读取当前页面可见作品行；不保存密码、cookie、token、header 或 raw request。",
+      "douyin_authed_browser_capture: 账号总览、粉丝画像、私信、评论正文等账号级或敏感内容不会写入内容指标。"
+    ];
+    const validRows = rows.filter((row) => row.id && row.title);
+    if (validRows.length === 0) warnings.push("douyin_authed_browser_capture: 当前页面未识别到可保存的作品级数据行。");
+    const contents: ContentItem[] = validRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      platform: "douyin",
+      status: "published",
+      format: "short_video",
+      topic: row.title,
+      publishedAt: row.publishedAt,
+      workOwnership: "user_owned_work",
+      userConfirmedForLibrary: true,
+      dataDomain: "user_work",
+      notes: [
+        "douyin_authed_browser_capture:visible_dom",
+        row.itemUrl ? `url=${safeRef(row.itemUrl)}` : undefined,
+        row.warnings.length > 0 ? `warnings=${row.warnings.join("|").slice(0, 160)}` : undefined
+      ].filter(Boolean).join("; ")
+    }));
+    const metrics: PlatformMetric[] = validRows.map((row) => ({
+      id: `metric-douyin-authed-browser-${row.id}`,
+      contentId: row.id,
+      platform: "douyin",
+      capturedAt: row.capturedAt,
+      views: row.views,
+      likes: row.likes,
+      comments: row.comments,
+      saves: row.saves,
+      shares: row.shares,
+      followersDelta: row.followersDelta
+    }));
+    const rowWarnings = validRows.flatMap((row) => row.warnings.map((warning) => `douyin_authed_browser_capture:${row.id}:${warning}`));
+    return {
+      source: "douyin_creator_center",
+      contents,
+      metrics,
+      warnings: [...warnings, ...rowWarnings],
+      provenance: {
+        isTestFixture: false,
+        operationKind: "platform_save",
+        trustedScopeEligible: true,
+        dataDomain: "user_work"
+      }
+    };
+  }
+
   fromCaptures(captures: DouyinPersonalCapture[]): ProviderImportPayload {
     const byId = new Map<string, DouyinPersonalMappedItem>();
     const warnings: string[] = [];
