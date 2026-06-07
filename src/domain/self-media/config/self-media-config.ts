@@ -1,4 +1,4 @@
-import type { Platform, PlatformImportOperationCapability, PlatformImportStatus, PlatformReadinessStage, PlatformReadinessStatus } from "../types";
+import type { AuthedBrowserProfileConfig, Platform, PlatformImportOperationCapability, PlatformImportStatus, PlatformReadinessStage, PlatformReadinessStatus } from "../types";
 
 export const selfMediaPlatforms: Array<{ id: Platform; label: string; tone: string }> = [
   { id: "douyin", label: "抖音", tone: "强钩子、强节奏、短句表达" },
@@ -168,5 +168,48 @@ export const platformImportOperationCapabilities: PlatformImportOperationCapabil
     saveEnabled: true,
     saveSmokeEnabled: true,
     nextHandoff: "BILIBILI-PERSONAL-V1-SAVE-SMOKE-022-orchestrator-review.md"
+  }
+];
+
+export const authedBrowserProfileConfigs: AuthedBrowserProfileConfig[] = [
+  {
+    platform: "douyin",
+    key: "douyin",
+    label: "抖音",
+    startUrl: "https://creator.douyin.com/creator-micro/content/manage",
+    allowedHosts: ["creator.douyin.com", "www.douyin.com"],
+    sessionTtlHours: 72,
+    captureMvpEnabled: true,
+    profileDirRef: ".local/browser-profiles/douyin"
+  },
+  {
+    platform: "xiaohongshu",
+    key: "xiaohongshu",
+    label: "小红书",
+    startUrl: "https://creator.xiaohongshu.com/",
+    allowedHosts: ["creator.xiaohongshu.com", "www.xiaohongshu.com"],
+    sessionTtlHours: 72,
+    captureMvpEnabled: true,
+    profileDirRef: ".local/browser-profiles/xiaohongshu"
+  },
+  {
+    platform: "video_account",
+    key: "video-account",
+    label: "视频号",
+    startUrl: "https://channels.weixin.qq.com/platform",
+    allowedHosts: ["channels.weixin.qq.com"],
+    sessionTtlHours: 72,
+    captureMvpEnabled: false,
+    profileDirRef: ".local/browser-profiles/video_account"
+  },
+  {
+    platform: "bilibili",
+    key: "bilibili",
+    label: "B站",
+    startUrl: "https://member.bilibili.com/platform/home",
+    allowedHosts: ["member.bilibili.com", "www.bilibili.com"],
+    sessionTtlHours: 72,
+    captureMvpEnabled: false,
+    profileDirRef: ".local/browser-profiles/bilibili"
   }
 ];

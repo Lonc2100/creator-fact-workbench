@@ -8,3 +8,4 @@ export * from "./douyin-personal-provider";
 export * from "./xiaohongshu-personal-provider";
 export * from "./video-account-personal-provider";
 export * from "./bilibili-personal-provider";
+export * from "./authed-browser-profile-provider";

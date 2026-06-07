@@ -60,12 +60,26 @@ Creator business loop is now the accepted mainline path:
 - `/import`: scheduled refresh setting is a runbook/status panel only. It does not imply a daemon, silent platform login, or stored cookie/token/header/raw payload.
 - Boundaries remain unchanged: WeChat Official Account/backend paused; Bilibili account-level metrics remain preview-only diagnostics and are not durable content totals.
 
+## 086 Authenticated Browser Capture Baseline
+
+Authenticated browser capture is now the active data-import mainline, with a strict current reality:
+
+- `/import` first screen prioritizes login capture status and user next action. Local CSV/XLSX export remains a folded fallback, not the default product path.
+- The app uses local, platform-isolated browser profiles under `.local/browser-profiles/<platform>/`. These profiles are ignored by Git and are only for reusing the user's own local login session.
+- Douyin and Xiaohongshu have content-level authenticated browser capture MVPs: open the platform backend, user logs in, navigate to visible creator content rows, preview, explicitly confirm, then save trusted content-level metrics.
+- Douyin and Xiaohongshu routes use persistent browser contexts. Do not regress them back to temporary `browser.newContext()` sessions; that breaks the user's expected "I logged in, now help me capture" flow.
+- No route accepts or writes password, cookie, token, header, storage state, raw request, raw response, screenshot, HAR, or trace material into business data, docs, tests, or Git.
+- Video Account is still discovery-only for content-level browser capture. The 086 discovery did not prove a stable works table containing title, publish time, views/play count, likes, comments, and shares together, so do not create a trusted Video Account browser-save path yet.
+- Bilibili browser profile status is tracked, but authenticated content-level browser capture is not implemented yet. Existing Bilibili archive/work metrics remain the accepted content-level path; account metrics stay preview-only.
+- Current capture is user-triggered. Do not claim silent hourly automatic collection unless a future task adds an approved local scheduler/official API path with startup catch-up and the same sensitive-data boundaries.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
 - Data recovery mainline is user-assisted authenticated browser capture: the app opens a controlled local platform backend browser, the user manually logs in or completes verification, the app reads only the user's visible creator/backend content-level data, preview comes before save, and saved rows enter trusted content metrics only after explicit confirmation.
 - Local CSV/XLSX export is fallback-only. It remains available for platform risk blocks, unstable browser capture, or user preference, but it is not the default product direction.
 - Douyin has the first authenticated browser capture MVP on `/import`: open controlled browser, user confirms login, capture current visible works/data rows, preview, confirm save, and write `douyin_creator_center` trusted content-level metrics without saving password, cookie, token, header, storage state, raw request, or raw response records.
+- Xiaohongshu has the second authenticated browser capture MVP on `/import`: open the creator service platform with the local profile, reject public/wrong pages, capture visible creator note/work rows only, preview, confirm save, and write `xiaohongshu_creator_center` trusted content-level metrics.
 - Creator business loop is closed for daily use: idea -> discussion -> four-platform drafts -> save -> future schedule -> edit schedule -> clear future schedule -> manual data refresh.
 - Closed loop means: logged-in/local capture evidence -> mapping preview -> explicit save -> content/platform version/metric snapshot -> dashboard/review visibility -> import operations smoke.
 - WeChat Official Account / backend is paused. Do not resume WeChat backend discovery, mapping, sync, or public-account backend work unless the user explicitly reopens that scope.

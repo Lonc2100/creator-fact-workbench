@@ -386,62 +386,82 @@ test("content and calendar default views hide internal labels and require explic
 
 test("import page default view is data-only and folds diagnostics", () => {
   const importPage = read("src/domain/self-media/ui/screens/ImportPage.tsx");
-  assert.match(importPage, /第一屏优先处理登录抓取和发布后回收/);
+  assert.match(importPage, /先看四个平台的登录抓取状态，再按下一步进入操作/);
   assert.match(importPage, /ImportFirstViewportGuide/);
   assert.match(importPage, /import-first-viewport-guide/);
-  assert.match(importPage, /登录抓取优先/);
+  assert.match(importPage, /登录抓取四平台状态/);
+  assert.match(importPage, /login-four-platform-status/);
+  assert.match(importPage, /login-flow-next/);
+  assert.match(importPage, /href="#login-flow-primary"/);
   assert.match(importPage, /登录抓取/);
   assert.match(importPage, /本地导出兜底/);
-  assert.match(importPage, /浏览器辅助/);
-  assert.match(importPage, /官方 API 授权/);
-  assert.match(importPage, /为什么登录抖音\/视频号网页后，刷新本系统不会自动更新/);
-  assert.match(importPage, /网页登录状态不会自动被本系统读取/);
-  assert.match(importPage, /platform-capture-reality-matrix/);
-  assert.match(importPage, /当前是否有自动抓取/);
-  assert.match(importPage, /自动抓取一律显示未启用/);
+  assert.match(importPage, /需要你先登录平台后台/);
+  assert.match(importPage, /可以继续下一步/);
+  assert.match(importPage, /切到作品管理页/);
+  assert.match(importPage, /请切到作品管理页再抓/);
   assert.match(importPage, /连接平台：待接入 OAuth/);
   assert.match(importPage, /连接平台：待官方能力确认/);
   assert.match(importPage, /未确认公开稳定个人创作者数据 API/);
   assert.match(importPage, /未确认稳定创作者内容级数据 API/);
   assert.match(importPage, /账号指标 preview-only/);
   assert.match(importPage, /trustedAutoCaptureScheduler/);
-  assert.match(importPage, /登录抓取优先/);
-  assert.match(importPage, /login-capture-primary/);
+  assert.match(importPage, /login-flow-primary/);
   assert.match(importPage, /推荐主入口/);
   assert.match(importPage, /检查登录抓取状态/);
   assert.match(importPage, /本地导出兜底/);
   assert.match(importPage, /local-export-fallback/);
   assert.match(importPage, /CSV \/ XLSX 仍可用，但不是推荐路线/);
-  assert.ok(importPage.indexOf("login-capture-primary") < importPage.indexOf("local-export-fallback"));
+  assert.ok(importPage.indexOf("login-flow-primary") < importPage.indexOf("local-export-fallback"));
   assert.ok(importPage.indexOf("post-publish-refresh") < importPage.indexOf("local-export-fallback"));
   assert.match(importPage, /当前模式/);
   assert.match(importPage, /抓取状态/);
   assert.match(importPage, /最近抓取/);
   assert.match(importPage, /下一次抓取/);
   assert.match(importPage, /人工操作/);
-  assert.match(importPage, /可信定时已启用/);
   assert.match(importPage, /自动抓取：/);
-  assert.match(importPage, /check-capture-auth-status/);
-  assert.match(importPage, /官方 API 未接入或未授权；请优先启动浏览器辅助/);
-  assert.match(importPage, /没有凭证时不会宣称每小时自动抓/);
-  assert.match(importPage, /最近采集/);
-  assert.match(importPage, /平台需补抓/);
-  assert.match(importPage, /平台有发布后回收/);
-  assert.match(importPage, /douyin-authed-browser-capture-mvp/);
-  assert.match(importPage, /抖音登录后抓取 MVP/);
-  assert.match(importPage, /临时受控浏览器/);
+  assert.match(importPage, /check-login-status-primary/);
+  assert.match(importPage, /还没有连接好。请打开平台后台，登录后切到作品管理页/);
+  assert.match(importPage, /authed-browser-profile-manager/);
+  assert.match(importPage, /本机登录会话/);
+  assert.match(importPage, /\.local\/browser-profiles\/&lt;platform&gt;\//);
+  assert.match(importPage, /未打开/);
+  assert.match(importPage, /等待登录/);
+  assert.match(importPage, /已登录可能可用/);
+  assert.match(importPage, /会话过期/);
+  assert.match(importPage, /抓取失败/);
+  assert.match(importPage, /\/api\/self-media\/browser-capture/);
+  assert.match(importPage, /douyin-login-browser-flow/);
+  assert.match(importPage, /抖音登录后读取作品/);
+  assert.doesNotMatch(importPage, /\.local\/browser-profiles\/douyin|\.local\/browser-profiles\/xiaohongshu/);
   assert.match(importPage, /作品管理\/数据表现/);
-  assert.match(importPage, /douyin-authed-browser-login-confirm/);
-  assert.match(importPage, /douyin-authed-browser-save-confirm/);
-  assert.match(importPage, /douyin-authed-browser-open/);
-  assert.match(importPage, /douyin-authed-browser-status/);
-  assert.match(importPage, /douyin-authed-browser-capture/);
-  assert.match(importPage, /douyin-authed-browser-save/);
-  assert.match(importPage, /douyin-authed-browser-close/);
-  assert.match(importPage, /douyin-authed-browser-dashboard-link/);
+  assert.match(importPage, /douyin-login-browser-login-confirm/);
+  assert.match(importPage, /douyin-login-browser-save-confirm/);
+  assert.match(importPage, /douyin-login-browser-open/);
+  assert.match(importPage, /douyin-login-browser-status/);
+  assert.match(importPage, /douyin-login-browser-read/);
+  assert.match(importPage, /douyin-login-browser-save/);
+  assert.match(importPage, /douyin-login-browser-close/);
+  assert.match(importPage, /douyin-login-browser-dashboard-link/);
   assert.match(importPage, /\/api\/self-media\/platform-imports\/browser-capture\/douyin/);
   assert.match(importPage, /不包含账号总览或敏感互动内容/);
-  assert.match(importPage, /抓取结果只保存内容级可信指标/);
+  assert.match(importPage, /读取结果只保存内容级可信指标/);
+  assert.match(importPage, /xiaohongshu-login-browser-flow/);
+  assert.match(importPage, /小红书登录后读取笔记/);
+  assert.match(importPage, /小红书创作服务平台/);
+  assert.match(importPage, /笔记管理\/数据表现/);
+  assert.match(importPage, /公开推荐页、搜索页、话题页、非本人内容和私密互动/);
+  assert.match(importPage, /xiaohongshu-login-browser-login-confirm/);
+  assert.match(importPage, /xiaohongshu-login-browser-save-confirm/);
+  assert.match(importPage, /xiaohongshu-login-browser-open/);
+  assert.match(importPage, /xiaohongshu-login-browser-status/);
+  assert.match(importPage, /xiaohongshu-login-browser-read/);
+  assert.match(importPage, /xiaohongshu-login-browser-save/);
+  assert.match(importPage, /xiaohongshu-login-browser-close/);
+  assert.match(importPage, /xiaohongshu-login-browser-dashboard-link/);
+  assert.match(importPage, /xiaohongshu-authed-browser-preview/);
+  assert.match(importPage, /\/api\/self-media\/platform-imports\/browser-capture\/xiaohongshu/);
+  assert.match(importPage, /不包含公开推荐页、非本人内容或私密互动/);
+  assert.match(importPage, /读取结果只保存内容级可信指标/);
   assert.match(importPage, /douyin-local-file-mvp/);
   assert.match(importPage, /抖音本地导出回收 MVP/);
   assert.match(importPage, /官方 API 需要授权和权限开通/);
@@ -500,6 +520,8 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /Windows 计划任务只提供草案/);
   assert.match(importPage, /不是平台自动回调/);
   assert.match(importPage, /import-advanced-diagnostics/);
+  assert.match(importPage, /AuthedBrowserProfileManager/);
+  assert.ok(importPage.indexOf("import-advanced-diagnostics") < importPage.indexOf("<AuthedBrowserProfileManager"));
   assert.match(importPage, /高级诊断与手动导入/);
   assert.match(importPage, /OperationHistoryTable history=\{history\}/);
   assert.match(importPage, /OperationHistoryTable history=\{currentSnapshot\.operationHistory\} showDiagnostics testId="platform-operation-history-diagnostics-table"/);
@@ -514,9 +536,15 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /showDiagnostics \? item\.warningSummary : operatorWarningLabel\(item\.warningSummary\)/);
   assert.match(importPage, /item\.lastMessage \? operatorWarningLabel\(item\.lastMessage\) : "无"/);
 
+  const firstViewportGuide = importPage.slice(
+    importPage.indexOf("function ImportFirstViewportGuide"),
+    importPage.indexOf("function ScheduledRefreshSettingPanel")
+  );
+  assert.doesNotMatch(firstViewportGuide, /官方 API 授权|本地导出兜底|为什么登录抖音|网页登录状态|CaptureRealityMatrix|platform-capture-reality-matrix|发布后回收|raw|\/api/i);
+
   const defaultRender = importPage.slice(
     importPage.indexOf("<ImportFirstViewportGuide"),
-    importPage.indexOf("<details className=\"analytics-data-section\">")
+    importPage.indexOf("<details className=\"analytics-data-section local-export-fallback\"")
   );
   assert.doesNotMatch(defaultRender, /<option value="wechat">公众号<\/option>/);
   const advancedRender = importPage.slice(importPage.indexOf("<details className=\"analytics-data-section import-advanced-diagnostics\""));
@@ -571,7 +599,7 @@ test("daily ops green state keeps dashboard import reviews defaults free of diag
   );
   const importDefault = importPage.slice(
     importPage.indexOf("<ImportFirstViewportGuide"),
-    importPage.indexOf("<details className=\"analytics-data-section import-advanced-diagnostics\"")
+    importPage.indexOf("<details className=\"analytics-data-section local-export-fallback\"")
   );
   const reviewsDefault = [
     reviewsPage.slice(reviewsPage.indexOf("<PageHeader"), reviewsPage.indexOf("<EvidenceReviewReport")),
@@ -703,11 +731,45 @@ test("dashboard number audit live mode is read-only against existing 3200", () =
 
 test("douyin authed browser capture route keeps credential material outside the import contract", () => {
   const route = read("src/app/api/self-media/platform-imports/browser-capture/douyin/route.ts");
-  assert.match(route, /chromium\.launch/);
-  assert.match(route, /browser\.newContext/);
-  assert.doesNotMatch(route, /launchPersistentContext|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)/);
+  assert.match(route, /chromium\.launchPersistentContext/);
+  assert.match(route, /authedBrowserProfileDir\("douyin"\)/);
+  assert.doesNotMatch(route, /browser\.newContext|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)/);
   assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"\]/);
   assert.match(route, /extractVisibleRows/);
   assert.match(route, /importDouyinBrowserVisibleRows/);
   assert.match(route, /accountMetricsExcluded: true/);
+});
+
+test("xiaohongshu authed browser capture route keeps login material and public recommendations outside the import contract", () => {
+  const route = read("src/app/api/self-media/platform-imports/browser-capture/xiaohongshu/route.ts");
+  assert.match(route, /chromium\.launchPersistentContext/);
+  assert.match(route, /authedBrowserProfileDir\("xiaohongshu"\)/);
+  assert.doesNotMatch(route, /storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)/);
+  assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"\]/);
+  assert.match(route, /extractVisibleRows/);
+  assert.match(route, /creator\.xiaohongshu\.com/);
+  assert.match(route, /wrong_page/);
+  assert.match(route, /publicRecommendationExcluded: true/);
+  assert.match(route, /publicRecommendation/);
+  assert.match(route, /importXiaohongshuBrowserVisibleRows/);
+});
+
+test("browser capture profile route exposes local-only session controls", () => {
+  const route = read("src/app/api/self-media/browser-capture/route.ts");
+  const provider = read("src/domain/self-media/providers/authed-browser-profile-provider.ts");
+  const config = read("src/domain/self-media/config/self-media-config.ts");
+  assert.match(route, /GET\(request: Request\)/);
+  assert.match(route, /POST\(request: Request\)/);
+  assert.match(route, /openAuthedBrowserProfile/);
+  assert.match(route, /confirmAuthedBrowserProfileLogin/);
+  assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"\]/);
+  assert.match(provider, /\.local\/browser-profiles/);
+  assert.match(provider, /noCookieTokenHeaderInBusinessDb: true/);
+  assert.match(provider, /noStorageStateExport: true/);
+  assert.match(provider, /noSensitiveLoginMaterialInDocsTestsOrGit: true/);
+  assert.match(config, /profileDirRef: "\.local\/browser-profiles\/douyin"/);
+  assert.match(config, /profileDirRef: "\.local\/browser-profiles\/xiaohongshu"/);
+  assert.match(config, /platform: "xiaohongshu",[\s\S]*captureMvpEnabled: true/);
+  assert.match(config, /profileDirRef: "\.local\/browser-profiles\/video_account"/);
+  assert.match(config, /profileDirRef: "\.local\/browser-profiles\/bilibili"/);
 });

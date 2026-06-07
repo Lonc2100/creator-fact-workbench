@@ -5,11 +5,11 @@ import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { BilibiliPersonalProvider, CsvPresetProvider, DouyinPersonalProvider, FakeSelfMediaProvider, ManualImportProvider, MediaCrawlerImportProvider, N8nExecutionProvider, VideoAccountPersonalProvider, WechatOfficialProvider, XiaohongshuPersonalProvider, previewBilibiliAccountMetricSnapshots } from "../src/domain/self-media/providers";
+import { BilibiliPersonalProvider, CsvPresetProvider, DouyinPersonalProvider, FakeSelfMediaProvider, getAuthedBrowserProfileStatusView, ManualImportProvider, MediaCrawlerImportProvider, N8nExecutionProvider, VideoAccountPersonalProvider, WechatOfficialProvider, XiaohongshuPersonalProvider, previewBilibiliAccountMetricSnapshots } from "../src/domain/self-media/providers";
 import { SqliteSelfMediaRepo } from "../src/domain/self-media/repo";
 import { getSaveEnabledPlatformImportOperationPlatforms, runSelfMediaPlatformImportOperation } from "../src/domain/self-media/runtime";
 import { SelfMediaService, buildDataCaptureScheduleReliability, buildTrustedAutoCaptureScheduler, generateReview, readDailyPlatformOpsGateView, readDailySelfMediaOpsView, readPlatformDataHealthView, readTrustedDashboardAuditView } from "../src/domain/self-media/service";
-import { platformImportOperationCapabilities, resolveSelfMediaSeedMode, resolveWorkbenchDbPath } from "../src/domain/self-media/config";
+import { authedBrowserProfileConfigs, platformImportOperationCapabilities, resolveSelfMediaSeedMode, resolveWorkbenchDbPath } from "../src/domain/self-media/config";
 import type { AccountMetricSnapshot, DashboardSnapshot, PlatformDataHealthView, TrustedWeeklySafeReportResponse } from "../src/domain/self-media/types";
 
 const projectRoot = process.cwd();
@@ -998,6 +998,91 @@ test("douyin authed browser visible rows import content metrics without saving l
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("xiaohongshu authed browser visible rows import trusted note metrics without saving login material", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-xiaohongshu-browser-capture-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const rows = [
+      {
+        id: "xhs-browser-086",
+        title: "小红书登录后抓取闭环",
+        publishedAt: "2026-06-01T09:00:00.000Z",
+        capturedAt: "2026-06-07T10:00:00.000Z",
+        views: 1200,
+        likes: 166,
+        comments: 18,
+        saves: 90,
+        shares: 12,
+        followersDelta: 0,
+        noteUrl: "https://creator.xiaohongshu.com/note/xhs-browser-086?token=should-not-save",
+        format: "image_text" as const,
+        extractionSource: "visible_dom" as const,
+        confidence: "visible_creator_note_row" as const,
+        warnings: []
+      }
+    ];
+
+    const previewPayload = service.parseXiaohongshuBrowserVisibleRows(rows);
+    assert.equal(previewPayload.source, "xiaohongshu_creator_center");
+    assert.equal(previewPayload.contents.length, 1);
+    assert.equal(previewPayload.contents[0].platform, "xiaohongshu");
+    assert.equal(previewPayload.contents[0].format, "image_text");
+    assert.equal(previewPayload.metrics[0].views, 1200);
+    assert.ok(previewPayload.warnings?.some((item) => item.includes("xiaohongshu_authed_browser_capture")));
+
+    const result = service.importXiaohongshuBrowserVisibleRows(rows, {
+      isTestFixture: false,
+      operationKind: "platform_save",
+      trustedScopeEligible: true,
+      dataDomain: "user_work"
+    });
+    const snapshot = repo.listMetricSnapshots().find((item) => item.contentId === "xhs-browser-086");
+    const dashboard = await service.dashboard();
+    assert.equal(result.run.status, "success");
+    assert.equal(result.run.source, "xiaohongshu_creator_center");
+    assert.equal(snapshot?.source, "xiaohongshu_creator_center");
+    assert.equal(snapshot?.dataDomain, "user_work");
+    assert.equal(snapshot?.views, 1200);
+    assert.equal(repo.getEntity("contents", "xhs-browser-086")?.dataDomain, "user_work");
+    assert.ok(dashboard.contents.some((item) => item.id === "xhs-browser-086"));
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "xhs-browser-086" && item.source === "xiaohongshu_creator_center"));
+    assert.equal(dashboard.weeklyReview.metrics.totalViews, 1200);
+    assert.doesNotMatch(JSON.stringify(repo.listContents()), /cookie|token|header|raw request|should-not-save/i);
+    assert.doesNotMatch(JSON.stringify(repo.listMetricSnapshots()), /cookie|token|header|raw request|should-not-save/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("authed browser profile configs isolate four platform sessions under local profiles", () => {
+  const view = getAuthedBrowserProfileStatusView();
+  const configuredPlatforms = authedBrowserProfileConfigs.map((item) => item.platform);
+  assert.deepEqual(configuredPlatforms, ["douyin", "xiaohongshu", "video_account", "bilibili"]);
+  assert.equal(view.safety.baseDirRef, ".local/browser-profiles");
+  assert.equal(view.safety.localProfilesIgnoredByGit, true);
+  assert.equal(view.safety.noCookieTokenHeaderInBusinessDb, true);
+  assert.equal(view.safety.wechatPaused, true);
+  assert.equal(view.safety.bilibiliAccountMetricsPreviewOnly, true);
+  assert.equal(view.profiles.length, 4);
+  assert.deepEqual(view.profiles.map((item) => item.profileDirRef), [
+    ".local/browser-profiles/douyin",
+    ".local/browser-profiles/xiaohongshu",
+    ".local/browser-profiles/video_account",
+    ".local/browser-profiles/bilibili"
+  ]);
+  assert.equal(view.profiles.filter((item) => item.captureMvpEnabled).map((item) => item.platform).join(","), "douyin,xiaohongshu");
+  assert.doesNotMatch(view.profiles.map((item) => item.platform).join(","), /wechat/i);
+  for (const profile of view.profiles) {
+    assert.equal(profile.safety.profileOnlyInLocal, true);
+    assert.equal(profile.safety.noCookieTokenHeaderInBusinessDb, true);
+    assert.equal(profile.safety.noStorageStateExport, true);
+    assert.equal(profile.safety.noSensitiveLoginMaterialInDocsTestsOrGit, true);
   }
 });
 

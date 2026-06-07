@@ -42,6 +42,7 @@ import type {
   DailyPlatformOpsGateView,
   DashboardSnapshot,
   DouyinBrowserVisibleRow,
+  XiaohongshuBrowserVisibleRow,
   EvidenceInsight,
   Experiment,
   ActionItemFromSuggestionRequest,
@@ -3144,6 +3145,14 @@ export class SelfMediaService {
 
   importXiaohongshuPersonalCaptures(input: unknown, provenance?: ImportProvenanceMetadata) {
     return this.importPayload(this.parseXiaohongshuPersonalCaptures(input), provenance);
+  }
+
+  parseXiaohongshuBrowserVisibleRows(input: unknown) {
+    return this.xiaohongshuPersonalProvider.fromBrowserVisibleRows(Array.isArray(input) ? (input as XiaohongshuBrowserVisibleRow[]) : []);
+  }
+
+  importXiaohongshuBrowserVisibleRows(input: unknown, provenance?: ImportProvenanceMetadata) {
+    return this.importPayload(this.parseXiaohongshuBrowserVisibleRows(input), provenance);
   }
 
   parseVideoAccountPersonalCaptures(input: unknown) {

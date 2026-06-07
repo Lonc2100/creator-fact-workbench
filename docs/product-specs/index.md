@@ -39,6 +39,11 @@ This index separates active release scope from paused or diagnostic-only work. D
 - [Creator loop live hardening 056](../handoffs/MAINLINE-CREATOR-LOOP-LIVE-WALKTHROUGH-056-worker-handoff.md)
 - [Creator copilot discussion 057](../handoffs/MAINLINE-CREATOR-COPILOT-DISCUSSION-057-worker-handoff.md)
 - [Creator business loop acceptance 058](../handoffs/MAINLINE-CREATOR-BUSINESS-LOOP-ACCEPTANCE-058-worker-handoff.md)
+- [Authenticated browser persistent profiles 086](../handoffs/AUTHED-BROWSER-PERSISTENT-PROFILE-086-worker-handoff.md)
+- [Import login capture UX 086](../handoffs/IMPORT-LOGIN-CAPTURE-UX-HARDENING-086-worker-handoff.md)
+- [Xiaohongshu authenticated browser capture MVP 086](../handoffs/XIAOHONGSHU-AUTHED-BROWSER-CAPTURE-MVP-086-worker-handoff.md)
+- [Video Account content-level discovery 086](../handoffs/VIDEO-ACCOUNT-CONTENT-LEVEL-DISCOVERY-086-worker-handoff.md)
+- [Authenticated browser capture closure 086](../handoffs/MAINLINE-AUTHED-BROWSER-CAPTURE-CLOSURE-086-orchestrator-review.md)
 
 ## Paused / Diagnostic-Only
 

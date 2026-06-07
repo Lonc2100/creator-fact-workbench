@@ -953,6 +953,69 @@ export interface PlatformImportOperationResult {
   warnings: string[];
 }
 
+export type AuthedBrowserPlatform = Extract<Platform, "douyin" | "xiaohongshu" | "video_account" | "bilibili">;
+
+export type AuthedBrowserProfileState = "not_opened" | "waiting_login" | "session_maybe_available" | "session_expired" | "capture_failed";
+
+export interface AuthedBrowserProfileConfig {
+  platform: AuthedBrowserPlatform;
+  key: PlatformImportOperationPlatform;
+  label: string;
+  startUrl: string;
+  allowedHosts: string[];
+  sessionTtlHours: number;
+  captureMvpEnabled: boolean;
+  profileDirRef: string;
+}
+
+export interface AuthedBrowserProfileStatus {
+  platform: AuthedBrowserPlatform;
+  key: PlatformImportOperationPlatform;
+  label: string;
+  startUrl: string;
+  profileDirRef: string;
+  profileExists: boolean;
+  state: AuthedBrowserProfileState;
+  stateLabel: string;
+  nextAction: string;
+  lastOpenedAt?: string;
+  lastUserConfirmedLoginAt?: string;
+  lastCaptureFailureAt?: string;
+  failureMessage?: string;
+  sessionTtlHours: number;
+  captureMvpEnabled: boolean;
+  safety: {
+    profileOnlyInLocal: true;
+    noCookieTokenHeaderInBusinessDb: true;
+    noStorageStateExport: true;
+    noSensitiveLoginMaterialInDocsTestsOrGit: true;
+  };
+}
+
+export interface AuthedBrowserProfileStatusView {
+  generatedAt: string;
+  profiles: AuthedBrowserProfileStatus[];
+  safety: {
+    baseDirRef: ".local/browser-profiles";
+    noCookieTokenHeaderInBusinessDb: true;
+    localProfilesIgnoredByGit: true;
+    wechatPaused: true;
+    bilibiliAccountMetricsPreviewOnly: true;
+  };
+}
+
+export interface AuthedBrowserProfileRequest {
+  platform: AuthedBrowserPlatform | PlatformImportOperationPlatform;
+}
+
+export interface AuthedBrowserProfileActionResult {
+  ok: boolean;
+  action: "open" | "confirm_login" | "status" | "record_failure";
+  status: AuthedBrowserProfileStatus;
+  message: string;
+  warnings: string[];
+}
+
 export type DouyinAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "save" | "close";
 
 export type DouyinAuthedBrowserLoginState = "not_opened" | "needs_login" | "user_confirmed" | "logged_in_or_accessible" | "unknown" | "closed" | "error";
@@ -1001,6 +1064,58 @@ export interface DouyinAuthedBrowserCaptureResult {
     noRawRequestSaved: true;
     contentLevelOnly: true;
     accountMetricsExcluded: true;
+  };
+}
+
+export type XiaohongshuAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "save" | "close";
+
+export type XiaohongshuAuthedBrowserLoginState = "not_opened" | "needs_login" | "user_confirmed" | "logged_in_or_accessible" | "wrong_page" | "unknown" | "closed" | "error";
+
+export interface XiaohongshuBrowserVisibleRow {
+  id: string;
+  title: string;
+  publishedAt?: string;
+  capturedAt: string;
+  views: number;
+  likes: number;
+  comments: number;
+  saves: number;
+  shares: number;
+  followersDelta: number;
+  noteUrl?: string;
+  format: "image_text" | "short_video";
+  extractionSource: "visible_dom";
+  confidence: "visible_creator_note_row" | "fallback_visible_creator_card";
+  warnings: string[];
+}
+
+export interface XiaohongshuAuthedBrowserCaptureRequest {
+  action: XiaohongshuAuthedBrowserCaptureAction;
+  userConfirmedLogin?: boolean;
+  userConfirmedContentMetrics?: boolean;
+}
+
+export interface XiaohongshuAuthedBrowserCaptureResult {
+  action: XiaohongshuAuthedBrowserCaptureAction;
+  ok: boolean;
+  loginState: XiaohongshuAuthedBrowserLoginState;
+  browserOpened: boolean;
+  pageUrl?: string;
+  openedAt?: string;
+  capturedAt?: string;
+  rows: XiaohongshuBrowserVisibleRow[];
+  contentCount: number;
+  metricCount: number;
+  importRunId?: string;
+  dashboardUrl?: string;
+  message: string;
+  warnings: string[];
+  safety: {
+    noPasswordSaved: true;
+    noCookieTokenHeaderSaved: true;
+    noRawRequestSaved: true;
+    contentLevelOnly: true;
+    publicRecommendationExcluded: true;
   };
 }
 
