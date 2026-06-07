@@ -334,6 +334,18 @@ function objectEntries(value: Record<string, unknown>, limit = 4) {
   return Object.entries(value).filter(([, entryValue]) => entryValue !== undefined && entryValue !== "").slice(0, limit);
 }
 
+function fileToBase64(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      resolve(result.includes(",") ? result.split(",").pop() ?? "" : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("文件读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function summaryWarnings(summary: PlatformImportOperationResult["summaries"][number]) {
   return summary.errorMessage ? [summary.errorMessage, ...summary.warnings] : summary.warnings;
 }
@@ -1278,7 +1290,9 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreviewResult | null>(null);
   const [bilibiliCsv, setBilibiliCsv] = useState(sampleBilibiliLocalExportCsv);
+  const [bilibiliFile, setBilibiliFile] = useState<File | null>(null);
   const [bilibiliPreview, setBilibiliPreview] = useState<ImportPreviewResult | null>(null);
+  const [bilibiliConfirmed, setBilibiliConfirmed] = useState(false);
   const [bilibiliMessage, setBilibiliMessage] = useState("等待 B站导出表");
   const [message, setMessage] = useState("等待预览");
   const [authCheckMessage, setAuthCheckMessage] = useState("");
@@ -1287,18 +1301,52 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
 
   const previewStats = useMemo(() => previewStatsFor(preview), [preview]);
   const bilibiliStats = useMemo(() => previewStatsFor(bilibiliPreview), [bilibiliPreview]);
+  const canSaveBilibiliLocalFile = bilibiliStats.confirmable > 0 && bilibiliConfirmed;
 
-  async function runBilibiliLocalFile(action: "preview" | "save") {
-    setIsBilibiliLoading(true);
-    setBilibiliMessage(action === "preview" ? "B站导出表预览中" : "正在保存 B站内容级指标");
-    try {
-      const request = {
+  function resetBilibiliPreview(nextMessage?: string) {
+    setBilibiliPreview(null);
+    setBilibiliConfirmed(false);
+    if (nextMessage) setBilibiliMessage(nextMessage);
+  }
+
+  async function buildBilibiliLocalFileRequest() {
+    if (!bilibiliFile) {
+      return {
         mode: "platform_local_file",
         platformLocalFile: {
           platform: "bilibili",
           csv: bilibiliCsv
         }
       };
+    }
+    const isXlsx = bilibiliFile.name.toLowerCase().endsWith(".xlsx") || bilibiliFile.type.includes("spreadsheetml");
+    if (isXlsx) {
+      return {
+        mode: "platform_local_file",
+        platformLocalFile: {
+          platform: "bilibili",
+          fileName: bilibiliFile.name,
+          contentType: bilibiliFile.type,
+          fileBase64: await fileToBase64(bilibiliFile)
+        }
+      };
+    }
+    return {
+      mode: "platform_local_file",
+      platformLocalFile: {
+        platform: "bilibili",
+        csv: await bilibiliFile.text(),
+        fileName: bilibiliFile.name,
+        contentType: bilibiliFile.type
+      }
+    };
+  }
+
+  async function runBilibiliLocalFile(action: "preview" | "save") {
+    setIsBilibiliLoading(true);
+    setBilibiliMessage(action === "preview" ? "B站导出表预览中" : "正在保存 B站内容级指标");
+    try {
+      const request = await buildBilibiliLocalFileRequest();
       const response = await fetch(action === "preview" ? "/api/self-media/import/preview" : "/api/self-media/import", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1309,11 +1357,13 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       if (action === "preview") {
         const result = body as ImportPreviewResult;
         setBilibiliPreview(result);
-        setBilibiliMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；来源将保存为 bilibili_creator_center。`);
+        setBilibiliConfirmed(false);
+        setBilibiliMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后来源将保存为 bilibili_creator_center。`);
       } else {
         const dashboardResponse = await fetch("/api/self-media/dashboard");
         setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
         setBilibiliMessage(`已保存 B站本地导出指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入可信内容级回收。`);
+        setBilibiliConfirmed(false);
       }
     } catch (error) {
       setBilibiliMessage(error instanceof Error ? error.message : "B站本地导出处理失败");
@@ -1414,12 +1464,43 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </article>
           </div>
           <div className="form-grid">
-            <Field label="B站导出 CSV">
-              <TextArea data-testid="bilibili-local-file-csv" value={bilibiliCsv} onChange={(event) => setBilibiliCsv(event.target.value)} />
+            <Field label="上传 B站 CSV / XLSX">
+              <input
+                className="sm-input"
+                data-testid="bilibili-local-file-upload"
+                type="file"
+                accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] ?? null;
+                  setBilibiliFile(nextFile);
+                  resetBilibiliPreview(nextFile ? `已选择 ${nextFile.name}，请先预览字段。` : "等待 B站导出表");
+                }}
+              />
             </Field>
+            <Field label="或粘贴 B站导出 CSV">
+              <TextArea
+                data-testid="bilibili-local-file-csv"
+                value={bilibiliCsv}
+                onChange={(event) => {
+                  setBilibiliCsv(event.target.value);
+                  resetBilibiliPreview("CSV 已更新，请重新预览字段。");
+                }}
+              />
+            </Field>
+            <label className="import-confirm-check">
+              <input
+                checked={bilibiliConfirmed}
+                data-testid="bilibili-local-file-confirm"
+                disabled={bilibiliStats.confirmable === 0 || isBilibiliLoading}
+                onChange={(event) => setBilibiliConfirmed(event.target.checked)}
+                type="checkbox"
+              />
+              <span>我确认这是本人从 B站创作中心导出的内容级表格；保存后进入数据看板，且不保存登录凭证、请求头或原始请求。</span>
+            </label>
             <div className="import-preview-actions">
               <Button data-testid="bilibili-local-file-preview" onClick={() => runBilibiliLocalFile("preview")} variant="secondary" disabled={isBilibiliLoading}>{isBilibiliLoading ? "处理中" : "预览 B站导出"}</Button>
-              <Button data-testid="bilibili-local-file-save" onClick={() => runBilibiliLocalFile("save")} variant="primary" disabled={isBilibiliLoading || bilibiliStats.confirmable === 0}>{isBilibiliLoading ? "保存中" : "保存到指标回收"}</Button>
+              <Button data-testid="bilibili-local-file-save" onClick={() => runBilibiliLocalFile("save")} variant="primary" disabled={isBilibiliLoading || !canSaveBilibiliLocalFile}>{isBilibiliLoading ? "保存中" : "确认保存到看板"}</Button>
+              <a className="sm-button sm-button-secondary" data-testid="bilibili-local-file-dashboard-link" href="/dashboard">查看数据看板</a>
               <span>{bilibiliMessage}</span>
             </div>
           </div>

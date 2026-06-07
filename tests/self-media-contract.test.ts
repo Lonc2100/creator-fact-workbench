@@ -5192,6 +5192,48 @@ test("bilibili local export file import enters trusted content metrics without c
   }
 });
 
+test("bilibili local export xlsx import previews and saves into dashboard without raw request persistence", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-bilibili-local-xlsx-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const xlsx = createMinimalXlsx([
+      ["稿件ID", "BV号", "标题", "发布时间", "播放量", "点赞数", "评论数", "弹幕数", "收藏数", "分享数", "投币数"],
+      ["bili-local-xlsx-081", "BV1local081", "B站 XLSX 本地导出闭环", "2026-06-01T09:00:00.000Z", "1888", "99", "23", "13", "62", "20", "31"]
+    ]);
+    const request = {
+      mode: "platform_local_file" as const,
+      platformLocalFile: {
+        platform: "bilibili" as const,
+        fileName: "bilibili-export.xlsx",
+        contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        fileBase64: xlsx.toString("base64")
+      }
+    };
+
+    const preview = service.previewImportRequest(request);
+    assert.equal(preview.source, "bilibili_creator_center");
+    assert.equal(preview.contentCount, 1);
+    assert.equal(preview.realPreviewRows?.[0]?.nativeMetrics["弹幕数"], "13");
+
+    const result = service.importRequest(request);
+    const dashboard = await service.dashboard();
+    const savedSnapshots = repo.listMetricSnapshots().filter((item) => item.contentId === "bili-local-xlsx-081");
+    assert.equal(result.run.status, "success");
+    assert.equal(result.run.source, "bilibili_creator_center");
+    assert.equal(savedSnapshots.length, 1);
+    assert.equal(savedSnapshots[0].source, "bilibili_creator_center");
+    assert.equal(savedSnapshots[0].views, 1888);
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "bili-local-xlsx-081" && item.source === "bilibili_creator_center"));
+    assert.equal(dashboard.trustedOperatingStatus.views >= 1888, true);
+    assert.doesNotMatch(JSON.stringify(savedSnapshots), /fileBase64|raw request|cookie|token|header|BV1local081|弹幕数/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("manual import stays stored but does not enter default dashboard or reviews", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-manual-scope-"));
   let repo: SqliteSelfMediaRepo | undefined;

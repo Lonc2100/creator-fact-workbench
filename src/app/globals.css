@@ -940,6 +940,29 @@ button:disabled {
   gap: 10px;
 }
 
+.import-confirm-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid rgba(42, 35, 28, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 253, 248, 0.78);
+  color: var(--sm-text-muted);
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.import-confirm-check input {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.import-confirm-check span {
+  min-width: 0;
+}
+
 .platform-import-status-summary {
   flex-wrap: wrap;
   gap: 8px;
