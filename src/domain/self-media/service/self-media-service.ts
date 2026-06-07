@@ -400,7 +400,7 @@ function isTrustedRealCreatorCenterSource(source: ImportSource | "manual" | "rev
   return trustedRealCreatorCenterSources.includes(source as typeof trustedRealCreatorCenterSources[number]);
 }
 
-const acceptanceRunTextPattern = /(^|[\s:/._-])(mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI选题计划|AI短片复盘|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估|05[0-9]|06[0-9]|07[0-2]/i;
+const acceptanceRunTextPattern = /(^|[\s:/._-])(mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI短片复盘|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估|05[0-9]|06[0-9]|07[0-2]/i;
 const demoSeedTextPattern = /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|op-save)([\s:/._-]|$)|O2|烟测|浏览器烟测|BiliOpSave/i;
 
 function legacyTextSuggestsTestOrDemoContent(content: ContentItem | undefined, snapshot?: MetricSnapshot) {
@@ -2134,10 +2134,12 @@ function importSourceForMode(mode: ImportRequest["mode"]): ImportSource {
   if (mode === "n8n") return "n8n";
   if (mode === "manual") return "manual";
   if (mode === "csv") return "csv";
+  if (mode === "platform_local_file") return "bilibili_creator_center";
   return "json";
 }
 
 function createPayloadFromRequest(service: SelfMediaService, request: ImportRequest): ProviderImportPayload {
+  if (request.mode === "platform_local_file") return service.parsePlatformLocalFilePayload(request);
   if (request.mode === "csv") return service.parseCsvRequestPayload(request);
   if (request.mode === "json") return service.parseJsonPayload(request.json);
   if (request.mode === "mediacrawler") return service.parseMediaCrawlerPayload(request.json);
@@ -3041,6 +3043,42 @@ export class SelfMediaService {
     return this.csvPresetProvider.fromCsv(request.csv ?? "", preset, options);
   }
 
+  parsePlatformLocalFilePayload(request: ImportRequest, options: { allowInvalidPreviewRows?: boolean } = {}) {
+    if (request.mode !== "platform_local_file" || request.platformLocalFile?.platform !== "bilibili") {
+      throw new Error("当前本地平台导出 MVP 只支持 B站。");
+    }
+    const input = request.platformLocalFile;
+    const fileName = input.fileName ?? "";
+    const contentType = input.contentType ?? "";
+    const payload = input.fileBase64 && (fileName.toLowerCase().endsWith(".xlsx") || contentType.includes("spreadsheetml"))
+      ? this.csvPresetProvider.fromXlsxBase64(input.fileBase64, "bilibili", options)
+      : this.csvPresetProvider.fromCsv(input.csv ?? "", "bilibili", options);
+    const complianceWarning = "bilibili_local_export: 用户主动从 B站创作中心导出或复制表格后本地导入；不读取网页登录态，不保存 cookie/token/header/raw request。";
+    payload.source = "bilibili_creator_center";
+    payload.provenance = {
+      ...payload.provenance,
+      isTestFixture: false,
+      operationKind: "platform_save",
+      trustedScopeEligible: true,
+      dataDomain: "user_work"
+    };
+    payload.contents = payload.contents.map((content) => ({
+      ...content,
+      platform: "bilibili",
+      status: content.status === "idea" || content.status === "draft" ? "published" : content.status,
+      format: "short_video",
+      workOwnership: "user_owned_work",
+      userConfirmedForLibrary: true,
+      notes: [content.notes, "bilibili_local_export:manual_confirmed"].filter(Boolean).join("; ")
+    }));
+    payload.metrics = payload.metrics.map((metric) => ({
+      ...metric,
+      platform: "bilibili"
+    }));
+    payload.warnings = [complianceWarning, ...(payload.warnings ?? [])];
+    return payload;
+  }
+
   parseJsonPayload(input: unknown) {
     return this.manualProvider.fromJson(input);
   }
@@ -3178,6 +3216,7 @@ export class SelfMediaService {
   importRequest(request: ImportRequest): ImportResult {
     const traceId = createTraceId("import-request");
     try {
+      if (request.mode === "platform_local_file") return this.importPayload(this.parsePlatformLocalFilePayload(request));
       if (request.mode === "csv") return this.importPayload(this.parseCsvRequestPayload(request));
       if (request.mode === "json") return this.importJson(request.json);
       if (request.mode === "mediacrawler") return this.importMediaCrawler(request.json);

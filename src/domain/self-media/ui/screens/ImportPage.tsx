@@ -20,6 +20,11 @@ const sampleCsv = [
   ",只有标题没有ID,2026-06-01T09:00:00.000Z,200,20,2,1,0,0"
 ].join("\n");
 
+const sampleBilibiliLocalExportCsv = [
+  "稿件ID,BV号,标题,发布时间,播放量,点赞数,评论数,弹幕数,收藏数,分享数,投币数,涨粉,完播率,平均播放时长,选题",
+  "bili-local-001,BV1local001,AI短片工作流拆解,2026-06-01T09:00:00.000Z,1600,88,22,12,61,19,30,9,45%,32s,AI短片"
+].join("\n");
+
 const confidenceLabels: Record<RealImportPreviewRow["mappingConfidence"], string> = {
   confirmed_official: "官方字段",
   mature_reference: "成熟参考",
@@ -1254,26 +1259,68 @@ function ScheduledRefreshSettingPanel({ snapshot }: { snapshot: DashboardSnapsho
   );
 }
 
+function previewStatsFor(preview: ImportPreviewResult | null) {
+  const realRows = preview?.realPreviewRows ?? [];
+  const confirmable = realRows.filter((row) => row.canConfirmSave).length;
+  return {
+    rows: realRows,
+    total: realRows.length,
+    confirmable,
+    blocked: realRows.length - confirmable,
+    nativeMetrics: realRows.reduce((sum, row) => sum + Object.keys(row.nativeMetrics).length, 0)
+  };
+}
+
 export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [currentSnapshot, setCurrentSnapshot] = useState(snapshot);
   const [preset, setPreset] = useState<CsvImportPreset>("douyin");
   const [csv, setCsv] = useState(sampleCsv);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreviewResult | null>(null);
+  const [bilibiliCsv, setBilibiliCsv] = useState(sampleBilibiliLocalExportCsv);
+  const [bilibiliPreview, setBilibiliPreview] = useState<ImportPreviewResult | null>(null);
+  const [bilibiliMessage, setBilibiliMessage] = useState("等待 B站导出表");
   const [message, setMessage] = useState("等待预览");
   const [authCheckMessage, setAuthCheckMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isBilibiliLoading, setIsBilibiliLoading] = useState(false);
 
-  const realRows = preview?.realPreviewRows ?? [];
-  const previewStats = useMemo(() => {
-    const confirmable = realRows.filter((row) => row.canConfirmSave).length;
-    return {
-      total: realRows.length,
-      confirmable,
-      blocked: realRows.length - confirmable,
-      nativeMetrics: realRows.reduce((sum, row) => sum + Object.keys(row.nativeMetrics).length, 0)
-    };
-  }, [realRows]);
+  const previewStats = useMemo(() => previewStatsFor(preview), [preview]);
+  const bilibiliStats = useMemo(() => previewStatsFor(bilibiliPreview), [bilibiliPreview]);
+
+  async function runBilibiliLocalFile(action: "preview" | "save") {
+    setIsBilibiliLoading(true);
+    setBilibiliMessage(action === "preview" ? "B站导出表预览中" : "正在保存 B站内容级指标");
+    try {
+      const request = {
+        mode: "platform_local_file",
+        platformLocalFile: {
+          platform: "bilibili",
+          csv: bilibiliCsv
+        }
+      };
+      const response = await fetch(action === "preview" ? "/api/self-media/import/preview" : "/api/self-media/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(request)
+      });
+      const body = await response.json() as (ImportPreviewResult & { errorMessage?: string }) | { run?: { importedCount?: number; status?: string }; errorMessage?: string };
+      if (!response.ok) throw new Error(body.errorMessage ?? "B站本地导出处理失败");
+      if (action === "preview") {
+        const result = body as ImportPreviewResult;
+        setBilibiliPreview(result);
+        setBilibiliMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；来源将保存为 bilibili_creator_center。`);
+      } else {
+        const dashboardResponse = await fetch("/api/self-media/dashboard");
+        setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
+        setBilibiliMessage(`已保存 B站本地导出指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入可信内容级回收。`);
+      }
+    } catch (error) {
+      setBilibiliMessage(error instanceof Error ? error.message : "B站本地导出处理失败");
+    } finally {
+      setIsBilibiliLoading(false);
+    }
+  }
 
   async function runPreview() {
     setIsLoading(true);
@@ -1345,6 +1392,44 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           onAuthCheck={() => setAuthCheckMessage("检查结果：官方 API 未接入或未授权；浏览器辅助会话未连接。请先手动导入，或启动浏览器辅助并在平台后台页面确认。")}
           snapshot={currentSnapshot}
         />
+        <Panel
+          className="bilibili-local-file-mvp"
+          data-testid="bilibili-local-file-mvp"
+          title="B站本地导出回收 MVP"
+          eyebrow="真实闭环"
+          action={<Badge tone={bilibiliStats.blocked > 0 ? "warning" : bilibiliStats.total > 0 ? "success" : "info"}>{bilibiliStats.confirmable} 行可保存</Badge>}
+        >
+          <div className="import-guide-steps">
+            <article>
+              <strong>1. 从 B站后台导出或复制</strong>
+              <p>只接收你主动拿到的稿件内容级表格；系统不会读取 B站网页登录状态。</p>
+            </article>
+            <article>
+              <strong>2. 本地预览字段</strong>
+              <p>确认稿件 ID、标题、发布时间、播放、点赞、评论、收藏、分享等字段后再保存。</p>
+            </article>
+            <article>
+              <strong>3. 保存到可信指标</strong>
+              <p>保存来源固定为 bilibili_creator_center；账号总览仍然 preview-only，不进入 durable totals。</p>
+            </article>
+          </div>
+          <div className="form-grid">
+            <Field label="B站导出 CSV">
+              <TextArea data-testid="bilibili-local-file-csv" value={bilibiliCsv} onChange={(event) => setBilibiliCsv(event.target.value)} />
+            </Field>
+            <div className="import-preview-actions">
+              <Button data-testid="bilibili-local-file-preview" onClick={() => runBilibiliLocalFile("preview")} variant="secondary" disabled={isBilibiliLoading}>{isBilibiliLoading ? "处理中" : "预览 B站导出"}</Button>
+              <Button data-testid="bilibili-local-file-save" onClick={() => runBilibiliLocalFile("save")} variant="primary" disabled={isBilibiliLoading || bilibiliStats.confirmable === 0}>{isBilibiliLoading ? "保存中" : "保存到指标回收"}</Button>
+              <span>{bilibiliMessage}</span>
+            </div>
+          </div>
+          <div className="real-preview-summary">
+            <span><b>{bilibiliStats.total}</b> 行</span>
+            <span><b>{bilibiliStats.confirmable}</b> 可保存</span>
+            <span><b>{bilibiliStats.nativeMetrics}</b> B站原生字段</span>
+          </div>
+          <RealPreviewRows rows={bilibiliStats.rows} />
+        </Panel>
         <PostPublishRefreshPanel onConfirmMatch={confirmPlatformContentMatch} snapshot={currentSnapshot} />
         <details className="analytics-data-section">
           <summary>
@@ -1412,7 +1497,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                   <span><b>{previewStats.confirmable}</b> 可保存</span>
                   <span><b>{previewStats.nativeMetrics}</b> 原生字段</span>
                 </div>
-                <RealPreviewRows rows={realRows} />
+                <RealPreviewRows rows={previewStats.rows} />
               </Panel>
               <ImportDiffTable imports={currentSnapshot.imports} />
             </div>

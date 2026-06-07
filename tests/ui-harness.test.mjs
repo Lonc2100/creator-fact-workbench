@@ -417,6 +417,13 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /最近采集/);
   assert.match(importPage, /平台需补抓/);
   assert.match(importPage, /平台有发布后回收/);
+  assert.match(importPage, /bilibili-local-file-mvp/);
+  assert.match(importPage, /B站本地导出回收 MVP/);
+  assert.match(importPage, /platform_local_file/);
+  assert.match(importPage, /bilibili_creator_center/);
+  assert.match(importPage, /账号总览仍然 preview-only/);
+  assert.match(importPage, /bilibili-local-file-preview/);
+  assert.match(importPage, /bilibili-local-file-save/);
   assert.match(importPage, /四平台同步与数据新鲜度/);
   assert.match(importPage, /function PlatformDataHealthPanel/);
   assert.match(importPage, /function PlatformImportStatusPanel/);

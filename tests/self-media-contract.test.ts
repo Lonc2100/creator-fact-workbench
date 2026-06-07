@@ -5148,6 +5148,50 @@ test("import request records CSV data but default review excludes it", async () 
   }
 });
 
+test("bilibili local export file import enters trusted content metrics without changing generic CSV trust", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-bilibili-local-export-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const csv = [
+      "稿件ID,BV号,标题,发布时间,播放量,点赞数,评论数,弹幕数,收藏数,分享数,投币数,涨粉,完播率,平均播放时长,选题",
+      "bili-local-080,BV1local080,B站本地导出闭环,2026-06-01T09:00:00.000Z,1600,88,22,12,61,19,30,9,45%,32s,AI短片"
+    ].join("\n");
+
+    const preview = service.previewImportRequest({
+      mode: "platform_local_file",
+      platformLocalFile: { platform: "bilibili", csv }
+    });
+    assert.equal(preview.source, "bilibili_creator_center");
+    assert.equal(preview.contentCount, 1);
+    assert.equal(preview.realPreviewRows?.[0]?.mappingConfidence, "mature_reference");
+    assert.ok(preview.warnings.some((item) => item.includes("bilibili_local_export")));
+
+    const result = service.importRequest({
+      mode: "platform_local_file",
+      platformLocalFile: { platform: "bilibili", csv }
+    });
+    assert.equal(result.run.status, "success");
+    assert.equal(result.run.source, "bilibili_creator_center");
+
+    const savedSnapshot = repo.listMetricSnapshots().find((item) => item.contentId === "bili-local-080");
+    const dashboard = await service.dashboard();
+    assert.ok(savedSnapshot);
+    assert.equal(savedSnapshot?.source, "bilibili_creator_center");
+    assert.equal(savedSnapshot?.dataDomain, "user_work");
+    assert.equal(savedSnapshot?.provenance?.trustedScopeEligible, true);
+    assert.equal(repo.getEntity("contents", "bili-local-080")?.dataDomain, "user_work");
+    assert.ok(dashboard.contents.some((item) => item.id === "bili-local-080"));
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "bili-local-080" && item.source === "bilibili_creator_center"));
+    assert.equal(dashboard.weeklyReview.metrics.totalViews, 1600);
+    assert.equal(dashboard.trustedAutoCaptureScheduler.schedulerEnabledCount, 0);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("manual import stays stored but does not enter default dashboard or reviews", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-manual-scope-"));
   let repo: SqliteSelfMediaRepo | undefined;

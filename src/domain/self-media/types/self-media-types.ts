@@ -1215,10 +1215,17 @@ export interface ContentTrustScopePatchRequest {
 }
 
 export interface ImportRequest {
-  mode: "csv" | "json" | "manual" | "mediacrawler" | "n8n";
+  mode: "csv" | "json" | "manual" | "mediacrawler" | "n8n" | "platform_local_file";
   preset?: CsvImportPreset;
   csv?: string;
   json?: unknown;
+  platformLocalFile?: {
+    platform: "bilibili";
+    csv?: string;
+    fileBase64?: string;
+    fileName?: string;
+    contentType?: string;
+  };
   manual?: {
     title: string;
     platform: Platform;
