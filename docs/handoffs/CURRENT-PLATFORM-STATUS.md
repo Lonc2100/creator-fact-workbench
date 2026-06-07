@@ -73,6 +73,19 @@ Authenticated browser capture is now the active data-import mainline, with a str
 - Bilibili browser profile status is tracked, but authenticated content-level browser capture is not implemented yet. Existing Bilibili archive/work metrics remain the accepted content-level path; account metrics stay preview-only.
 - Current capture is user-triggered. Do not claim silent hourly automatic collection unless a future task adds an approved local scheduler/official API path with startup catch-up and the same sensitive-data boundaries.
 
+## 087 Login Capture Refresh Baseline
+
+The import/data refresh mainline has moved from "find a panel and manually read one platform" to a user-triggered login-capture refresh loop:
+
+- `/import` first screen exposes `检查登录抓取状态` and the primary `一键刷新登录抓取` action without requiring scroll.
+- `POST /api/self-media/browser-capture/auto-refresh` is local-only and preview-only. It checks local browser profile state, attempts `capture_preview` for eligible platforms, and never calls `save`.
+- Auto-refresh currently attempts Douyin and Xiaohongshu only. If a browser window is not open but the profile is reusable, the route may open the platform backend once and retry preview.
+- Save remains a separate user confirmation in the existing platform preview panels. The app must not save rows silently after auto-refresh.
+- Video Account remains discovery-only for authenticated browser capture. 087 tightened the Video Account personal provider so durable rows require explicit title, publish time, views/play count, likes, comments, and shares together; incomplete rows and interaction-only rows are skipped.
+- Bilibili browser capture remains unsupported; Bilibili archive/work content metrics remain usable and Bilibili account metrics remain preview-only.
+- A live mouse walkthrough fixed immediate usability friction: import first-screen action visibility, content save selecting the newly persisted content/version, and stable `calendar-card` / `calendar-empty-slot` selectors.
+- 088 should continue from the live walkthrough friction list: scheduled-time validation before save, in-place calendar empty-slot creation, clearer publish handoff empty state, and auto-highlight/scroll to the first actionable import panel after login check.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
@@ -80,6 +93,7 @@ Authenticated browser capture is now the active data-import mainline, with a str
 - Local CSV/XLSX export is fallback-only. It remains available for platform risk blocks, unstable browser capture, or user preference, but it is not the default product direction.
 - Douyin has the first authenticated browser capture MVP on `/import`: open controlled browser, user confirms login, capture current visible works/data rows, preview, confirm save, and write `douyin_creator_center` trusted content-level metrics without saving password, cookie, token, header, storage state, raw request, or raw response records.
 - Xiaohongshu has the second authenticated browser capture MVP on `/import`: open the creator service platform with the local profile, reject public/wrong pages, capture visible creator note/work rows only, preview, confirm save, and write `xiaohongshu_creator_center` trusted content-level metrics.
+- `/import` also has user-triggered auto-refresh preview for Douyin and Xiaohongshu via the login-capture refresh route; this is not silent background collection and not an automatic save.
 - Creator business loop is closed for daily use: idea -> discussion -> four-platform drafts -> save -> future schedule -> edit schedule -> clear future schedule -> manual data refresh.
 - Closed loop means: logged-in/local capture evidence -> mapping preview -> explicit save -> content/platform version/metric snapshot -> dashboard/review visibility -> import operations smoke.
 - WeChat Official Account / backend is paused. Do not resume WeChat backend discovery, mapping, sync, or public-account backend work unless the user explicitly reopens that scope.

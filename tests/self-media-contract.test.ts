@@ -1259,7 +1259,7 @@ test("video account personal provider maps sanitized post-list captures into int
   assert.equal(payload.metrics.length, 1);
   assert.equal(payload.contents[0].platform, "video_account");
   assert.equal(payload.contents[0].format, "short_video");
-  assert.equal(payload.contents[0].title, "视频号个人作品一互动更新");
+  assert.equal(payload.contents[0].title, "视频号个人作品一");
   assert.ok(payload.contents[0].id.startsWith("video-account-"));
   assert.ok(payload.contents[0].notes?.includes("raw/content-post-list.json"));
   assert.ok(payload.contents[0].notes?.includes("raw/bullet-chat.json"));
@@ -1273,6 +1273,67 @@ test("video account personal provider maps sanitized post-list captures into int
   assert.ok(payload.warnings?.some((item) => item.includes("skipped 1 private message")));
   assert.ok(payload.warnings?.some((item) => item.includes("redacted or missing objectId")));
   assert.ok(payload.warnings?.some((item) => item.includes("skipped 1 interaction rows")));
+});
+
+test("video account personal provider refuses incomplete post-list rows as durable works", () => {
+  const payload = new VideoAccountPersonalProvider().fromCaptures([
+    {
+      file: "raw/incomplete-post-list.json",
+      capturedAt: "2026-06-03T17:10:00.000Z",
+      urlSanitized: "https://channels.weixin.qq.com/micro/content/cgi-bin/mmfinderassistant-bin/post/post_list",
+      body: {
+        data: {
+          list: [
+            {
+              objectId: "export/video-account-no-title",
+              createTime: 1780314367,
+              readCount: 100,
+              likeCount: 10,
+              commentCount: 1,
+              forwardCount: 2,
+              desc: {}
+            },
+            {
+              objectId: "export/video-account-no-time",
+              readCount: 100,
+              likeCount: 10,
+              commentCount: 1,
+              forwardCount: 2,
+              desc: { shortTitle: "缺少发布时间" }
+            },
+            {
+              objectId: "export/video-account-no-shares",
+              createTime: 1780314367,
+              readCount: 100,
+              likeCount: 10,
+              commentCount: 1,
+              desc: { shortTitle: "缺少分享字段" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      file: "raw/interaction-only.json",
+      capturedAt: "2026-06-03T17:11:00.000Z",
+      urlSanitized: "https://channels.weixin.qq.com/micro/interaction/cgi-bin/mmfinderassistant-bin/post/post_list",
+      body: {
+        data: {
+          list: [{ objectId: "export/video-account-interaction-only", readCount: 999, likeCount: 99, commentCount: 9, forwardCount: 8, desc: { shortTitle: "互动孤行" } }]
+        }
+      }
+    }
+  ]);
+
+  assert.equal(payload.source, "video_account_creator_center");
+  assert.equal(payload.contents.length, 0);
+  assert.equal(payload.metrics.length, 0);
+  assert.ok(payload.warnings?.some((item) => item.includes("without complete content-level fields")));
+  assert.ok(payload.warnings?.some((item) => item.includes("title=1")));
+  assert.ok(payload.warnings?.some((item) => item.includes("publish_time=1")));
+  assert.ok(payload.warnings?.some((item) => item.includes("shares=1")));
+  assert.ok(payload.warnings?.some((item) => item.includes("interaction rows that did not match content post ids")));
+  assert.ok(payload.warnings?.some((item) => item.includes("no personal post rows")));
 });
 
 test("video account personal captures import into metric snapshots without private or raw payload persistence", () => {
@@ -1940,7 +2001,7 @@ test("platform import statuses summarize priority creator-center runs", async ()
       file: "raw/content-post-list.json",
       capturedAt: "2026-06-03T16:56:00.000Z",
       urlSanitized: "https://channels.weixin.qq.com/micro/content/cgi-bin/mmfinderassistant-bin/post/post_list",
-      body: { data: { list: [{ objectId: "export/video-status-1", createTime: 1780314367, readCount: 1024, likeCount: 88, desc: { shortTitle: "视频号状态作品" } }] } }
+      body: { data: { list: [{ objectId: "export/video-status-1", createTime: 1780314367, readCount: 1024, likeCount: 88, commentCount: 6, forwardCount: 7, desc: { shortTitle: "视频号状态作品" } }] } }
     }
   ]);
   const snapshot = await service.dashboard();
@@ -4669,8 +4730,9 @@ test("trusted action item can become scheduled content and calendar entry", asyn
     const suggestion = dashboard.postImportActionSuggestions.find((item) => item.type === "reuse_high_performer");
     assert.ok(suggestion);
     const task = service.createActionItemFromPostImportSuggestion({ suggestionId: suggestion.id });
-    const converted = service.createContentFromActionItem({ id: task.actionItem.id, scheduledAt: "2026-06-06T09:00:00.000Z" });
-    const repeated = service.createContentFromActionItem({ id: task.actionItem.id, scheduledAt: "2026-06-06T09:00:00.000Z" });
+    const scheduledAt = "2099-06-06T09:00:00.000Z";
+    const converted = service.createContentFromActionItem({ id: task.actionItem.id, scheduledAt });
+    const repeated = service.createContentFromActionItem({ id: task.actionItem.id, scheduledAt });
 
     assert.equal(converted.idempotent, false);
     assert.equal(repeated.idempotent, true);
@@ -4685,14 +4747,14 @@ test("trusted action item can become scheduled content and calendar entry", asyn
     assert.equal(converted.content.dataDomain, "system_log");
     assert.equal(converted.queue.status, "scheduled");
     assert.equal(converted.platformVersion.status, "scheduled");
-    assert.equal(converted.platformVersion.scheduledAt, "2026-06-06T09:00:00.000Z");
+    assert.equal(converted.platformVersion.scheduledAt, scheduledAt);
     assert.equal(repo.listContents().filter((item) => item.id === converted.content.id).length, 1);
     assert.equal(repo.listPlatformVersions().filter((item) => item.id === converted.platformVersion.id).length, 1);
     assert.equal(repo.listQueue().filter((item) => item.id === converted.queue.id).length, 1);
 
     const after = await service.dashboard();
     assert.equal(after.contents.some((item) => item.id === converted.content.id), false);
-    assert.ok(after.calendarItems.some((item) => item.platformVersionId === converted.platformVersion.id && item.scheduledAt === "2026-06-06T09:00:00.000Z"));
+    assert.ok(after.calendarItems.some((item) => item.platformVersionId === converted.platformVersion.id && item.scheduledAt === scheduledAt));
     assert.doesNotMatch(JSON.stringify(converted), /raw payload|cookie|token|headers|comment body|danmu/i);
   } finally {
     repo?.close();
@@ -5585,7 +5647,7 @@ test("content workbench shows all local drafts and source classifications withou
     const publishConfirmation = service.confirmPlatformVersionPublish({
       platformVersionId: actionContent.platformVersion.id,
       status: "published",
-      happenedAt: "2026-06-08T10:00:00.000Z",
+      happenedAt: new Date().toISOString(),
       note: "内容详情发布历史验证",
       confirmationSource: "manual"
     });

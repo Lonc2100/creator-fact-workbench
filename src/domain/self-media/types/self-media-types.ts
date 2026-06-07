@@ -1016,6 +1016,45 @@ export interface AuthedBrowserProfileActionResult {
   warnings: string[];
 }
 
+export type AuthedBrowserAutoRefreshPlatformResultStatus = "needs_login" | "preview_ready" | "needs_content_page" | "unsupported" | "failed";
+
+export interface AuthedBrowserAutoRefreshPlatformResult {
+  platform: AuthedBrowserPlatform;
+  key: PlatformImportOperationPlatform;
+  label: string;
+  status: AuthedBrowserAutoRefreshPlatformResultStatus;
+  statusLabel: string;
+  message: string;
+  nextAction: string;
+  attemptedPreview: boolean;
+  contentCount: number;
+  metricCount: number;
+  profileState: AuthedBrowserProfileState;
+  preview?: DouyinAuthedBrowserCaptureResult | XiaohongshuAuthedBrowserCaptureResult;
+  warnings: string[];
+}
+
+export interface AuthedBrowserAutoRefreshRequest {
+  platforms?: Array<AuthedBrowserPlatform | PlatformImportOperationPlatform> | "all";
+}
+
+export interface AuthedBrowserAutoRefreshResult {
+  ok: boolean;
+  generatedAt: string;
+  mode: "user_triggered_preview_only";
+  summary: string;
+  results: AuthedBrowserAutoRefreshPlatformResult[];
+  safety: {
+    previewOnly: true;
+    userMustConfirmSave: true;
+    noSilentBackgroundCapture: true;
+    noSensitiveLoginMaterialSaved: true;
+    localExportFallbackOnly: true;
+    wechatPaused: true;
+    bilibiliAccountMetricsPreviewOnly: true;
+  };
+}
+
 export type DouyinAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "save" | "close";
 
 export type DouyinAuthedBrowserLoginState = "not_opened" | "needs_login" | "user_confirmed" | "logged_in_or_accessible" | "unknown" | "closed" | "error";

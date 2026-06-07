@@ -207,6 +207,7 @@ function DraggableCalendarCard({
       data-calendar-card="true"
       data-content-id={item.contentId}
       data-platform-version-id={item.platformVersionId}
+      data-testid="calendar-card"
       onClick={openDetail}
       onKeyDown={(event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
@@ -344,7 +345,7 @@ function DroppableCalendarDay({
           <DraggableCalendarCard group={group} key={group.id} onSelect={onSelect} />
         ))}
         {groups.length > maxVisibleItems && <p className="calendar-overflow-note">更多排期</p>}
-        {groups.length === 0 && showEmptySlots && <button aria-label={`新增排期 ${date} 09:00`} className="calendar-empty-slot" data-calendar-empty={date} data-calendar-empty-hour={9} onClick={() => onCreateAt?.(scheduledForDate({ scheduledAt: `${date}T09:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, 9))} type="button"><span>+</span> 排期</button>}
+        {groups.length === 0 && showEmptySlots && <button aria-label={`新增排期 ${date} 09:00`} className="calendar-empty-slot" data-calendar-empty={date} data-calendar-empty-hour={9} data-testid="calendar-empty-slot" onClick={() => onCreateAt?.(scheduledForDate({ scheduledAt: `${date}T09:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, 9))} type="button"><span>+</span> 排期</button>}
       </div>
     </section>
   );
@@ -380,7 +381,7 @@ function DroppableCalendarTimeCell({
       {visible.map((group) => (
         <DraggableCalendarCard group={group} key={group.id} onSelect={onSelect} />
       ))}
-      {groups.length === 0 && showEmptySlots && <button aria-label={`新增排期 ${date} ${String(hour).padStart(2, "0")}:00`} className="calendar-empty-slot calendar-empty-slot-compact" data-calendar-empty={date} data-calendar-empty-hour={hour} onClick={() => onCreateAt?.(scheduledForDate({ scheduledAt: `${date}T${String(hour).padStart(2, "0")}:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, hour))} type="button"><span>+</span></button>}
+      {groups.length === 0 && showEmptySlots && <button aria-label={`新增排期 ${date} ${String(hour).padStart(2, "0")}:00`} className="calendar-empty-slot calendar-empty-slot-compact" data-calendar-empty={date} data-calendar-empty-hour={hour} data-testid="calendar-empty-slot" onClick={() => onCreateAt?.(scheduledForDate({ scheduledAt: `${date}T${String(hour).padStart(2, "0")}:00:00.000`, platformVersionId: "", contentId: "", platform: "douyin", status: "scheduled", title: "" } as PublishCalendarItem, date, hour))} type="button"><span>+</span></button>}
     </div>
   );
 }

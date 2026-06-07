@@ -421,6 +421,17 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /自动抓取：/);
   assert.match(importPage, /check-login-status-primary/);
   assert.match(importPage, /还没有连接好。请打开平台后台，登录后切到作品管理页/);
+  assert.match(importPage, /login-capture-auto-refresh/);
+  assert.match(importPage, /一键刷新登录抓取/);
+  assert.match(importPage, /login-capture-auto-refresh-button/);
+  assert.match(importPage, /刷新登录抓取数据/);
+  assert.match(importPage, /login-capture-startup-check/);
+  assert.match(importPage, /启动检查/);
+  assert.match(importPage, /login-capture-auto-refresh-results/);
+  assert.match(importPage, /\/api\/self-media\/browser-capture\/auto-refresh/);
+  assert.match(importPage, /setDouyinBrowserResult\(preview\)/);
+  assert.match(importPage, /setXiaohongshuBrowserResult\(preview\)/);
+  assert.match(importPage, /不会静默保存/);
   assert.match(importPage, /authed-browser-profile-manager/);
   assert.match(importPage, /本机登录会话/);
   assert.match(importPage, /\.local\/browser-profiles\/&lt;platform&gt;\//);
@@ -772,4 +783,19 @@ test("browser capture profile route exposes local-only session controls", () => 
   assert.match(config, /platform: "xiaohongshu",[\s\S]*captureMvpEnabled: true/);
   assert.match(config, /profileDirRef: "\.local\/browser-profiles\/video_account"/);
   assert.match(config, /profileDirRef: "\.local\/browser-profiles\/bilibili"/);
+});
+
+test("browser capture auto refresh is user-triggered preview only", () => {
+  const route = read("src/app/api/self-media/browser-capture/auto-refresh/route.ts");
+  assert.match(route, /mode: "user_triggered_preview_only"/);
+  assert.match(route, /previewOnly: true/);
+  assert.match(route, /userMustConfirmSave: true/);
+  assert.match(route, /noSilentBackgroundCapture: true/);
+  assert.match(route, /localExportFallbackOnly: true/);
+  assert.match(route, /bilibiliAccountMetricsPreviewOnly: true/);
+  assert.match(route, /capture_preview/);
+  assert.match(route, /userConfirmedLogin: true/);
+  assert.match(route, /video_account[\s\S]*discovery-only|discovery-only[\s\S]*video_account/);
+  assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "response", "storage", "screenshot", "har", "trace", "credential"\]/);
+  assert.doesNotMatch(route, /action:\s*"save"|userConfirmedContentMetrics:\s*true|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)|screenshot\s*\(|tracing\./);
 });

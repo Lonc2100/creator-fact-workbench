@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { AuthedBrowserPlatform, AuthedBrowserProfileStatus, AuthedBrowserProfileStatusView, CsvImportPreset, DashboardSnapshot, DouyinAuthedBrowserCaptureResult, DouyinBrowserVisibleRow, ImportPreviewResult, PlatformImportOperationAction, PlatformImportOperationCapability, PlatformImportOperationPlatform, PlatformImportOperationResult, PlatformImportStatus, RealImportPreviewRow, XiaohongshuAuthedBrowserCaptureResult, XiaohongshuBrowserVisibleRow } from "../../types";
+import type { AuthedBrowserAutoRefreshResult, AuthedBrowserPlatform, AuthedBrowserProfileStatus, AuthedBrowserProfileStatusView, CsvImportPreset, DashboardSnapshot, DouyinAuthedBrowserCaptureResult, DouyinBrowserVisibleRow, ImportPreviewResult, PlatformImportOperationAction, PlatformImportOperationCapability, PlatformImportOperationPlatform, PlatformImportOperationResult, PlatformImportStatus, RealImportPreviewRow, XiaohongshuAuthedBrowserCaptureResult, XiaohongshuBrowserVisibleRow } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
@@ -522,6 +522,46 @@ function AuthedBrowserProfileManager({
         <span>{message}</span>
       </div>
     </Panel>
+  );
+}
+
+function LoginCaptureAutoRefreshPanel({
+  isRunning,
+  onRefresh,
+  result,
+  startupSummary
+}: {
+  isRunning: boolean;
+  onRefresh: () => void;
+  result: AuthedBrowserAutoRefreshResult | null;
+  startupSummary: string;
+}) {
+  return (
+    <div className="login-auto-refresh-panel" data-testid="login-capture-auto-refresh">
+      <div>
+        <strong>一键刷新登录抓取</strong>
+        <p>启动或重启后先检查本机登录状态；你点一次刷新，系统只对已确认登录的平台尝试预览，不会静默保存。</p>
+        <small data-testid="login-capture-startup-check">{startupSummary}</small>
+      </div>
+      <div className="import-preview-actions">
+        <Button data-testid="login-capture-auto-refresh-button" onClick={onRefresh} variant="primary" disabled={isRunning}>{isRunning ? "正在刷新" : "刷新登录抓取数据"}</Button>
+      </div>
+      {result && (
+        <div className="platform-operation-grid" data-testid="login-capture-auto-refresh-results">
+          {result.results.map((item) => (
+            <article key={`auto-refresh-${item.platform}`} className="platform-operation-card">
+              <div className="platform-operation-card-head">
+                <PlatformBadge platform={item.platform} />
+                <Badge tone={item.status === "preview_ready" ? "success" : item.status === "failed" ? "danger" : item.status === "needs_content_page" ? "warning" : "info"}>{item.statusLabel}</Badge>
+              </div>
+              <p>{item.message}</p>
+              <small>{item.nextAction}</small>
+              <small>{formatNumber(item.contentCount)} 条内容 / {formatNumber(item.metricCount)} 条指标</small>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1339,11 +1379,19 @@ function PostPublishRefreshPanel({
 }
 
 function ImportFirstViewportGuide({
+  authCheckMessage,
+  onAuthCheck,
   snapshot
 }: {
+  authCheckMessage: string;
+  onAuthCheck: () => void;
   snapshot: DashboardSnapshot;
 }) {
   const scheduler = snapshot.trustedAutoCaptureScheduler;
+  const browserReadyPlatforms = scheduler.statuses.filter((status) => status.captureMode === "browser_assisted" || status.captureConnectionStatus === "browser_session_active");
+  const browserReadyCopy = browserReadyPlatforms.length > 0
+    ? browserReadyPlatforms.map((status) => platformLabels[status.platform]).join("、")
+    : "抖音、小红书可走登录抓取；视频号/B站先看状态或使用兜底导入。";
   return (
     <Panel
       className="import-first-viewport-guide"
@@ -1361,7 +1409,11 @@ function ImportFirstViewportGuide({
         ))}
       </div>
       <div className="import-first-next-row">
-        <a className="sm-button sm-button-primary" data-testid="login-flow-next" href="#login-flow-primary">下一步</a>
+        <span>{authCheckMessage || `当前可执行：${browserReadyCopy}`}</span>
+        <Button data-testid="check-login-status-primary" onClick={onAuthCheck} variant="primary">检查登录抓取状态</Button>
+        <a className="sm-button sm-button-secondary" data-testid="login-flow-next" href="#login-flow-primary">下一步</a>
+        <a className="sm-button sm-button-secondary" href="#douyin-authed-browser-capture-mvp">进入抖音读取</a>
+        <a className="sm-button sm-button-secondary" href="#xiaohongshu-authed-browser-capture-mvp">进入小红书读取</a>
       </div>
     </Panel>
   );
@@ -1488,6 +1540,9 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [browserProfileStatus, setBrowserProfileStatus] = useState<AuthedBrowserProfileStatusView | null>(null);
   const [browserProfileLoadingKey, setBrowserProfileLoadingKey] = useState("");
   const [browserProfileMessage, setBrowserProfileMessage] = useState("正在读取本机登录会话状态");
+  const [autoRefreshResult, setAutoRefreshResult] = useState<AuthedBrowserAutoRefreshResult | null>(null);
+  const [autoRefreshMessage, setAutoRefreshMessage] = useState("启动检查中：正在确认是否需要补抓。");
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const [xiaohongshuCsv, setXiaohongshuCsv] = useState(sampleXiaohongshuLocalExportCsv);
   const [xiaohongshuFile, setXiaohongshuFile] = useState<File | null>(null);
   const [xiaohongshuPreview, setXiaohongshuPreview] = useState<ImportPreviewResult | null>(null);
@@ -1522,6 +1577,15 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const canSaveDouyinBrowserCapture = douyinBrowserRows.length > 0 && douyinBrowserLoginConfirmed && douyinBrowserMetricsConfirmed;
   const xiaohongshuBrowserRows = xiaohongshuBrowserResult?.rows ?? [];
   const canSaveXiaohongshuBrowserCapture = xiaohongshuBrowserRows.length > 0 && xiaohongshuBrowserLoginConfirmed && xiaohongshuBrowserMetricsConfirmed;
+  const browserProfileStartupSummary = useMemo(() => {
+    const profiles = browserProfileStatus?.profiles ?? [];
+    if (profiles.length === 0) return autoRefreshMessage;
+    const reusable = profiles.filter((item) => item.state === "session_maybe_available").length;
+    const needsLogin = profiles.filter((item) => item.state === "not_opened" || item.state === "waiting_login" || item.state === "session_expired").length;
+    const failed = profiles.filter((item) => item.state === "capture_failed").length;
+    if (reusable > 0) return `启动检查：${reusable} 个平台可能可直接刷新，${needsLogin} 个平台需要先登录${failed > 0 ? `，${failed} 个平台上次抓取失败` : ""}。`;
+    return `启动检查：暂未发现可直接刷新的登录会话，${needsLogin} 个平台需要先打开后台登录。`;
+  }, [autoRefreshMessage, browserProfileStatus]);
   const handleCaptureAuthCheck = () => setAuthCheckMessage("还没有连接好。请打开平台后台，登录后切到作品管理页，再点下一步。");
 
   async function refreshAuthedBrowserProfiles() {
@@ -1557,6 +1621,47 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       setBrowserProfileMessage(error instanceof Error ? error.message : "浏览器 profile 操作失败");
     } finally {
       setBrowserProfileLoadingKey("");
+    }
+  }
+
+  async function runLoginCaptureAutoRefresh() {
+    setIsAutoRefreshing(true);
+    setAutoRefreshMessage("正在按平台登录状态尝试预览。");
+    try {
+      const response = await fetch("/api/self-media/browser-capture/auto-refresh", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ platforms: "all" })
+      });
+      const body = await response.json() as AuthedBrowserAutoRefreshResult & { errorMessage?: string };
+      if (!response.ok) throw new Error(body.errorMessage ?? "登录抓取刷新失败");
+      setAutoRefreshResult(body);
+      setAutoRefreshMessage(body.summary);
+      for (const item of body.results) {
+        if (item.platform === "douyin") {
+          if (item.preview) {
+            const preview = item.preview as DouyinAuthedBrowserCaptureResult;
+            setDouyinBrowserResult(preview);
+            setDouyinBrowserLoginConfirmed(preview.loginState !== "needs_login");
+            setDouyinBrowserMetricsConfirmed(false);
+          }
+          setDouyinBrowserMessage(item.status === "preview_ready" ? item.message : item.nextAction);
+        }
+        if (item.platform === "xiaohongshu") {
+          if (item.preview) {
+            const preview = item.preview as XiaohongshuAuthedBrowserCaptureResult;
+            setXiaohongshuBrowserResult(preview);
+            setXiaohongshuBrowserLoginConfirmed(preview.loginState !== "needs_login" && preview.loginState !== "wrong_page");
+            setXiaohongshuBrowserMetricsConfirmed(false);
+          }
+          setXiaohongshuBrowserMessage(item.status === "preview_ready" ? item.message : item.nextAction);
+        }
+      }
+      await refreshAuthedBrowserProfiles();
+    } catch (error) {
+      setAutoRefreshMessage(error instanceof Error ? error.message : "登录抓取刷新失败");
+    } finally {
+      setIsAutoRefreshing(false);
     }
   }
 
@@ -1851,6 +1956,8 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       />
       <div className="import-page-stack">
         <ImportFirstViewportGuide
+          authCheckMessage={authCheckMessage}
+          onAuthCheck={handleCaptureAuthCheck}
           snapshot={currentSnapshot}
         />
         <Panel
@@ -1882,10 +1989,16 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               </article>
             ))}
           </div>
+          <LoginCaptureAutoRefreshPanel
+            isRunning={isAutoRefreshing}
+            onRefresh={runLoginCaptureAutoRefresh}
+            result={autoRefreshResult}
+            startupSummary={browserProfileStartupSummary}
+          />
           <div className="trusted-weekly-summary-foot">
             <span>{authCheckMessage || "默认路线是登录抓取；本地导出只是兜底，不代表系统会读取网页登录态。"}</span>
             <div className="inline-stack">
-              <Button data-testid="check-login-status-primary" onClick={handleCaptureAuthCheck} variant="primary">检查登录抓取状态</Button>
+              <Button data-testid="check-login-status-secondary" onClick={handleCaptureAuthCheck} variant="primary">检查登录抓取状态</Button>
               <a className="sm-button sm-button-secondary" href="#post-publish-refresh">发布后回收</a>
               <a className="sm-button sm-button-secondary" href="#local-export-fallback">展开本地导出兜底</a>
             </div>

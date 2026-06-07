@@ -758,19 +758,31 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
 
   async function handleCreatorDraftCreated(result: CreatorVideoDraftResult) {
     const isUserWork = result.content.dataDomain === "user_work";
-    setSelectedContentId(isUserWork ? result.content.id : undefined);
-    setSelectedVersionId(isUserWork ? result.platformVersions[0]?.id : undefined);
-    setSourceFilter(isUserWork ? "local_draft" : "operating_default");
-    setStatusFilter(isUserWork && result.content.scheduledAt ? "version:scheduled" : "all");
-    setSort("updated_desc");
     const next = await refreshDashboard();
+    setSort("updated_desc");
     if (!isUserWork) {
+      setSourceFilter("operating_default");
+      setStatusFilter("all");
       const firstUserWork = next.contentRows.find(isOperatingContentRow);
       setSelectedContentId(firstUserWork?.content.id);
       setSelectedVersionId(firstUserWork?.platformVersions[0]?.id);
       setMessage("新内容已保存到本地验收/测试内容折叠区，不进入默认作品库或日历。");
-    } else if (!next.contentRows.some((row) => row.content.id === result.content.id)) setMessage("新视频已保存，但当前筛选未显示；切换到全部本地/诊断可查看。");
-    else setMessage("新视频已保存为内容和四个平台版本，可继续编辑或去日历查看排期。");
+      return;
+    }
+    const persistedRow = next.contentRows.find((row) => row.content.id === result.content.id);
+    if (!persistedRow) {
+      setSourceFilter("all");
+      setStatusFilter("all");
+      setSelectedContentId(result.content.id);
+      setSelectedVersionId(result.platformVersions[0]?.id);
+      setMessage("新视频已保存，但当前筛选未显示；切换到全部本地/诊断可查看。");
+      return;
+    }
+    setSourceFilter("local_draft");
+    setStatusFilter(result.content.scheduledAt ? "version:scheduled" : "all");
+    setSelectedContentId(result.content.id);
+    setSelectedVersionId(persistedRow.platformVersions[0]?.id ?? result.platformVersions[0]?.id);
+    setMessage(result.content.scheduledAt ? "新视频已保存并选中；四个平台版本已进入日历排期，可继续发布交接。" : "新视频已保存并选中；可继续编辑四个平台版本。");
   }
 
   async function patchTrustedScope(contentId: string, excluded: boolean) {

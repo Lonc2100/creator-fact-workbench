@@ -44,6 +44,10 @@ This index separates active release scope from paused or diagnostic-only work. D
 - [Xiaohongshu authenticated browser capture MVP 086](../handoffs/XIAOHONGSHU-AUTHED-BROWSER-CAPTURE-MVP-086-worker-handoff.md)
 - [Video Account content-level discovery 086](../handoffs/VIDEO-ACCOUNT-CONTENT-LEVEL-DISCOVERY-086-worker-handoff.md)
 - [Authenticated browser capture closure 086](../handoffs/MAINLINE-AUTHED-BROWSER-CAPTURE-CLOSURE-086-orchestrator-review.md)
+- [Login capture auto-refresh 087](../handoffs/MAINLINE-LOGIN-CAPTURE-AUTO-REFRESH-087-worker-handoff.md)
+- [Platform capture adapter reality 087](../handoffs/PLATFORM-CAPTURE-ADAPTER-REALITY-087-worker-handoff.md)
+- [Live creator mouse walkthrough 087](../handoffs/LIVE-CREATOR-MOUSE-WALKTHROUGH-087-worker-handoff.md)
+- [Login capture refresh closure 087](../handoffs/MAINLINE-LOGIN-CAPTURE-REFRESH-CLOSURE-087-orchestrator-review.md)
 
 ## Paused / Diagnostic-Only
 
