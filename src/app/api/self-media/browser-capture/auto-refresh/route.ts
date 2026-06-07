@@ -67,6 +67,7 @@ function unsupportedResult(profile: AuthedBrowserProfileStatus): AuthedBrowserAu
     message: profile.platform === "video_account" ? "视频号还没有稳定内容级登录抓取页面证据。" : "该平台暂未接入登录后自动预览。",
     nextAction: platformPageAction(profile.platform),
     attemptedPreview: false,
+    openedWindow: false,
     contentCount: 0,
     metricCount: 0,
     profileState: profile.state,
@@ -84,6 +85,7 @@ function needsLoginResult(profile: AuthedBrowserProfileStatus): AuthedBrowserAut
     message: `${profile.label} 还没有可复用的登录确认。`,
     nextAction: profile.nextAction,
     attemptedPreview: false,
+    openedWindow: false,
     contentCount: 0,
     metricCount: 0,
     profileState: profile.state,
@@ -107,14 +109,38 @@ async function postCapture(origin: string, platform: AuthedBrowserPlatform, acti
   return { response, body };
 }
 
-async function previewPlatform(origin: string, profile: AuthedBrowserProfileStatus): Promise<AuthedBrowserAutoRefreshPlatformResult> {
+function canAttemptPreview(profile: AuthedBrowserProfileStatus) {
+  return profile.state === "session_maybe_available" || profile.state === "capture_failed";
+}
+
+async function previewPlatform(origin: string, profile: AuthedBrowserProfileStatus, autoOpen: boolean): Promise<AuthedBrowserAutoRefreshPlatformResult> {
   if (!profile.captureMvpEnabled || !captureRoutes[profile.platform]) return unsupportedResult(profile);
-  if (profile.state !== "session_maybe_available") return needsLoginResult(profile);
+  if (!canAttemptPreview(profile)) return needsLoginResult(profile);
 
   let preview = await postCapture(origin, profile.platform, "capture_preview");
   const needsWindow = !preview.response.ok && /请先打开|尚未打开|not_opened/i.test(preview.body.message);
+  let openedWindow = false;
   if (needsWindow) {
+    if (!autoOpen) {
+      return {
+        platform: profile.platform,
+        key: profile.key,
+        label: profile.label,
+        status: "needs_login",
+        statusLabel: statusLabel("needs_login"),
+        message: `${profile.label} 本机窗口未打开。`,
+        nextAction: "打开平台后台后再刷新；系统不会静默保存数据。",
+        attemptedPreview: true,
+        openedWindow: false,
+        contentCount: 0,
+        metricCount: 0,
+        profileState: profile.state,
+        preview: safePreview(preview.body),
+        warnings: preview.body.warnings
+      };
+    }
     const opened = await postCapture(origin, profile.platform, "open");
+    openedWindow = opened.response.ok;
     if (!opened.response.ok) {
       return {
         platform: profile.platform,
@@ -125,6 +151,7 @@ async function previewPlatform(origin: string, profile: AuthedBrowserProfileStat
         message: opened.body.message,
         nextAction: "先打开平台后台并完成登录确认。",
         attemptedPreview: true,
+        openedWindow,
         contentCount: 0,
         metricCount: 0,
         profileState: profile.state,
@@ -149,6 +176,7 @@ async function previewPlatform(origin: string, profile: AuthedBrowserProfileStat
       contentCount: sanitized.contentCount,
       metricCount: sanitized.metricCount,
       profileState: profile.state,
+      openedWindow,
       preview: sanitized,
       warnings: sanitized.warnings
     };
@@ -164,6 +192,7 @@ async function previewPlatform(origin: string, profile: AuthedBrowserProfileStat
     message: needsLogin ? `${profile.label} 页面仍像登录页；请完成登录后再刷新。` : sanitized.message,
     nextAction: needsLogin ? "在弹出的平台后台完成登录并确认登录状态。" : platformPageAction(profile.platform),
     attemptedPreview: true,
+    openedWindow,
     contentCount: sanitized.contentCount,
     metricCount: sanitized.metricCount,
     profileState: profile.state,
@@ -181,28 +210,34 @@ export async function POST(request: Request) {
     const requested = body.platforms === "all" || !body.platforms
       ? null
       : new Set(body.platforms.map((item) => normalizePlatform(item)));
+    const trigger = body.trigger === "startup" ? "startup" : "manual";
+    const autoOpen = body.autoOpen !== false;
     const profiles = getAuthedBrowserProfileStatusView().profiles.filter((profile) => !requested || requested.has(profile.platform));
     const origin = new URL(request.url).origin;
     const results: AuthedBrowserAutoRefreshPlatformResult[] = [];
     for (const profile of profiles) {
-      results.push(await previewPlatform(origin, profile));
+      results.push(await previewPlatform(origin, profile, autoOpen));
     }
     const previewReady = results.filter((item) => item.status === "preview_ready").length;
     const needsLogin = results.filter((item) => item.status === "needs_login").length;
     const needsContentPage = results.filter((item) => item.status === "needs_content_page").length;
+    const openedWindowCount = results.filter((item) => item.openedWindow).length;
     const summary = previewReady > 0
-      ? `已抓到 ${previewReady} 个平台的预览，等待你确认保存。`
+      ? `已抓到 ${previewReady} 个平台的预览，等待你确认保存。${openedWindowCount > 0 ? ` 已自动打开 ${openedWindowCount} 个后台窗口。` : ""}`
       : needsLogin > 0
-        ? `有 ${needsLogin} 个平台需要先登录或确认登录。`
+        ? `有 ${needsLogin} 个平台需要先登录或确认登录。${openedWindowCount > 0 ? ` 已自动打开 ${openedWindowCount} 个后台窗口。` : ""}`
         : needsContentPage > 0
-          ? `已尝试抓取，但需要先切到作品/笔记管理页面。`
+          ? `已尝试抓取，但需要先切到作品/笔记管理页面。${openedWindowCount > 0 ? ` 已自动打开 ${openedWindowCount} 个后台窗口。` : ""}`
           : "当前没有可自动预览的平台；请查看每个平台下一步。";
 
     const result: AuthedBrowserAutoRefreshResult = {
       ok: previewReady > 0,
       generatedAt: new Date().toISOString(),
       mode: "user_triggered_preview_only",
+      trigger,
       summary,
+      autoOpenEnabled: autoOpen,
+      openedWindowCount,
       results,
       safety: {
         previewOnly: true,

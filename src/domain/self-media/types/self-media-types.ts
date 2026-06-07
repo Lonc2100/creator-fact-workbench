@@ -1027,6 +1027,7 @@ export interface AuthedBrowserAutoRefreshPlatformResult {
   message: string;
   nextAction: string;
   attemptedPreview: boolean;
+  openedWindow: boolean;
   contentCount: number;
   metricCount: number;
   profileState: AuthedBrowserProfileState;
@@ -1036,13 +1037,18 @@ export interface AuthedBrowserAutoRefreshPlatformResult {
 
 export interface AuthedBrowserAutoRefreshRequest {
   platforms?: Array<AuthedBrowserPlatform | PlatformImportOperationPlatform> | "all";
+  autoOpen?: boolean;
+  trigger?: "startup" | "manual";
 }
 
 export interface AuthedBrowserAutoRefreshResult {
   ok: boolean;
   generatedAt: string;
   mode: "user_triggered_preview_only";
+  trigger: "startup" | "manual";
   summary: string;
+  autoOpenEnabled: boolean;
+  openedWindowCount: number;
   results: AuthedBrowserAutoRefreshPlatformResult[];
   safety: {
     previewOnly: true;

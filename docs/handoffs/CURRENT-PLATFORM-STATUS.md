@@ -86,6 +86,17 @@ The import/data refresh mainline has moved from "find a panel and manually read 
 - A live mouse walkthrough fixed immediate usability friction: import first-screen action visibility, content save selecting the newly persisted content/version, and stable `calendar-card` / `calendar-empty-slot` selectors.
 - 088 should continue from the live walkthrough friction list: scheduled-time validation before save, in-place calendar empty-slot creation, clearer publish handoff empty state, and auto-highlight/scroll to the first actionable import panel after login check.
 
+## 088 Login Capture Auto-Open Baseline
+
+The data-import mainline now prioritizes login-assisted automatic preview over local export fallback:
+
+- `/import` performs a startup check on page load and displays the current auto-refresh result without requiring the user to scroll into diagnostics.
+- Douyin and Xiaohongshu are the only platforms allowed to auto-open local backend windows. When a reusable profile or retryable last state exists, the route can open the platform window once and retry `capture_preview`.
+- Auto-open remains preview-only. The route never calls `save`, never marks `userConfirmedContentMetrics: true`, and never stores password, cookie, token, header, storage state, raw request, raw response, screenshot, HAR, or trace material.
+- Result states are business-facing: preview ready, needs login, needs content page, failed, or unsupported. Local paths, run ids, raw capture details, and implementation logs stay out of the default `/import` first screen.
+- Video Account remains discovery-only for authenticated browser capture. Bilibili browser capture remains unsupported; Bilibili account metrics remain preview-only.
+- Obsidian PRD-drift prevention note was written to `D:\Obsidian\Repository\LifeOS Pro\1. 项目\自媒体\PRD偏离复盘与防偏清单.md`. Future sessions should use it to keep PRD > CURRENT > main closure > worker handoff.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
@@ -94,6 +105,7 @@ The import/data refresh mainline has moved from "find a panel and manually read 
 - Douyin has the first authenticated browser capture MVP on `/import`: open controlled browser, user confirms login, capture current visible works/data rows, preview, confirm save, and write `douyin_creator_center` trusted content-level metrics without saving password, cookie, token, header, storage state, raw request, or raw response records.
 - Xiaohongshu has the second authenticated browser capture MVP on `/import`: open the creator service platform with the local profile, reject public/wrong pages, capture visible creator note/work rows only, preview, confirm save, and write `xiaohongshu_creator_center` trusted content-level metrics.
 - `/import` also has user-triggered auto-refresh preview for Douyin and Xiaohongshu via the login-capture refresh route; this is not silent background collection and not an automatic save.
+- `/import` now also starts an automatic page-load check and can auto-open reusable Douyin/Xiaohongshu local backend windows for preview. Save still requires explicit user confirmation in the platform preview panel.
 - Creator business loop is closed for daily use: idea -> discussion -> four-platform drafts -> save -> future schedule -> edit schedule -> clear future schedule -> manual data refresh.
 - Closed loop means: logged-in/local capture evidence -> mapping preview -> explicit save -> content/platform version/metric snapshot -> dashboard/review visibility -> import operations smoke.
 - WeChat Official Account / backend is paused. Do not resume WeChat backend discovery, mapping, sync, or public-account backend work unless the user explicitly reopens that scope.

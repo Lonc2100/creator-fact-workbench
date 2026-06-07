@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { AuthedBrowserAutoRefreshResult, AuthedBrowserPlatform, AuthedBrowserProfileStatus, AuthedBrowserProfileStatusView, CsvImportPreset, DashboardSnapshot, DouyinAuthedBrowserCaptureResult, DouyinBrowserVisibleRow, ImportPreviewResult, PlatformImportOperationAction, PlatformImportOperationCapability, PlatformImportOperationPlatform, PlatformImportOperationResult, PlatformImportStatus, RealImportPreviewRow, XiaohongshuAuthedBrowserCaptureResult, XiaohongshuBrowserVisibleRow } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
@@ -540,14 +540,22 @@ function LoginCaptureAutoRefreshPanel({
     <div className="login-auto-refresh-panel" data-testid="login-capture-auto-refresh">
       <div>
         <strong>一键刷新登录抓取</strong>
-        <p>启动或重启后先检查本机登录状态；你点一次刷新，系统只对已确认登录的平台尝试预览，不会静默保存。</p>
+        <p>进入本页会自动检查并尝试打开可复用的抖音/小红书后台窗口；你也可以手动再刷新。系统只做预览，不会静默保存。</p>
         <small data-testid="login-capture-startup-check">{startupSummary}</small>
       </div>
       <div className="import-preview-actions">
-        <Button data-testid="login-capture-auto-refresh-button" onClick={onRefresh} variant="primary" disabled={isRunning}>{isRunning ? "正在刷新" : "刷新登录抓取数据"}</Button>
+        <Button data-testid="login-capture-auto-refresh-button" onClick={onRefresh} variant="primary" disabled={isRunning}>{isRunning ? "正在刷新" : "自动开窗刷新"}</Button>
       </div>
       {result && (
         <div className="platform-operation-grid" data-testid="login-capture-auto-refresh-results">
+          <article className="platform-operation-card">
+            <div className="platform-operation-card-head">
+              <strong>{result.trigger === "startup" ? "启动自动检查" : "手动刷新"}</strong>
+              <Badge tone={result.openedWindowCount > 0 ? "info" : "success"}>{result.openedWindowCount} 个窗口</Badge>
+            </div>
+            <p>{result.summary}</p>
+            <small>自动开窗：{result.autoOpenEnabled ? "已启用" : "未启用"} / 保存：仍需你确认。</small>
+          </article>
           {result.results.map((item) => (
             <article key={`auto-refresh-${item.platform}`} className="platform-operation-card">
               <div className="platform-operation-card-head">
@@ -556,6 +564,7 @@ function LoginCaptureAutoRefreshPanel({
               </div>
               <p>{item.message}</p>
               <small>{item.nextAction}</small>
+              {item.openedWindow && <small>已自动打开后台窗口，请在平台页完成登录或切到作品页。</small>}
               <small>{formatNumber(item.contentCount)} 条内容 / {formatNumber(item.metricCount)} 条指标</small>
             </article>
           ))}
@@ -1565,6 +1574,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [isXiaohongshuLoading, setIsXiaohongshuLoading] = useState(false);
   const [isXiaohongshuBrowserLoading, setIsXiaohongshuBrowserLoading] = useState(false);
   const [isBilibiliLoading, setIsBilibiliLoading] = useState(false);
+  const startupAutoRefreshStarted = useRef(false);
 
   const previewStats = useMemo(() => previewStatsFor(preview), [preview]);
   const douyinStats = useMemo(() => previewStatsFor(douyinPreview), [douyinPreview]);
@@ -1596,12 +1606,6 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     setBrowserProfileMessage("本机登录会话状态已刷新；profile 只保存在 .local/browser-profiles。");
   }
 
-  useEffect(() => {
-    refreshAuthedBrowserProfiles().catch((error) => {
-      setBrowserProfileMessage(error instanceof Error ? error.message : "读取本机登录会话失败");
-    });
-  }, []);
-
   async function runAuthedBrowserProfileAction(platform: AuthedBrowserPlatform, action: "open" | "confirm_login") {
     setBrowserProfileLoadingKey(`${platform}:${action}`);
     setBrowserProfileMessage(action === "open" ? "正在打开平台后台" : "正在确认本机登录状态");
@@ -1624,14 +1628,14 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     }
   }
 
-  async function runLoginCaptureAutoRefresh() {
+  async function runLoginCaptureAutoRefresh(trigger: "startup" | "manual" = "manual") {
     setIsAutoRefreshing(true);
-    setAutoRefreshMessage("正在按平台登录状态尝试预览。");
+    setAutoRefreshMessage(trigger === "startup" ? "启动自动检查：正在尝试打开可复用平台并预览。" : "正在按平台登录状态尝试预览。");
     try {
       const response = await fetch("/api/self-media/browser-capture/auto-refresh", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ platforms: "all" })
+        body: JSON.stringify({ platforms: "all", autoOpen: true, trigger })
       });
       const body = await response.json() as AuthedBrowserAutoRefreshResult & { errorMessage?: string };
       if (!response.ok) throw new Error(body.errorMessage ?? "登录抓取刷新失败");
@@ -1830,6 +1834,16 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     }
   }
 
+  useEffect(() => {
+    if (startupAutoRefreshStarted.current) return;
+    startupAutoRefreshStarted.current = true;
+    refreshAuthedBrowserProfiles()
+      .then(() => runLoginCaptureAutoRefresh("startup"))
+      .catch((error) => {
+        setBrowserProfileMessage(error instanceof Error ? error.message : "读取本机登录会话失败");
+      });
+  }, []);
+
   async function runXiaohongshuLocalFile(action: "preview" | "save") {
     setIsXiaohongshuLoading(true);
     setXiaohongshuMessage(action === "preview" ? "小红书导出表预览中" : "正在保存小红书内容级指标");
@@ -1991,7 +2005,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
           <LoginCaptureAutoRefreshPanel
             isRunning={isAutoRefreshing}
-            onRefresh={runLoginCaptureAutoRefresh}
+            onRefresh={() => runLoginCaptureAutoRefresh("manual")}
             result={autoRefreshResult}
             startupSummary={browserProfileStartupSummary}
           />
