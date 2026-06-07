@@ -6,6 +6,11 @@ node_modules/
 .dev-server-*.log
 .smoke-*.png
 
+# Local workflow tooling and agent runtime assets
+.agents/
+.codex/
+.trellis/
+
 # Local env
 .env
 .env.*
