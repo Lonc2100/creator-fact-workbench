@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
-import { authedBrowserProfileDir, getAuthedBrowserProfileConfig, markAuthedBrowserCaptureFailure, markAuthedBrowserProfileConfirmed, markAuthedBrowserProfileOpened } from "@/domain/self-media/providers";
+import { authedBrowserProfileDir, markAuthedBrowserCaptureFailure, markAuthedBrowserProfileConfirmed, markAuthedBrowserProfileOpened, resolveAuthedBrowserTargetUrl } from "@/domain/self-media/providers";
 import { SelfMediaService } from "@/domain/self-media/service";
 import type { DouyinAuthedBrowserCaptureRequest, DouyinAuthedBrowserCaptureResult, DouyinAuthedBrowserLoginState, DouyinBrowserVisibleRow, ImportProvenanceMetadata } from "@/domain/self-media/types";
 
@@ -87,13 +87,13 @@ async function inferLoginState(page: Page, userConfirmedLogin?: boolean): Promis
   return "unknown";
 }
 
-async function openSession() {
+async function openSession(target: DouyinAuthedBrowserCaptureRequest["target"] = "works_page") {
   const existing = globalThis.__selfMediaDouyinBrowserSession;
   if (existing && !existing.page.isClosed()) {
+    if (target === "works_page") await existing.page.goto(resolveAuthedBrowserTargetUrl("douyin", target), { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
     await existing.page.bringToFront().catch(() => undefined);
     return existing;
   }
-  const profileConfig = getAuthedBrowserProfileConfig("douyin");
   const openedStatus = markAuthedBrowserProfileOpened("douyin");
   const context = await chromium.launchPersistentContext(authedBrowserProfileDir("douyin"), {
     executablePath: chromeExecutablePath(),
@@ -103,7 +103,7 @@ async function openSession() {
     locale: "zh-CN"
   });
   const page = context.pages()[0] ?? await context.newPage();
-  await page.goto(profileConfig.startUrl, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
+  await page.goto(resolveAuthedBrowserTargetUrl("douyin", target), { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
   const session = { context, page, openedAt: openedStatus.lastOpenedAt ?? new Date().toISOString(), lastRows: [] };
   globalThis.__selfMediaDouyinBrowserSession = session;
   return session;
@@ -261,13 +261,13 @@ export async function POST(request: Request) {
       return Response.json(emptyResult(action, { ok: true, loginState: "closed", browserOpened: false, message: "已关闭抖音登录抓取窗口；登录会话仅保存在本机 profile，不写入业务数据。" }));
     }
 
-    const session = action === "open" ? await openSession() : globalThis.__selfMediaDouyinBrowserSession;
+    const session = action === "open" ? await openSession(body.target ?? "works_page") : globalThis.__selfMediaDouyinBrowserSession;
     if (!session || session.page.isClosed()) {
       return Response.json(emptyResult(action, { message: "请先打开抖音后台登录抓取窗口。" }), { status: 400 });
     }
 
     const loginState = await inferLoginState(session.page, body.userConfirmedLogin);
-    if (body.userConfirmedLogin) markAuthedBrowserProfileConfirmed("douyin");
+    if (body.userConfirmedLogin || loginState === "logged_in_or_accessible" || loginState === "user_confirmed") markAuthedBrowserProfileConfirmed("douyin");
     const base = {
       action,
       loginState,
@@ -282,7 +282,7 @@ export async function POST(request: Request) {
         ok: action === "open" || loginState !== "needs_login",
         rows: session.lastRows,
         ...summarizeRows(session.lastRows),
-        message: loginState === "needs_login" ? "请在弹出的抖音后台完成登录，再回到本页确认。" : "抖音登录抓取窗口已连接；可以进入作品管理/数据页面后读取可见作品。"
+        message: loginState === "needs_login" ? "请在弹出的抖音后台完成登录，再回到本页确认。" : "抖音登录抓取窗口已连接；默认已尝试进入作品管理页，请确认能看到单条作品后读取。"
       }));
     }
 
@@ -300,7 +300,7 @@ export async function POST(request: Request) {
         rows,
         ...summary,
         capturedAt: new Date().toISOString(),
-        message: rows.length > 0 ? `已从当前抖音页面识别 ${rows.length} 条可见作品级数据，保存前请确认。` : "当前页面未识别到作品级指标行；请切到作品管理或数据表现列表后重试。",
+        message: rows.length > 0 ? `已从当前抖音页面识别 ${rows.length} 条可见作品级数据，保存前请确认。` : "当前页面未识别到作品级指标行；请进入抖音创作者中心左侧的作品管理，确认列表里有单条作品标题和播放/点赞/评论等指标后重试。",
         warnings: rows.length > 0 ? rows.flatMap((row) => row.warnings) : ["no_visible_content_rows"]
       }), { status: rows.length > 0 ? 200 : 400 });
     }

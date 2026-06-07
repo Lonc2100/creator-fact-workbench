@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     if (!isLocalRequest(request)) return Response.json({ errorMessage: "浏览器 profile 操作只允许本地 runtime 调用。" }, { status: 403 });
     const body = await request.json() as AuthedBrowserProfileRequest & { action?: "open" | "confirm_login" };
     if (hasBlockedKey(body)) return Response.json({ errorMessage: "浏览器 profile 操作不接收 cookie/token/password/header/raw request/storage。" }, { status: 400 });
-    if (body.action === "open") return Response.json(openAuthedBrowserProfile(body.platform));
+    if (body.action === "open") return Response.json(openAuthedBrowserProfile(body.platform, body.target));
     if (body.action === "confirm_login") return Response.json(confirmAuthedBrowserProfileLogin(body.platform));
     return Response.json({ errorMessage: "不支持的浏览器 profile 操作。" }, { status: 400 });
   } catch (error) {

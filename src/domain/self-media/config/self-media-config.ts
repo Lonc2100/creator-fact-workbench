@@ -186,7 +186,7 @@ export const authedBrowserProfileConfigs: AuthedBrowserProfileConfig[] = [
     platform: "xiaohongshu",
     key: "xiaohongshu",
     label: "小红书",
-    startUrl: "https://creator.xiaohongshu.com/",
+    startUrl: "https://creator.xiaohongshu.com/new/note-manager",
     allowedHosts: ["creator.xiaohongshu.com", "www.xiaohongshu.com"],
     sessionTtlHours: 72,
     captureMvpEnabled: true,

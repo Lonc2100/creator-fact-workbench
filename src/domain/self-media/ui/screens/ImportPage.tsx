@@ -473,7 +473,7 @@ function AuthedBrowserProfileManager({
   message: string;
   statusView: AuthedBrowserProfileStatusView | null;
   onConfirmLogin: (platform: AuthedBrowserPlatform) => void;
-  onOpen: (platform: AuthedBrowserPlatform) => void;
+  onOpen: (platform: AuthedBrowserPlatform, target?: "default" | "works_page") => void;
 }) {
   const profiles = statusView?.profiles ?? [];
   return (
@@ -509,7 +509,7 @@ function AuthedBrowserProfileManager({
               <small>最近打开：{profile.lastOpenedAt ? formatDateTime(profile.lastOpenedAt) : "暂无"} / 确认登录：{profile.lastUserConfirmedLoginAt ? formatDateTime(profile.lastUserConfirmedLoginAt) : "暂无"}</small>
               {profile.failureMessage && <small>失败提示：{profile.failureMessage}</small>}
               <div className="import-preview-actions">
-                <Button data-testid={`authed-browser-open-${profile.key}`} onClick={() => onOpen(profile.platform)} variant="secondary" disabled={isRunning}>{loadingKey === `${profile.platform}:open` ? "打开中" : "打开后台"}</Button>
+                <Button data-testid={`authed-browser-open-${profile.key}`} onClick={() => onOpen(profile.platform, "works_page")} variant="secondary" disabled={isRunning}>{loadingKey === `${profile.platform}:open` ? "打开中" : profile.platform === "xiaohongshu" ? "打开笔记管理页" : profile.platform === "douyin" ? "打开作品管理页" : "打开后台"}</Button>
                 <Button data-testid={`authed-browser-confirm-${profile.key}`} onClick={() => onConfirmLogin(profile.platform)} variant="ghost" disabled={isRunning || profile.state === "not_opened"}>{loadingKey === `${profile.platform}:confirm_login` ? "确认中" : "确认已登录"}</Button>
                 {profile.captureMvpEnabled ? <a className="sm-button sm-button-primary" href={profile.platform === "xiaohongshu" ? "#xiaohongshu-authed-browser-capture-mvp" : "#douyin-authed-browser-capture-mvp"}>进入平台读取</a> : <span>当前先复用登录状态；读取适配待接入。</span>}
               </div>
@@ -578,7 +578,7 @@ function LoginCaptureAutoRefreshPanel({
               </div>
               <p>{item.message}</p>
               <small>{item.nextAction}</small>
-              {item.openedWindow && <small>已自动打开后台窗口，请在平台页完成登录或切到作品页。</small>}
+              {item.openedWindow && <small>已自动打开作品/笔记管理入口；如果平台跳回首页，请按下一步提示进入对应管理页。</small>}
               <small>{formatNumber(item.contentCount)} 条内容 / {formatNumber(item.metricCount)} 条指标</small>
             </article>
           ))}
@@ -610,13 +610,14 @@ function loginCapturePrimaryAction(result: AuthedBrowserAutoRefreshResult) {
   }
   const needsContentPage = active.find((item) => item.status === "needs_content_page");
   if (needsContentPage) {
+    const isXiaohongshu = needsContentPage.platform === "xiaohongshu";
     return {
-      title: `${needsContentPage.label} 需要切到作品页`,
-      detail: "在已打开的平台后台切到作品管理、笔记管理或数据表现列表；回到本页会自动复查，也可以手动刷新。",
-      badge: "切页面",
+      title: `${needsContentPage.label} 需要切到${isXiaohongshu ? "笔记管理页" : "作品管理页"}`,
+      detail: needsContentPage.nextAction,
+      badge: isXiaohongshu ? "笔记页" : "作品页",
       tone: "warning" as const,
       href: "",
-      actionLabel: "我已切到作品页，重新预览"
+      actionLabel: isXiaohongshu ? "我已切到笔记管理页，重新预览" : "我已切到作品管理页，重新预览"
     };
   }
   const needsLogin = active.find((item) => item.status === "needs_login" || item.status === "failed");
@@ -1681,14 +1682,14 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     setBrowserProfileMessage("本机登录会话状态已刷新；会话只保存在本机。");
   }
 
-  async function runAuthedBrowserProfileAction(platform: AuthedBrowserPlatform, action: "open" | "confirm_login") {
+  async function runAuthedBrowserProfileAction(platform: AuthedBrowserPlatform, action: "open" | "confirm_login", target: "default" | "works_page" = "works_page") {
     setBrowserProfileLoadingKey(`${platform}:${action}`);
-    setBrowserProfileMessage(action === "open" ? "正在打开平台后台" : "正在确认本机登录状态");
+    setBrowserProfileMessage(action === "open" ? "正在打开平台作品/笔记管理页" : "正在确认本机登录状态");
     try {
       const response = await fetch("/api/self-media/browser-capture", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action, platform })
+        body: JSON.stringify({ action, platform, target: action === "open" ? target : undefined })
       });
       const body = await response.json() as { message?: string; errorMessage?: string };
       if (!response.ok) throw new Error(body.errorMessage ?? body.message ?? "浏览器会话操作失败");
@@ -1825,7 +1826,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     }
   }
 
-  async function runDouyinAuthedBrowserCapture(action: DouyinAuthedBrowserCaptureResult["action"]) {
+  async function runDouyinAuthedBrowserCapture(action: DouyinAuthedBrowserCaptureResult["action"], target: "default" | "works_page" = "works_page") {
     setIsDouyinBrowserLoading(true);
     const labels: Record<DouyinAuthedBrowserCaptureResult["action"], string> = {
       open: "正在打开抖音后台",
@@ -1841,6 +1842,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action,
+          target: action === "open" ? target : undefined,
           userConfirmedLogin: douyinBrowserLoginConfirmed,
           userConfirmedContentMetrics: douyinBrowserMetricsConfirmed
         })
@@ -1867,7 +1869,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     }
   }
 
-  async function runXiaohongshuAuthedBrowserCapture(action: XiaohongshuAuthedBrowserCaptureResult["action"]) {
+  async function runXiaohongshuAuthedBrowserCapture(action: XiaohongshuAuthedBrowserCaptureResult["action"], target: "default" | "works_page" = "works_page") {
     setIsXiaohongshuBrowserLoading(true);
     const labels: Record<XiaohongshuAuthedBrowserCaptureResult["action"], string> = {
       open: "正在打开小红书后台",
@@ -1883,6 +1885,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           action,
+          target: action === "open" ? target : undefined,
           userConfirmedLogin: xiaohongshuBrowserLoginConfirmed,
           userConfirmedContentMetrics: xiaohongshuBrowserMetricsConfirmed
         })
@@ -2157,7 +2160,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <span>我确认下方预览是本人抖音后台当前页的作品级指标；不包含账号总览或敏感互动内容。</span>
             </label>
             <div className="import-preview-actions">
-              <Button data-testid="douyin-login-browser-open" onClick={() => runDouyinAuthedBrowserCapture("open")} variant="secondary" disabled={isDouyinBrowserLoading}>{isDouyinBrowserLoading ? "处理中" : "打开抖音后台"}</Button>
+              <Button data-testid="douyin-login-browser-open" onClick={() => runDouyinAuthedBrowserCapture("open", "works_page")} variant="secondary" disabled={isDouyinBrowserLoading}>{isDouyinBrowserLoading ? "处理中" : "打开抖音作品管理页"}</Button>
               <Button data-testid="douyin-login-browser-status" onClick={() => runDouyinAuthedBrowserCapture("status")} variant="ghost" disabled={isDouyinBrowserLoading}>确认已登录</Button>
               <Button data-testid="douyin-login-browser-read" onClick={() => runDouyinAuthedBrowserCapture("capture_preview")} variant="secondary" disabled={isDouyinBrowserLoading || !douyinBrowserLoginConfirmed}>读取当前页作品</Button>
               <Button data-testid="douyin-login-browser-save" onClick={() => runDouyinAuthedBrowserCapture("save")} variant="primary" disabled={isDouyinBrowserLoading || !canSaveDouyinBrowserCapture}>保存到可信看板</Button>
@@ -2221,7 +2224,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <span>我确认下方预览是本人小红书后台当前页的笔记/作品级指标；不包含公开推荐页、非本人内容或私密互动。</span>
             </label>
             <div className="import-preview-actions">
-              <Button data-testid="xiaohongshu-login-browser-open" onClick={() => runXiaohongshuAuthedBrowserCapture("open")} variant="secondary" disabled={isXiaohongshuBrowserLoading}>{isXiaohongshuBrowserLoading ? "处理中" : "打开小红书后台"}</Button>
+              <Button data-testid="xiaohongshu-login-browser-open" onClick={() => runXiaohongshuAuthedBrowserCapture("open", "works_page")} variant="secondary" disabled={isXiaohongshuBrowserLoading}>{isXiaohongshuBrowserLoading ? "处理中" : "打开小红书笔记管理页"}</Button>
               <Button data-testid="xiaohongshu-login-browser-status" onClick={() => runXiaohongshuAuthedBrowserCapture("status")} variant="ghost" disabled={isXiaohongshuBrowserLoading}>确认已登录</Button>
               <Button data-testid="xiaohongshu-login-browser-read" onClick={() => runXiaohongshuAuthedBrowserCapture("capture_preview")} variant="secondary" disabled={isXiaohongshuBrowserLoading || !xiaohongshuBrowserLoginConfirmed}>读取当前页笔记</Button>
               <Button data-testid="xiaohongshu-login-browser-save" onClick={() => runXiaohongshuAuthedBrowserCapture("save")} variant="primary" disabled={isXiaohongshuBrowserLoading || !canSaveXiaohongshuBrowserCapture}>保存到可信看板</Button>
@@ -2486,7 +2489,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                 message={browserProfileMessage}
                 statusView={browserProfileStatus}
                 onConfirmLogin={(platform) => runAuthedBrowserProfileAction(platform, "confirm_login")}
-                onOpen={(platform) => runAuthedBrowserProfileAction(platform, "open")}
+                onOpen={(platform, target) => runAuthedBrowserProfileAction(platform, "open", target)}
               />
               <RealDataScopePanel scope={currentSnapshot.realDataScope} />
               <DailySelfMediaOpsPanel ops={currentSnapshot.dailySelfMediaOps} />

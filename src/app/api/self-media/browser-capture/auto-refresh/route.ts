@@ -43,7 +43,7 @@ function statusLabel(status: AuthedBrowserAutoRefreshPlatformResult["status"]) {
   const labels: Record<AuthedBrowserAutoRefreshPlatformResult["status"], string> = {
     needs_login: "需要登录",
     preview_ready: "已抓到预览",
-    needs_content_page: "需要切页面",
+    needs_content_page: "需要作品/笔记页",
     unsupported: "暂未接入",
     failed: "抓取失败"
   };
@@ -51,8 +51,8 @@ function statusLabel(status: AuthedBrowserAutoRefreshPlatformResult["status"]) {
 }
 
 function platformPageAction(platform: AuthedBrowserPlatform) {
-  if (platform === "douyin") return "请切到抖音创作者中心的作品管理或数据表现列表，再点一次刷新。";
-  if (platform === "xiaohongshu") return "请切到小红书创作服务平台的笔记管理或数据表现列表，再点一次刷新。";
+  if (platform === "douyin") return "请在抖音创作者中心进入“作品管理”，确认能看到单条作品标题和播放/点赞/评论等指标，再点一次刷新。";
+  if (platform === "xiaohongshu") return "请在小红书创作服务平台进入“笔记管理”，确认能看到本人笔记标题和浏览/点赞/评论/收藏等指标，再点一次刷新。";
   if (platform === "video_account") return "视频号内容级登录抓取仍是 discovery-only；当前不要建立可信保存路径。";
   return "B站登录抓取暂未接入；现有 B站 archive/work 内容级路径可用，账号指标仍 preview-only。";
 }
@@ -103,14 +103,14 @@ async function postCapture(origin: string, platform: AuthedBrowserPlatform, acti
   const response = await fetch(`${origin}${route}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action, userConfirmedLogin: true })
+    body: JSON.stringify({ action, target: action === "open" ? "works_page" : undefined, userConfirmedLogin: true })
   });
   const body = await response.json() as DouyinAuthedBrowserCaptureResult | XiaohongshuAuthedBrowserCaptureResult;
   return { response, body };
 }
 
 function canAttemptPreview(profile: AuthedBrowserProfileStatus) {
-  return profile.state === "session_maybe_available" || profile.state === "capture_failed";
+  return profile.state === "session_maybe_available" || profile.state === "capture_failed" || profile.state === "waiting_login";
 }
 
 async function previewPlatform(origin: string, profile: AuthedBrowserProfileStatus, autoOpen: boolean): Promise<AuthedBrowserAutoRefreshPlatformResult> {

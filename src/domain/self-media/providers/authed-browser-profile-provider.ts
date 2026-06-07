@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { authedBrowserProfileConfigs } from "../config";
 import type {
   AuthedBrowserPlatform,
+  AuthedBrowserCaptureTarget,
   AuthedBrowserProfileActionResult,
   AuthedBrowserProfileConfig,
   AuthedBrowserProfileState,
@@ -15,6 +16,10 @@ import type {
 const baseDirRef = ".local/browser-profiles" as const;
 const metaFileName = "session-meta.json";
 const sensitiveKeyPattern = /cookie|token|password|header|headers|raw|request|storage|credential|authorization/i;
+const worksPageTargets: Partial<Record<AuthedBrowserPlatform, string>> = {
+  douyin: "https://creator.douyin.com/creator-micro/content/manage",
+  xiaohongshu: "https://creator.xiaohongshu.com/new/note-manager"
+};
 
 type SafeProfileMeta = {
   platform: AuthedBrowserPlatform;
@@ -44,6 +49,12 @@ export function getAuthedBrowserProfileConfig(value: AuthedBrowserPlatform | Pla
 
 export function authedBrowserProfileDir(value: AuthedBrowserPlatform | PlatformImportOperationPlatform) {
   return path.join(process.cwd(), baseDirRef, normalizePlatform(value));
+}
+
+export function resolveAuthedBrowserTargetUrl(value: AuthedBrowserPlatform | PlatformImportOperationPlatform, target: AuthedBrowserCaptureTarget = "default") {
+  const config = getAuthedBrowserProfileConfig(value);
+  if (target === "works_page") return worksPageTargets[config.platform] ?? config.startUrl;
+  return config.startUrl;
 }
 
 function metaPath(value: AuthedBrowserPlatform | PlatformImportOperationPlatform) {
@@ -202,7 +213,7 @@ export function markAuthedBrowserCaptureFailure(value: AuthedBrowserPlatform | P
   return getAuthedBrowserProfileStatus(value);
 }
 
-export function openAuthedBrowserProfile(value: AuthedBrowserPlatform | PlatformImportOperationPlatform): AuthedBrowserProfileActionResult {
+export function openAuthedBrowserProfile(value: AuthedBrowserPlatform | PlatformImportOperationPlatform, target: AuthedBrowserCaptureTarget = "default"): AuthedBrowserProfileActionResult {
   const config = getAuthedBrowserProfileConfig(value);
   const dir = authedBrowserProfileDir(config.platform);
   mkdirSync(dir, { recursive: true });
@@ -211,7 +222,7 @@ export function openAuthedBrowserProfile(value: AuthedBrowserPlatform | Platform
     `--user-data-dir=${dir}`,
     "--no-first-run",
     "--no-default-browser-check",
-    config.startUrl
+    resolveAuthedBrowserTargetUrl(config.platform, target)
   ], {
     detached: true,
     stdio: "ignore",
@@ -223,7 +234,9 @@ export function openAuthedBrowserProfile(value: AuthedBrowserPlatform | Platform
     ok: true,
     action: "open",
     status,
-    message: `已打开 ${config.label} 后台；登录会话仅保存在 ${config.profileDirRef} 的本机浏览器 profile。`,
+    message: target === "works_page"
+      ? `已打开 ${config.label} 作品/笔记管理入口；如果平台跳回首页，请按页面左侧导航进入作品管理或笔记管理。`
+      : `已打开 ${config.label} 后台；登录会话仅保存在 ${config.profileDirRef} 的本机浏览器 profile。`,
     warnings: []
   };
 }

@@ -144,6 +144,19 @@ The default publish calendar is now a strict planning surface, not a historical 
 - `/calendar` keeps historical publish records and local/diagnostic data outside the default main grid. Those records belong in content history, data analysis, publish ledger, or explicit diagnostic views.
 - Live 3200 calendar check confirmed the default calendar text did not contain `用户作品：六月内容计划`, `孤雏，随便唱唱`, `bilibili-BV1u34y1y7hQ`, or `2022` historical card evidence.
 
+## 093 Works Page Navigation For Login Capture
+
+Douyin and Xiaohongshu login capture now starts from content-level management surfaces instead of account overview by default:
+
+- Douyin `open` targets `https://creator.douyin.com/creator-micro/content/manage`; live preview reached `https://creator.douyin.com/creator-micro/data-center/content`.
+- Xiaohongshu `open` targets `https://creator.xiaohongshu.com/new/note-manager`; live preview stayed on the note manager page.
+- `/import` buttons now say `打开抖音作品管理页` and `打开小红书笔记管理页`.
+- Auto-refresh uses `target: "works_page"` for Douyin/Xiaohongshu and can retry preview from waiting-login local profile state.
+- If a capture route infers `logged_in_or_accessible`, it marks the local profile usable so returning to `/import` can show preview without a separate manual login-confirm click.
+- `needs_content_page` guidance is platform-specific: Douyin asks for `作品管理` with title plus play/like/comment metrics; Xiaohongshu asks for `笔记管理` with title plus browse/like/comment/save metrics.
+- Live 3200 acceptance got preview-only content-level rows from both platforms: Douyin `1` content/metric row and Xiaohongshu `1` content/metric row. No save occurred; trusted contents, metric snapshots, and import run counts remained unchanged.
+- Fallback visible-text ids are still present in the live previews, so saving remains explicitly user-gated and should be hardened before routine trusted saves.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
@@ -152,6 +165,7 @@ The default publish calendar is now a strict planning surface, not a historical 
 - Douyin has the first authenticated browser capture MVP on `/import`: open controlled browser, user confirms login, capture current visible works/data rows, preview, confirm save, and write `douyin_creator_center` trusted content-level metrics without saving password, cookie, token, header, storage state, raw request, or raw response records.
 - Xiaohongshu has the second authenticated browser capture MVP on `/import`: open the creator service platform with the local profile, reject public/wrong pages, capture visible creator note/work rows only, preview, confirm save, and write `xiaohongshu_creator_center` trusted content-level metrics.
 - 091 real assisted login acceptance did not save data: Douyin and Xiaohongshu opened and were accessible, but both were on account/operation overview pages rather than visible content-level metric tables.
+- 093 fixed the Douyin/Xiaohongshu navigation gap: platform windows now open or return to works/note management targets and live preview-only checks reached content-level rows on both platforms.
 - `/import` also has user-triggered auto-refresh preview for Douyin and Xiaohongshu via the login-capture refresh route; this is not silent background collection and not an automatic save.
 - `/import` now also starts an automatic page-load check and can auto-open reusable Douyin/Xiaohongshu local backend windows for preview. Save still requires explicit user confirmation in the platform preview panel.
 - `/import` now retries preview when the user returns from a platform login/content page window, and the first auto-refresh result card explains the next business action.

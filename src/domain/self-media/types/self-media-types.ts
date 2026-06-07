@@ -1006,6 +1006,7 @@ export interface AuthedBrowserProfileStatusView {
 
 export interface AuthedBrowserProfileRequest {
   platform: AuthedBrowserPlatform | PlatformImportOperationPlatform;
+  target?: AuthedBrowserCaptureTarget;
 }
 
 export interface AuthedBrowserProfileActionResult {
@@ -1062,6 +1063,7 @@ export interface AuthedBrowserAutoRefreshResult {
 }
 
 export type DouyinAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "save" | "close";
+export type AuthedBrowserCaptureTarget = "default" | "works_page";
 
 export type DouyinAuthedBrowserLoginState = "not_opened" | "needs_login" | "user_confirmed" | "logged_in_or_accessible" | "unknown" | "closed" | "error";
 
@@ -1084,6 +1086,7 @@ export interface DouyinBrowserVisibleRow {
 
 export interface DouyinAuthedBrowserCaptureRequest {
   action: DouyinAuthedBrowserCaptureAction;
+  target?: AuthedBrowserCaptureTarget;
   userConfirmedLogin?: boolean;
   userConfirmedContentMetrics?: boolean;
 }
@@ -1136,6 +1139,7 @@ export interface XiaohongshuBrowserVisibleRow {
 
 export interface XiaohongshuAuthedBrowserCaptureRequest {
   action: XiaohongshuAuthedBrowserCaptureAction;
+  target?: AuthedBrowserCaptureTarget;
   userConfirmedLogin?: boolean;
   userConfirmedContentMetrics?: boolean;
 }

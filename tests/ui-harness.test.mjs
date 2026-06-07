@@ -433,6 +433,10 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /进入本页会自动检查并尝试打开可复用的抖音\/小红书后台窗口/);
   assert.match(importPage, /登录或切到作品页后回到本页会自动复查/);
   assert.match(importPage, /login-capture-auto-refresh-button/);
+  assert.match(importPage, /打开抖音作品管理页/);
+  assert.match(importPage, /打开小红书笔记管理页/);
+  assert.match(importPage, /需要切到.*作品管理页/);
+  assert.match(importPage, /需要切到.*笔记管理页/);
   assert.match(importPage, /自动开窗刷新/);
   assert.match(importPage, /login-capture-startup-check/);
   assert.match(importPage, /启动检查/);
@@ -452,7 +456,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /trigger/);
   assert.match(importPage, /openedWindowCount/);
   assert.match(importPage, /autoOpenEnabled/);
-  assert.match(importPage, /已自动打开后台窗口/);
+  assert.match(importPage, /已自动打开作品\/笔记管理入口/);
   assert.match(importPage, /setDouyinBrowserResult\(preview\)/);
   assert.match(importPage, /setXiaohongshuBrowserResult\(preview\)/);
   assert.match(importPage, /不会静默保存/);
@@ -767,19 +771,30 @@ test("dashboard number audit live mode is read-only against existing 3200", () =
 
 test("douyin authed browser capture route keeps credential material outside the import contract", () => {
   const route = read("src/app/api/self-media/platform-imports/browser-capture/douyin/route.ts");
+  const provider = read("src/domain/self-media/providers/authed-browser-profile-provider.ts");
   assert.match(route, /chromium\.launchPersistentContext/);
   assert.match(route, /authedBrowserProfileDir\("douyin"\)/);
+  assert.match(route, /resolveAuthedBrowserTargetUrl\("douyin", target\)/);
+  assert.match(route, /body\.target \?\? "works_page"/);
+  assert.match(provider, /douyin: "https:\/\/creator\.douyin\.com\/creator-micro\/content\/manage"/);
   assert.doesNotMatch(route, /browser\.newContext|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)/);
   assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"\]/);
   assert.match(route, /extractVisibleRows/);
   assert.match(route, /importDouyinBrowserVisibleRows/);
+  assert.match(route, /loginState === "logged_in_or_accessible"/);
   assert.match(route, /accountMetricsExcluded: true/);
 });
 
 test("xiaohongshu authed browser capture route keeps login material and public recommendations outside the import contract", () => {
   const route = read("src/app/api/self-media/platform-imports/browser-capture/xiaohongshu/route.ts");
+  const config = read("src/domain/self-media/config/self-media-config.ts");
+  const provider = read("src/domain/self-media/providers/authed-browser-profile-provider.ts");
   assert.match(route, /chromium\.launchPersistentContext/);
   assert.match(route, /authedBrowserProfileDir\("xiaohongshu"\)/);
+  assert.match(route, /resolveAuthedBrowserTargetUrl\("xiaohongshu", target\)/);
+  assert.match(route, /body\.target \?\? "works_page"/);
+  assert.match(config, /startUrl: "https:\/\/creator\.xiaohongshu\.com\/new\/note-manager"/);
+  assert.match(provider, /xiaohongshu: "https:\/\/creator\.xiaohongshu\.com\/new\/note-manager"/);
   assert.doesNotMatch(route, /storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)/);
   assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"\]/);
   assert.match(route, /extractVisibleRows/);
@@ -788,6 +803,7 @@ test("xiaohongshu authed browser capture route keeps login material and public r
   assert.match(route, /publicRecommendationExcluded: true/);
   assert.match(route, /publicRecommendation/);
   assert.match(route, /importXiaohongshuBrowserVisibleRows/);
+  assert.match(route, /loginState === "logged_in_or_accessible"/);
 });
 
 test("browser capture profile route exposes local-only session controls", () => {
@@ -815,6 +831,10 @@ test("browser capture auto refresh is user-triggered preview only", () => {
   assert.match(route, /mode: "user_triggered_preview_only"/);
   assert.match(route, /trigger = body\.trigger === "startup" \? "startup" : body\.trigger === "focus_return" \? "focus_return" : "manual"/);
   assert.match(route, /const autoOpen = body\.autoOpen !== false/);
+  assert.match(route, /target: action === "open" \? "works_page" : undefined/);
+  assert.match(route, /需要作品\/笔记页/);
+  assert.match(route, /进入“作品管理”/);
+  assert.match(route, /进入“笔记管理”/);
   assert.match(route, /autoOpenEnabled: autoOpen/);
   assert.match(route, /openedWindowCount/);
   assert.match(route, /openedWindow/);
@@ -826,6 +846,7 @@ test("browser capture auto refresh is user-triggered preview only", () => {
   assert.match(route, /capture_preview/);
   assert.match(route, /postCapture\(origin, profile\.platform, "open"\)/);
   assert.match(route, /canAttemptPreview/);
+  assert.match(route, /waiting_login/);
   assert.match(route, /session_maybe_available/);
   assert.match(route, /capture_failed/);
   assert.match(route, /userConfirmedLogin: true/);

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
-import { authedBrowserProfileDir, getAuthedBrowserProfileConfig, markAuthedBrowserCaptureFailure, markAuthedBrowserProfileConfirmed, markAuthedBrowserProfileOpened } from "@/domain/self-media/providers";
+import { authedBrowserProfileDir, markAuthedBrowserCaptureFailure, markAuthedBrowserProfileConfirmed, markAuthedBrowserProfileOpened, resolveAuthedBrowserTargetUrl } from "@/domain/self-media/providers";
 import { SelfMediaService } from "@/domain/self-media/service";
 import type { ImportProvenanceMetadata, XiaohongshuAuthedBrowserCaptureRequest, XiaohongshuAuthedBrowserCaptureResult, XiaohongshuAuthedBrowserLoginState, XiaohongshuBrowserVisibleRow } from "@/domain/self-media/types";
 
@@ -107,13 +107,13 @@ async function inferLoginState(page: Page, userConfirmedLogin?: boolean): Promis
   return "unknown";
 }
 
-async function openSession() {
+async function openSession(target: XiaohongshuAuthedBrowserCaptureRequest["target"] = "works_page") {
   const existing = globalThis.__selfMediaXiaohongshuBrowserSession;
   if (existing && !existing.page.isClosed()) {
+    if (target === "works_page") await existing.page.goto(resolveAuthedBrowserTargetUrl("xiaohongshu", target), { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
     await existing.page.bringToFront().catch(() => undefined);
     return existing;
   }
-  const profileConfig = getAuthedBrowserProfileConfig("xiaohongshu");
   const openedStatus = markAuthedBrowserProfileOpened("xiaohongshu");
   const context = await chromium.launchPersistentContext(authedBrowserProfileDir("xiaohongshu"), {
     executablePath: chromeExecutablePath(),
@@ -123,7 +123,7 @@ async function openSession() {
     locale: "zh-CN"
   });
   const page = context.pages()[0] ?? await context.newPage();
-  await page.goto(profileConfig.startUrl, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
+  await page.goto(resolveAuthedBrowserTargetUrl("xiaohongshu", target), { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
   const session = { context, page, openedAt: openedStatus.lastOpenedAt ?? new Date().toISOString(), lastRows: [] };
   globalThis.__selfMediaXiaohongshuBrowserSession = session;
   return session;
@@ -293,13 +293,13 @@ export async function POST(request: Request) {
       return Response.json(emptyResult(action, { ok: true, loginState: "closed", browserOpened: false, message: "已关闭小红书登录抓取窗口；登录会话仅保存在本机 profile，不写入业务数据。" }));
     }
 
-    const session = action === "open" ? await openSession() : globalThis.__selfMediaXiaohongshuBrowserSession;
+    const session = action === "open" ? await openSession(body.target ?? "works_page") : globalThis.__selfMediaXiaohongshuBrowserSession;
     if (!session || session.page.isClosed()) {
       return Response.json(emptyResult(action, { message: "请先打开小红书后台登录抓取窗口。" }), { status: 400 });
     }
 
     const loginState = await inferLoginState(session.page, body.userConfirmedLogin);
-    if (body.userConfirmedLogin) markAuthedBrowserProfileConfirmed("xiaohongshu");
+    if (body.userConfirmedLogin || loginState === "logged_in_or_accessible" || loginState === "user_confirmed") markAuthedBrowserProfileConfirmed("xiaohongshu");
     const base = {
       action,
       loginState,
@@ -318,7 +318,7 @@ export async function POST(request: Request) {
           ? "请在弹出的小红书创作服务平台完成登录，再回到本页确认。"
           : loginState === "wrong_page"
             ? "当前不是小红书创作服务平台后台页面；请切回 creator.xiaohongshu.com。"
-            : "小红书登录抓取窗口已连接；可以进入笔记管理/数据页面后抓取可见笔记。"
+            : "小红书登录抓取窗口已连接；默认已尝试进入笔记管理页，请确认能看到本人笔记列表后读取。"
       }));
     }
 
@@ -339,7 +339,7 @@ export async function POST(request: Request) {
         rows,
         ...summary,
         capturedAt: new Date().toISOString(),
-        message: rows.length > 0 ? `已从当前小红书后台页面识别 ${rows.length} 条可见本人笔记/作品级数据，保存前请确认。` : "当前页面未识别到本人笔记/作品级指标行；请切到笔记管理或数据表现列表后重试。",
+        message: rows.length > 0 ? `已从当前小红书后台页面识别 ${rows.length} 条可见本人笔记/作品级数据，保存前请确认。` : "当前页面未识别到本人笔记/作品级指标行；请进入小红书创作服务平台的笔记管理，确认列表里有单条笔记标题和浏览/点赞/评论/收藏等指标后重试。",
         warnings: rows.length > 0 ? rows.flatMap((row) => row.warnings) : ["no_visible_creator_note_rows"]
       }), { status: rows.length > 0 ? 200 : 400 });
     }
