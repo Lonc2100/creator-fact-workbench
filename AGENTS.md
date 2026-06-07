@@ -21,6 +21,7 @@
 - 改架构或模块边界前：读 `docs/workflow-boundaries.md` 和 `docs/architecture/current-stage.md`。
 - 调用外部工具前：读 `docs/workflow-boundaries.md` 的 connector 边界。
 - 启动多 Agent 协作前：读 `docs/agent-team-setup.md` 和 `docs/agent-playbook.md`。
+- 启动多会话并行前：读 `docs/trellis-parallel-workflow.md`，并让每个 Worker 只执行一个 `.trellis/tasks/` 任务包。
 - 做审查、复盘、清理前：读 `docs/quality-execution-system.md` 和 `docs/golden-principles.md`。
 - 接续阶段任务前：读 active exec plan。
 
@@ -40,6 +41,8 @@
 ## Agent 工作规则
 
 开始实现前，必须先对齐 active spec、任务板条目、验收命令、handoff 路径。需求模糊时，把模糊点写进 active exec plan，不靠聊天记忆硬猜。
+
+Trellis 只负责多会话任务包和规范注入，不替代本项目 Harness 架构。Worker 不能越过任务 PRD 的允许文件范围；需要改核心 Types/Service/Repo/Runtime/package 时，先停下交给主会话 Orchestrator。
 
 ## 复杂度规则
 

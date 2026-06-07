@@ -21,6 +21,38 @@ Inbox -> Spec Aligned -> Assigned -> In Progress -> Review -> Done | Blocked
 
 The Orchestrator owns every state transition. A task cannot enter `In Progress` unless it has a task ID, scope, acceptance command, and handoff path in `docs/task-board.md`.
 
+## Parallel Long-Cycle Work
+
+Parallel sessions should be used for bounded long-cycle tasks when they can reduce main-session interruption. A Worker should be able to complete the full loop without repeated user prompts:
+
+- read the required context and task constraints;
+- execute the allowed implementation, audit, or verification steps;
+- run the requested validation commands in order;
+- diagnose failures without changing scope;
+- write evidence and handoff notes;
+- recommend the next concrete action.
+
+Good parallel long-cycle tasks include docs/status audits, bundle attribution, platform-core verification, screenshot regression, product review, and narrow UI polish. They are not good places to quietly change core Types, Repo, Service, Runtime, package scripts, or shared data models unless the task package explicitly allows it and the Orchestrator has assigned that bundle.
+
+Heavy browser/E2E tasks remain serialized unless the task explicitly provides isolated ports, isolated sqlite paths, and isolated `NEXT_DIST_DIR`. Do not run multiple Playwright/Next/database smoke gates in parallel against the same local server or DB.
+
+## Runtime Quality Protocol
+
+Worker runtime is a quality signal, not a timer to game. Do not reward or punish agents for merely staying open longer. Use better task planning, task merging, extra-depth passes, and stronger handoffs to improve quality.
+
+Classify every Worker task:
+
+- `micro`: single-file cleanup, read-only existence check, or an explicit narrow fix. These may finish in under 15 minutes.
+- `normal`: ordinary implementation, audit, documentation protocol update, bundle attribution, or lightweight verification.
+- `long-cycle`: cross-file attribution, heavy verification, platform-loop dry-run, browser/E2E/Next/sqlite gate, or any task expected to reduce main-session interruption.
+
+For `normal` and `long-cycle` tasks, if elapsed time is under 15 minutes, the Worker must do one of the following before finishing:
+
+- run an extra-depth pass such as adjacent spec search, diff review, risk matrix, validation recheck, or handoff evidence tightening;
+- explain why extra depth would exceed scope, touch forbidden files, duplicate already completed validation, or conflict with heavy gate serial discipline.
+
+Heavy browser/E2E/Next/sqlite/live 3200 gates remain serial by default. Do not start a heavy gate just to fill time.
+
 ## Entropy And Data Isolation
 
 Before cleanup, release closure, or filesystem governance tasks, run `npm run scan:entropy` and record the report path in the handoff. The scan is read-only and writes reports under `.local/entropy-governance-scan/`.
@@ -34,6 +66,11 @@ Record durable context in `docs/context/` before relying on it.
 Every handoff must include:
 
 - task ID;
+- Started;
+- Finished;
+- Elapsed;
+- Workload class;
+- `<15min explanation or extra-depth pass>` when elapsed time is under 15 minutes;
 - completed work;
 - changed files;
 - verification commands and results;

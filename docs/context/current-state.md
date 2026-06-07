@@ -4,7 +4,7 @@ The only valid project root for this work is `D:\codex work\自媒体创作\Data
 
 The current product is a self-media AI backend management workbench. It is not a canvas product, and it must not inherit requirements from `D:\codex work\desk work`.
 
-Parent-directory cleanup has been executed. `D:\codex work\自媒体创作` now contains only `Data Collection and Background Analysis`.
+Parent-directory cleanup has been executed before, but the parent directory may contain sibling repositories or temporary outer-root artifacts. As of 2026-06-05, `D:\codex work\自媒体创作\AiToEarn` is a separate external repository and must not be treated as active context for this project.
 
 The active product code now lives in `src/domain/self-media`. The old `data-collection` scaffold was removed by `GC-001` and must not be recreated.
 
