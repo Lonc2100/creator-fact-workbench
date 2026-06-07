@@ -2129,12 +2129,13 @@ const defaultChecklist: PlatformChecklist = {
   humanConfirmed: false
 };
 
-function importSourceForMode(mode: ImportRequest["mode"]): ImportSource {
+function importSourceForRequest(request: ImportRequest): ImportSource {
+  if (request.mode === "platform_local_file") return request.platformLocalFile?.platform === "douyin" ? "douyin_creator_center" : "bilibili_creator_center";
+  const mode = request.mode;
   if (mode === "mediacrawler") return "mediacrawler";
   if (mode === "n8n") return "n8n";
   if (mode === "manual") return "manual";
   if (mode === "csv") return "csv";
-  if (mode === "platform_local_file") return "bilibili_creator_center";
   return "json";
 }
 
@@ -2149,6 +2150,7 @@ function createPayloadFromRequest(service: SelfMediaService, request: ImportRequ
 }
 
 function createPreviewPayloadFromRequest(service: SelfMediaService, request: ImportRequest): ProviderImportPayload {
+  if (request.mode === "platform_local_file") return service.parsePlatformLocalFilePayload(request, { allowInvalidPreviewRows: true });
   if (request.mode === "csv") return service.parseCsvRequestPayload(request, { allowInvalidPreviewRows: true });
   return createPayloadFromRequest(service, request);
 }
@@ -3044,17 +3046,21 @@ export class SelfMediaService {
   }
 
   parsePlatformLocalFilePayload(request: ImportRequest, options: { allowInvalidPreviewRows?: boolean } = {}) {
-    if (request.mode !== "platform_local_file" || request.platformLocalFile?.platform !== "bilibili") {
-      throw new Error("当前本地平台导出 MVP 只支持 B站。");
-    }
     const input = request.platformLocalFile;
+    const platform = input?.platform;
+    if (request.mode !== "platform_local_file" || !input || (platform !== "bilibili" && platform !== "douyin")) {
+      throw new Error("当前本地平台导出 MVP 只支持抖音和 B站。");
+    }
     const fileName = input.fileName ?? "";
     const contentType = input.contentType ?? "";
     const payload = input.fileBase64 && (fileName.toLowerCase().endsWith(".xlsx") || contentType.includes("spreadsheetml"))
-      ? this.csvPresetProvider.fromXlsxBase64(input.fileBase64, "bilibili", options)
-      : this.csvPresetProvider.fromCsv(input.csv ?? "", "bilibili", options);
-    const complianceWarning = "bilibili_local_export: 用户主动从 B站创作中心导出或复制表格后本地导入；不读取网页登录态，不保存 cookie/token/header/raw request。";
-    payload.source = "bilibili_creator_center";
+      ? this.csvPresetProvider.fromXlsxBase64(input.fileBase64, platform, options)
+      : this.csvPresetProvider.fromCsv(input.csv ?? "", platform, options);
+    const source = platform === "douyin" ? "douyin_creator_center" : "bilibili_creator_center";
+    const tag = platform === "douyin" ? "douyin_local_export" : "bilibili_local_export";
+    const label = platform === "douyin" ? "抖音创作者中心" : "B站创作中心";
+    const complianceWarning = `${tag}: 用户主动从 ${label} 导出或复制内容级表格后本地导入；不读取网页登录态，不保存 cookie/token/header/raw request。`;
+    payload.source = source;
     payload.provenance = {
       ...payload.provenance,
       isTestFixture: false,
@@ -3064,16 +3070,16 @@ export class SelfMediaService {
     };
     payload.contents = payload.contents.map((content) => ({
       ...content,
-      platform: "bilibili",
+      platform,
       status: content.status === "idea" || content.status === "draft" ? "published" : content.status,
       format: "short_video",
       workOwnership: "user_owned_work",
       userConfirmedForLibrary: true,
-      notes: [content.notes, "bilibili_local_export:manual_confirmed"].filter(Boolean).join("; ")
+      notes: [content.notes, `${tag}:manual_confirmed`].filter(Boolean).join("; ")
     }));
     payload.metrics = payload.metrics.map((metric) => ({
       ...metric,
-      platform: "bilibili"
+      platform
     }));
     payload.warnings = [complianceWarning, ...(payload.warnings ?? [])];
     return payload;
@@ -3226,7 +3232,7 @@ export class SelfMediaService {
     } catch (error) {
       const kind: WorkbenchErrorKind = error instanceof Error && error.message.includes("必须") ? "validation" : "provider";
       const workbenchError = createWorkbenchError(kind, "Import request failed.", traceId, error);
-      const source = importSourceForMode(request.mode);
+      const source = importSourceForRequest(request);
       const run = {
         id: `import-failed-${Date.now()}`,
         source,

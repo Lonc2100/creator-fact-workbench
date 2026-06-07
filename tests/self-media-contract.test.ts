@@ -5192,6 +5192,93 @@ test("bilibili local export file import enters trusted content metrics without c
   }
 });
 
+test("douyin local export file import enters trusted content metrics without pretending browser auto capture", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-douyin-local-export-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const csv = [
+      "作品ID,标题,发布时间,播放量,点赞数,评论数,收藏数,分享数,转发数,下载数,涨粉,完播率,平均播放时长,选题",
+      "dy-local-082,抖音本地导出闭环,2026-06-01T09:00:00.000Z,1800,120,18,44,15,6,3,11,42%,19s,AI短片"
+    ].join("\n");
+
+    const preview = service.previewImportRequest({
+      mode: "platform_local_file",
+      platformLocalFile: { platform: "douyin", csv }
+    });
+    assert.equal(preview.source, "douyin_creator_center");
+    assert.equal(preview.contentCount, 1);
+    assert.equal(preview.realPreviewRows?.[0]?.mappingConfidence, "confirmed_official");
+    assert.equal(preview.realPreviewRows?.[0]?.nativeMetrics["下载数"], "3");
+    assert.ok(preview.warnings.some((item) => item.includes("douyin_local_export")));
+
+    const result = service.importRequest({
+      mode: "platform_local_file",
+      platformLocalFile: { platform: "douyin", csv }
+    });
+    assert.equal(result.run.status, "success");
+    assert.equal(result.run.source, "douyin_creator_center");
+
+    const savedSnapshot = repo.listMetricSnapshots().find((item) => item.contentId === "dy-local-082");
+    const dashboard = await service.dashboard();
+    assert.ok(savedSnapshot);
+    assert.equal(savedSnapshot?.source, "douyin_creator_center");
+    assert.equal(savedSnapshot?.dataDomain, "user_work");
+    assert.equal(savedSnapshot?.provenance?.trustedScopeEligible, true);
+    assert.equal(repo.getEntity("contents", "dy-local-082")?.dataDomain, "user_work");
+    assert.ok(dashboard.contents.some((item) => item.id === "dy-local-082"));
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "dy-local-082" && item.source === "douyin_creator_center"));
+    assert.equal(dashboard.weeklyReview.metrics.totalViews, 1800);
+    assert.equal(dashboard.trustedAutoCaptureScheduler.schedulerEnabledCount, 0);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("douyin local export xlsx import previews and saves without raw request persistence", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-douyin-local-xlsx-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const xlsx = createMinimalXlsx([
+      ["作品ID", "标题", "发布时间", "播放量", "点赞数", "评论数", "收藏数", "分享数", "转发数", "下载数"],
+      ["dy-local-xlsx-082", "抖音 XLSX 本地导出闭环", "2026-06-01T09:00:00.000Z", "1999", "130", "19", "45", "16", "7", "4"]
+    ]);
+    const request = {
+      mode: "platform_local_file" as const,
+      platformLocalFile: {
+        platform: "douyin" as const,
+        fileName: "douyin-export.xlsx",
+        contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        fileBase64: xlsx.toString("base64")
+      }
+    };
+
+    const preview = service.previewImportRequest(request);
+    assert.equal(preview.source, "douyin_creator_center");
+    assert.equal(preview.contentCount, 1);
+    assert.equal(preview.realPreviewRows?.[0]?.nativeMetrics["下载数"], "4");
+
+    const result = service.importRequest(request);
+    const dashboard = await service.dashboard();
+    const savedSnapshots = repo.listMetricSnapshots().filter((item) => item.contentId === "dy-local-xlsx-082");
+    assert.equal(result.run.status, "success");
+    assert.equal(result.run.source, "douyin_creator_center");
+    assert.equal(savedSnapshots.length, 1);
+    assert.equal(savedSnapshots[0].source, "douyin_creator_center");
+    assert.equal(savedSnapshots[0].views, 1999);
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "dy-local-xlsx-082" && item.source === "douyin_creator_center"));
+    assert.equal(dashboard.trustedOperatingStatus.views >= 1999, true);
+    assert.doesNotMatch(JSON.stringify(savedSnapshots), /fileBase64|raw request|cookie|token|header|下载数/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("bilibili local export xlsx import previews and saves into dashboard without raw request persistence", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-bilibili-local-xlsx-"));
   let repo: SqliteSelfMediaRepo | undefined;

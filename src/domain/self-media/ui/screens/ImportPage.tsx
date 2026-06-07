@@ -20,6 +20,11 @@ const sampleCsv = [
   ",只有标题没有ID,2026-06-01T09:00:00.000Z,200,20,2,1,0,0"
 ].join("\n");
 
+const sampleDouyinLocalExportCsv = [
+  "作品ID,标题,发布时间,播放量,点赞数,评论数,收藏数,分享数,转发数,下载数,涨粉,完播率,平均播放时长,选题",
+  "dy-local-001,AI短片三秒钩子复盘,2026-06-01T09:00:00.000Z,1800,120,18,44,15,6,3,11,42%,19s,AI短片"
+].join("\n");
+
 const sampleBilibiliLocalExportCsv = [
   "稿件ID,BV号,标题,发布时间,播放量,点赞数,评论数,弹幕数,收藏数,分享数,投币数,涨粉,完播率,平均播放时长,选题",
   "bili-local-001,BV1local001,AI短片工作流拆解,2026-06-01T09:00:00.000Z,1600,88,22,12,61,19,30,9,45%,32s,AI短片"
@@ -1283,12 +1288,19 @@ function previewStatsFor(preview: ImportPreviewResult | null) {
   };
 }
 
+type LocalFilePlatform = "douyin" | "bilibili";
+
 export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [currentSnapshot, setCurrentSnapshot] = useState(snapshot);
   const [preset, setPreset] = useState<CsvImportPreset>("douyin");
   const [csv, setCsv] = useState(sampleCsv);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreviewResult | null>(null);
+  const [douyinCsv, setDouyinCsv] = useState(sampleDouyinLocalExportCsv);
+  const [douyinFile, setDouyinFile] = useState<File | null>(null);
+  const [douyinPreview, setDouyinPreview] = useState<ImportPreviewResult | null>(null);
+  const [douyinConfirmed, setDouyinConfirmed] = useState(false);
+  const [douyinMessage, setDouyinMessage] = useState("等待抖音导出表");
   const [bilibiliCsv, setBilibiliCsv] = useState(sampleBilibiliLocalExportCsv);
   const [bilibiliFile, setBilibiliFile] = useState<File | null>(null);
   const [bilibiliPreview, setBilibiliPreview] = useState<ImportPreviewResult | null>(null);
@@ -1297,11 +1309,20 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [message, setMessage] = useState("等待预览");
   const [authCheckMessage, setAuthCheckMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isDouyinLoading, setIsDouyinLoading] = useState(false);
   const [isBilibiliLoading, setIsBilibiliLoading] = useState(false);
 
   const previewStats = useMemo(() => previewStatsFor(preview), [preview]);
+  const douyinStats = useMemo(() => previewStatsFor(douyinPreview), [douyinPreview]);
   const bilibiliStats = useMemo(() => previewStatsFor(bilibiliPreview), [bilibiliPreview]);
+  const canSaveDouyinLocalFile = douyinStats.confirmable > 0 && douyinConfirmed;
   const canSaveBilibiliLocalFile = bilibiliStats.confirmable > 0 && bilibiliConfirmed;
+
+  function resetDouyinPreview(nextMessage?: string) {
+    setDouyinPreview(null);
+    setDouyinConfirmed(false);
+    if (nextMessage) setDouyinMessage(nextMessage);
+  }
 
   function resetBilibiliPreview(nextMessage?: string) {
     setBilibiliPreview(null);
@@ -1309,44 +1330,74 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     if (nextMessage) setBilibiliMessage(nextMessage);
   }
 
-  async function buildBilibiliLocalFileRequest() {
-    if (!bilibiliFile) {
+  async function buildPlatformLocalFileRequest(platform: LocalFilePlatform, file: File | null, csvText: string) {
+    if (!file) {
       return {
         mode: "platform_local_file",
         platformLocalFile: {
-          platform: "bilibili",
-          csv: bilibiliCsv
+          platform,
+          csv: csvText
         }
       };
     }
-    const isXlsx = bilibiliFile.name.toLowerCase().endsWith(".xlsx") || bilibiliFile.type.includes("spreadsheetml");
+    const isXlsx = file.name.toLowerCase().endsWith(".xlsx") || file.type.includes("spreadsheetml");
     if (isXlsx) {
       return {
         mode: "platform_local_file",
         platformLocalFile: {
-          platform: "bilibili",
-          fileName: bilibiliFile.name,
-          contentType: bilibiliFile.type,
-          fileBase64: await fileToBase64(bilibiliFile)
+          platform,
+          fileName: file.name,
+          contentType: file.type,
+          fileBase64: await fileToBase64(file)
         }
       };
     }
     return {
       mode: "platform_local_file",
       platformLocalFile: {
-        platform: "bilibili",
-        csv: await bilibiliFile.text(),
-        fileName: bilibiliFile.name,
-        contentType: bilibiliFile.type
+        platform,
+        csv: await file.text(),
+        fileName: file.name,
+        contentType: file.type
       }
     };
+  }
+
+  async function runDouyinLocalFile(action: "preview" | "save") {
+    setIsDouyinLoading(true);
+    setDouyinMessage(action === "preview" ? "抖音导出表预览中" : "正在保存抖音内容级指标");
+    try {
+      const request = await buildPlatformLocalFileRequest("douyin", douyinFile, douyinCsv);
+      const response = await fetch(action === "preview" ? "/api/self-media/import/preview" : "/api/self-media/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(request)
+      });
+      const body = await response.json() as (ImportPreviewResult & { errorMessage?: string }) | { run?: { importedCount?: number; status?: string }; errorMessage?: string };
+      if (!response.ok) throw new Error(body.errorMessage ?? "抖音本地导出处理失败");
+      if (action === "preview") {
+        const result = body as ImportPreviewResult;
+        setDouyinPreview(result);
+        setDouyinConfirmed(false);
+        setDouyinMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后来源将保存为 douyin_creator_center。`);
+      } else {
+        const dashboardResponse = await fetch("/api/self-media/dashboard");
+        setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
+        setDouyinMessage(`已保存抖音本地导出指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入可信内容级回收。`);
+        setDouyinConfirmed(false);
+      }
+    } catch (error) {
+      setDouyinMessage(error instanceof Error ? error.message : "抖音本地导出处理失败");
+    } finally {
+      setIsDouyinLoading(false);
+    }
   }
 
   async function runBilibiliLocalFile(action: "preview" | "save") {
     setIsBilibiliLoading(true);
     setBilibiliMessage(action === "preview" ? "B站导出表预览中" : "正在保存 B站内容级指标");
     try {
-      const request = await buildBilibiliLocalFileRequest();
+      const request = await buildPlatformLocalFileRequest("bilibili", bilibiliFile, bilibiliCsv);
       const response = await fetch(action === "preview" ? "/api/self-media/import/preview" : "/api/self-media/import", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1442,6 +1493,75 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           onAuthCheck={() => setAuthCheckMessage("检查结果：官方 API 未接入或未授权；浏览器辅助会话未连接。请先手动导入，或启动浏览器辅助并在平台后台页面确认。")}
           snapshot={currentSnapshot}
         />
+        <Panel
+          className="douyin-local-file-mvp"
+          data-testid="douyin-local-file-mvp"
+          title="抖音本地导出回收 MVP"
+          eyebrow="真实闭环"
+          action={<Badge tone={douyinStats.blocked > 0 ? "warning" : douyinStats.total > 0 ? "success" : "info"}>{douyinStats.confirmable} 行可保存</Badge>}
+        >
+          <div className="import-guide-steps">
+            <article>
+              <strong>1. 从抖音后台导出或复制</strong>
+              <p>当前最现实路径是用户主动拿到内容级表格；官方 API 需要授权和权限开通。</p>
+            </article>
+            <article>
+              <strong>2. 本地预览字段</strong>
+              <p>确认作品 ID、标题、发布时间、播放、点赞、评论、收藏、分享等字段后再保存。</p>
+            </article>
+            <article>
+              <strong>3. 保存到可信指标</strong>
+              <p>保存来源固定为 douyin_creator_center；网页登录刷新不会自动抓取系统数据。</p>
+            </article>
+          </div>
+          <div className="form-grid">
+            <Field label="上传抖音 CSV / XLSX">
+              <input
+                className="sm-input"
+                data-testid="douyin-local-file-upload"
+                type="file"
+                accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] ?? null;
+                  setDouyinFile(nextFile);
+                  resetDouyinPreview(nextFile ? `已选择 ${nextFile.name}，请先预览字段。` : "等待抖音导出表");
+                }}
+              />
+            </Field>
+            <Field label="或粘贴抖音导出 CSV">
+              <TextArea
+                data-testid="douyin-local-file-csv"
+                value={douyinCsv}
+                onChange={(event) => {
+                  setDouyinCsv(event.target.value);
+                  resetDouyinPreview("CSV 已更新，请重新预览字段。");
+                }}
+              />
+            </Field>
+            <label className="import-confirm-check">
+              <input
+                checked={douyinConfirmed}
+                data-testid="douyin-local-file-confirm"
+                disabled={douyinStats.confirmable === 0 || isDouyinLoading}
+                onChange={(event) => setDouyinConfirmed(event.target.checked)}
+                type="checkbox"
+              />
+              <span>我确认这是本人从抖音创作者后台导出的内容级表格；保存后进入数据看板，且不保存登录凭证、请求头或原始请求。</span>
+            </label>
+            <div className="import-preview-actions">
+              <Button data-testid="douyin-local-file-preview" onClick={() => runDouyinLocalFile("preview")} variant="secondary" disabled={isDouyinLoading}>{isDouyinLoading ? "处理中" : "预览抖音导出"}</Button>
+              <Button data-testid="douyin-local-file-save" onClick={() => runDouyinLocalFile("save")} variant="primary" disabled={isDouyinLoading || !canSaveDouyinLocalFile}>{isDouyinLoading ? "保存中" : "确认保存到看板"}</Button>
+              <a className="sm-button sm-button-secondary" data-testid="douyin-local-file-dashboard-link" href="/dashboard">查看数据看板</a>
+              <span>{douyinMessage}</span>
+            </div>
+          </div>
+          <div className="real-preview-summary">
+            <span><b>{douyinStats.total}</b> 行</span>
+            <span><b>{douyinStats.confirmable}</b> 可保存</span>
+            <span><b>{douyinStats.nativeMetrics}</b> 抖音原生字段</span>
+          </div>
+          <RealPreviewRows rows={douyinStats.rows} />
+        </Panel>
         <Panel
           className="bilibili-local-file-mvp"
           data-testid="bilibili-local-file-mvp"

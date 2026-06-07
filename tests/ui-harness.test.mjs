@@ -417,6 +417,15 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /最近采集/);
   assert.match(importPage, /平台需补抓/);
   assert.match(importPage, /平台有发布后回收/);
+  assert.match(importPage, /douyin-local-file-mvp/);
+  assert.match(importPage, /抖音本地导出回收 MVP/);
+  assert.match(importPage, /官方 API 需要授权和权限开通/);
+  assert.match(importPage, /网页登录刷新不会自动抓取系统数据/);
+  assert.match(importPage, /douyin-local-file-upload/);
+  assert.match(importPage, /douyin-local-file-confirm/);
+  assert.match(importPage, /douyin-local-file-preview/);
+  assert.match(importPage, /douyin-local-file-save/);
+  assert.match(importPage, /douyin-local-file-dashboard-link/);
   assert.match(importPage, /bilibili-local-file-mvp/);
   assert.match(importPage, /B站本地导出回收 MVP/);
   assert.match(importPage, /platform_local_file/);
