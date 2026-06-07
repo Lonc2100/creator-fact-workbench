@@ -121,6 +121,18 @@ The current mainline is closed as a usable creator workflow on fixed `http://loc
 - Video Account authenticated browser capture remains discovery-only until a stable content table with title, publish time, views/play count, likes, comments, and shares is proven. Bilibili browser capture remains unsupported; Bilibili archive/work content metrics remain the accepted content-level path.
 - Evidence screenshots for the 090 closure were written locally under `.local/mainline-usable-closure-090/` and are not committed.
 
+## 091 Real Login Capture Acceptance Attempt
+
+The real assisted login-capture path was attempted with persistent local Douyin and Xiaohongshu browser sessions:
+
+- Both platform windows opened through `/import` using the existing persistent-profile browser capture routes.
+- `focus_return` / preview-only checks ran without saving.
+- Douyin reached an accessible creator data-center page, but the page was an operation overview, not a visible works table. Preview failed with zero content rows and warning `no_visible_content_rows`.
+- Xiaohongshu reached an accessible creator account-statistics page, but the page was an account overview, not a visible note/work table. Preview failed with zero content rows and warning `no_visible_creator_note_rows`.
+- No save was performed, because neither platform exposed title plus per-work/per-note metrics in visible content rows.
+- Dashboard trusted counts remained unchanged at 12 trusted contents and 12 trusted metric snapshots after preview-only checks, proving account overview/empty rows were not written.
+- Next real acceptance attempt must start from the opened platform windows and manually switch to a works/note management table that visibly contains title plus views/play, likes, comments, saves/shares or equivalent metrics.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
@@ -128,6 +140,7 @@ The current mainline is closed as a usable creator workflow on fixed `http://loc
 - Local CSV/XLSX export is fallback-only. It remains available for platform risk blocks, unstable browser capture, or user preference, but it is not the default product direction.
 - Douyin has the first authenticated browser capture MVP on `/import`: open controlled browser, user confirms login, capture current visible works/data rows, preview, confirm save, and write `douyin_creator_center` trusted content-level metrics without saving password, cookie, token, header, storage state, raw request, or raw response records.
 - Xiaohongshu has the second authenticated browser capture MVP on `/import`: open the creator service platform with the local profile, reject public/wrong pages, capture visible creator note/work rows only, preview, confirm save, and write `xiaohongshu_creator_center` trusted content-level metrics.
+- 091 real assisted login acceptance did not save data: Douyin and Xiaohongshu opened and were accessible, but both were on account/operation overview pages rather than visible content-level metric tables.
 - `/import` also has user-triggered auto-refresh preview for Douyin and Xiaohongshu via the login-capture refresh route; this is not silent background collection and not an automatic save.
 - `/import` now also starts an automatic page-load check and can auto-open reusable Douyin/Xiaohongshu local backend windows for preview. Save still requires explicit user confirmation in the platform preview panel.
 - `/import` now retries preview when the user returns from a platform login/content page window, and the first auto-refresh result card explains the next business action.
