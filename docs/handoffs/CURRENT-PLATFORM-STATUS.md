@@ -133,6 +133,17 @@ The real assisted login-capture path was attempted with persistent local Douyin 
 - Dashboard trusted counts remained unchanged at 12 trusted contents and 12 trusted metric snapshots after preview-only checks, proving account overview/empty rows were not written.
 - Next real acceptance attempt must start from the opened platform windows and manually switch to a works/note management table that visibly contains title plus views/play, likes, comments, saves/shares or equivalent metrics.
 
+## 092 Publish Calendar Data Hygiene
+
+The default publish calendar is now a strict planning surface, not a historical content archive:
+
+- Default dashboard `calendarItems` use service-layer publish-calendar eligibility, not only `dataDomain=user_work`.
+- Default calendar items require `user_work`, `user_owned_work`, an explicit `scheduledAt`, and an unpublished platform-version status of `draft`, `needs_review`, or `scheduled`.
+- Published content, `publishedAt` rows, historical archive/creator-center imports, and acceptance/demo/fixture traces are excluded from the default calendar even if an older record was mistakenly marked as `user_work`.
+- `service.calendar()` no longer turns missing `scheduledAt` values into today's date, so unscheduled historical versions cannot occupy a current calendar slot through fallback time.
+- `/calendar` keeps historical publish records and local/diagnostic data outside the default main grid. Those records belong in content history, data analysis, publish ledger, or explicit diagnostic views.
+- Live 3200 calendar check confirmed the default calendar text did not contain `用户作品：六月内容计划`, `孤雏，随便唱唱`, `bilibili-BV1u34y1y7hQ`, or `2022` historical card evidence.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
@@ -146,6 +157,7 @@ The real assisted login-capture path was attempted with persistent local Douyin 
 - `/import` now retries preview when the user returns from a platform login/content page window, and the first auto-refresh result card explains the next business action.
 - `/import` first screen is now status-and-next-action only: four platform login state, check action, and next-step links. Local export and diagnostics remain below/folded.
 - Default dashboard/calendar/publish ledger data is now service-filtered to user-owned work instead of relying only on page-level filtering.
+- Default publish calendar main-grid items are stricter than content-library visibility: they require user-owned `user_work`, explicit `scheduledAt`, unpublished status, and no acceptance/demo/archive/published traces.
 - Default `/dashboard`, `/calendar`, and `/import` should not visibly expose backend logs, local paths, API route strings, raw/evidence labels, or acceptance/test wording.
 - Creator business loop is closed for daily use: idea -> discussion -> four-platform drafts -> save -> future schedule -> edit schedule -> clear future schedule -> manual data refresh.
 - Closed loop means: logged-in/local capture evidence -> mapping preview -> explicit save -> content/platform version/metric snapshot -> dashboard/review visibility -> import operations smoke.

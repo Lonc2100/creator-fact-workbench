@@ -169,9 +169,8 @@ function isOperatingCalendarItem(
   if (!isOperatingPlatform(item.platform)) return false;
   if (!isDefaultSchedulingRow(row, content, version)) return false;
   if (!realScheduleTime(version)) return false;
-  if (item.status === "draft") return false;
-  if (item.status === "needs_review") return Boolean(version.scheduledAt);
-  return item.status === "scheduled" || item.status === "published" || item.status === "failed" || item.status === "blocked";
+  if (!version.scheduledAt || version.publishedAt || content.publishedAt || content.status === "published") return false;
+  return item.status === "draft" || item.status === "needs_review" || item.status === "scheduled";
 }
 
 function itemMatchesQuery(title: string | undefined, query: string) {

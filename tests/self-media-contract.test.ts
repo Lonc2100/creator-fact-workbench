@@ -6355,6 +6355,92 @@ test("production defaults isolate acceptance titles even when they look like rea
   }
 });
 
+test("default publish calendar excludes historical imports and acceptance-mislabeled user work", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-calendar-hygiene-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    service.importPayload({
+      source: "bilibili_creator_center",
+      contents: [{
+        id: "bilibili-BV1u34y1y7hQ",
+        title: "孤雏，随便唱唱",
+        platform: "bilibili",
+        status: "published",
+        format: "short_video",
+        topic: "历史 archive",
+        publishedAt: "2022-02-19T13:00:00.000Z",
+        workOwnership: "user_owned_work",
+        dataDomain: "user_work"
+      }],
+      metrics: [{ id: "metric-bilibili-BV1u34y1y7hQ", contentId: "bilibili-BV1u34y1y7hQ", platform: "bilibili", capturedAt: "2026-06-06T13:00:00.000Z", views: 300, likes: 20, comments: 3, saves: 2, shares: 1, followersDelta: 0 }]
+    });
+    service.importPayload({
+      source: "douyin_creator_center",
+      contents: [{
+        id: "douyin-historical-published-092",
+        title: "抖音历史已发布内容",
+        platform: "douyin",
+        status: "published",
+        format: "short_video",
+        topic: "创作中心历史",
+        publishedAt: "2024-05-01T09:00:00.000Z",
+        scheduledAt: "2026-06-06T09:00:00.000Z",
+        workOwnership: "user_owned_work",
+        dataDomain: "user_work"
+      }],
+      metrics: [{ id: "metric-douyin-historical-published-092", contentId: "douyin-historical-published-092", platform: "douyin", capturedAt: "2026-06-06T09:30:00.000Z", views: 1200, likes: 80, comments: 8, saves: 5, shares: 4, followersDelta: 1 }]
+    });
+    repo.upsertEntity("contents", "content-creator-6e8eafb53993", {
+      id: "content-creator-6e8eafb53993",
+      title: "用户作品：六月内容计划",
+      platform: "douyin",
+      status: "scheduled",
+      format: "short_video",
+      topic: "六月内容计划",
+      scheduledAt: "2026-06-06T01:00:00.000Z",
+      notes: "用来确认默认日历只显示 user_work。",
+      workOwnership: "user_owned_work",
+      dataDomain: "user_work"
+    });
+    service.upsertPlatformVersion({
+      contentId: "content-creator-6e8eafb53993",
+      platform: "douyin",
+      title: "用户作品：六月内容计划",
+      status: "scheduled",
+      scheduledAt: "2026-06-06T01:00:00.000Z"
+    });
+    repo.upsertEntity("contents", "unscheduled-user-work-092", {
+      id: "unscheduled-user-work-092",
+      title: "没有排期的真实草稿",
+      platform: "douyin",
+      status: "draft",
+      format: "short_video",
+      topic: "未排期",
+      workOwnership: "user_owned_work",
+      dataDomain: "user_work"
+    });
+    const unscheduled = service.upsertPlatformVersion({ contentId: "unscheduled-user-work-092", platform: "douyin", title: "没有排期的真实草稿", status: "draft" });
+    const realScheduled = service.createCreatorVideoDraft({
+      title: "真实未来发布计划",
+      topic: "六月发布计划",
+      brief: "用户主动计划的未来待发布作品。",
+      scheduledAt: "2026-06-12T12:00:00.000Z"
+    });
+
+    assert.equal(service.calendar().some((item) => item.platformVersionId === unscheduled.version.id), false);
+    const dashboard = await service.dashboard();
+    assert.equal(dashboard.calendarItems.some((item) => item.contentId === "bilibili-BV1u34y1y7hQ"), false);
+    assert.equal(dashboard.calendarItems.some((item) => item.contentId === "douyin-historical-published-092"), false);
+    assert.equal(dashboard.calendarItems.some((item) => item.contentId === "content-creator-6e8eafb53993"), false);
+    assert.equal(dashboard.calendarItems.filter((item) => item.contentId === realScheduled.content.id).length, 4);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("trusted dashboard excludes acceptance and seed titles from imported metrics", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-import-data-domain-isolation-"));
   let repo: SqliteSelfMediaRepo | undefined;

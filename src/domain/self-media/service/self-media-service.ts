@@ -404,6 +404,8 @@ function isTrustedRealCreatorCenterSource(source: ImportSource | "manual" | "rev
 
 const acceptanceRunTextPattern = /(^|[\s:/._-])(mainline|human-mouse|calendar-real|creator day workflow|workflow|05[0-9]|06[0-9]|07[0-2])([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI短片复盘|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估/i;
 const demoSeedTextPattern = /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|op-save)([\s:/._-]|$)|O2|烟测|浏览器烟测|BiliOpSave/i;
+const calendarHygieneTextPattern = /默认日历只显示\s*user_work|用来确认默认日历|确认默认日历|默认日历主网格|日历验收|日历测试/i;
+const defaultPublishCalendarStatuses = new Set<ContentPlatformVersion["status"]>(["draft", "needs_review", "scheduled"]);
 
 function legacyTextSuggestsTestOrDemoContent(content: ContentItem | undefined, snapshot?: MetricSnapshot) {
   const text = [content?.id, content?.title, content?.topic, content?.notes, snapshot?.id, snapshot?.contentId, snapshot?.platformVersionId].filter(Boolean).join(" ");
@@ -478,6 +480,40 @@ function classifyContentDataDomain(input: {
 
 function isDefaultUserWorkContent(content: ContentItem | undefined) {
   return content?.dataDomain === "user_work";
+}
+
+function publishCalendarClassificationText(content: ContentItem | undefined, version?: ContentPlatformVersion) {
+  return [
+    content?.id,
+    content?.title,
+    content?.topic,
+    content?.notes,
+    content?.acceptanceRunId,
+    version?.id,
+    version?.title,
+    version?.body,
+    version?.script,
+    version?.coverNote,
+    version?.nextAction
+  ].filter(Boolean).join(" ");
+}
+
+function isDefaultPublishCalendarContent(content: ContentItem | undefined, version?: ContentPlatformVersion) {
+  if (!content) return false;
+  if (content.dataDomain !== "user_work") return false;
+  if (content.workOwnership !== "user_owned_work") return false;
+  if (content.status === "published" || content.publishedAt) return false;
+  const text = publishCalendarClassificationText(content, version);
+  if (acceptanceRunTextPattern.test(text) || demoSeedTextPattern.test(text) || calendarHygieneTextPattern.test(text)) return false;
+  return true;
+}
+
+function isDefaultPublishCalendarVersion(version: ContentPlatformVersion | undefined, content?: ContentItem) {
+  if (!version) return false;
+  if (!defaultPublishCalendarStatuses.has(version.status)) return false;
+  if (!version.scheduledAt) return false;
+  if (version.publishedAt || content?.publishedAt || content?.status === "published") return false;
+  return isDefaultPublishCalendarContent(content, version);
 }
 
 function isQuarantinedLocalRecord(record: unknown) {
@@ -3858,20 +3894,21 @@ export class SelfMediaService {
   }
 
   calendar(query: CalendarQuery = {}) {
-    const items = this.repo.listPlatformVersions().map((version): PublishCalendarItem => {
+    const items = this.repo.listPlatformVersions().flatMap((version): PublishCalendarItem[] => {
+      if (!version.scheduledAt) return [];
       const score = checklistScore(version.checklist);
-      return {
+      return [{
         id: `calendar-${version.id}`,
         platformVersionId: version.id,
         contentId: version.contentId,
         platform: version.platform,
         status: version.status,
-        scheduledAt: version.scheduledAt ?? new Date().toISOString(),
+        scheduledAt: version.scheduledAt,
         title: version.title,
         blockers: version.failureReason ? [version.failureReason] : undefined,
         checklistDone: score.done,
         checklistTotal: score.total
-      };
+      }];
     });
     return items.filter((item) => (!query.platform || item.platform === query.platform) && (!query.status || item.status === query.status));
   }
@@ -4341,7 +4378,12 @@ export class SelfMediaService {
     const metrics = metricSnapshots.map(trustedReviewMetricFromSnapshot);
     const platformVersions = allPlatformVersions.filter((version) => defaultBusinessContentIds.has(version.contentId));
     const visiblePlatformVersionIds = new Set(platformVersions.map((version) => version.id));
-    const calendarItems = allCalendarItems.filter((item) => defaultBusinessContentIds.has(item.contentId) && visiblePlatformVersionIds.has(item.platformVersionId));
+    const defaultPublishCalendarVersionIds = new Set(
+      allPlatformVersions
+        .filter((version) => isDefaultPublishCalendarVersion(version, contentsById.get(version.contentId)))
+        .map((version) => version.id)
+    );
+    const calendarItems = allCalendarItems.filter((item) => defaultPublishCalendarVersionIds.has(item.platformVersionId));
     const visibleQueue = queue.filter((item) => defaultBusinessContentIds.has(item.contentId));
     const visiblePublishRecords = this.repo.listPublishRecords().filter((record) => defaultBusinessContentIds.has(record.contentId) && visiblePlatformVersionIds.has(record.platformVersionId));
     const visibleMetricSnapshots = allMetricSnapshots.filter((snapshot) => operationalContentIds.has(snapshot.contentId));

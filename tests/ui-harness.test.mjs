@@ -185,6 +185,7 @@ test("calendar publish confirmation stays manual and explicit", () => {
   const calendarScreen = read("src/domain/self-media/ui/screens/CalendarPage.tsx");
   const calendarRoute = read("src/app/calendar/page.tsx");
   const formatHelpers = read("src/domain/self-media/ui/foundations/format.ts");
+  const selfMediaService = read("src/domain/self-media/service/self-media-service.ts");
   assert.match(calendarPattern, /calendar-confirm-publish/);
   assert.match(calendarPattern, /人工发布确认/);
   assert.match(calendarPattern, /只记录人工结果，便于复盘排期/);
@@ -231,6 +232,12 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /dataDomain === "user_work"/);
   assert.match(calendarScreen, /dataDomain === "acceptance_run"/);
   assert.match(calendarScreen, /dataDomain === "demo_seed"/);
+  assert.match(calendarScreen, /item\.status === "draft" \|\| item\.status === "needs_review" \|\| item\.status === "scheduled"/);
+  assert.doesNotMatch(calendarScreen, /item\.status === "published" \|\| item\.status === "failed" \|\| item\.status === "blocked"/);
+  assert.match(selfMediaService, /function isDefaultPublishCalendarContent/);
+  assert.match(selfMediaService, /function isDefaultPublishCalendarVersion/);
+  assert.match(selfMediaService, /calendarHygieneTextPattern/);
+  assert.doesNotMatch(selfMediaService, /scheduledAt:\s*version\.scheduledAt\s*\?\?\s*new Date\(\)\.toISOString\(\)/);
   assert.doesNotMatch(calendarScreen, /operator_owned_work/);
   assert.match(calendarScreen, /CalendarDraftPoolPanel/);
   assert.match(calendarScreen, /calendar-draft-pool/);
