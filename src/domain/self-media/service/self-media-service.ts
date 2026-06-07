@@ -402,7 +402,7 @@ function isTrustedRealCreatorCenterSource(source: ImportSource | "manual" | "rev
   return trustedRealCreatorCenterSources.includes(source as typeof trustedRealCreatorCenterSources[number]);
 }
 
-const acceptanceRunTextPattern = /(^|[\s:/._-])(mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI短片复盘|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估|05[0-9]|06[0-9]|07[0-2]/i;
+const acceptanceRunTextPattern = /(^|[\s:/._-])(mainline|human-mouse|calendar-real|creator day workflow|workflow|05[0-9]|06[0-9]|07[0-2])([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI短片复盘|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估/i;
 const demoSeedTextPattern = /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|op-save)([\s:/._-]|$)|O2|烟测|浏览器烟测|BiliOpSave/i;
 
 function legacyTextSuggestsTestOrDemoContent(content: ContentItem | undefined, snapshot?: MetricSnapshot) {
@@ -4337,12 +4337,13 @@ export class SelfMediaService {
     const contents = allContents.filter((content) => visibleContentIds.has(content.id));
     const operationalContents = allContents.filter((content) => !isQuarantinedLocalRecord(content));
     const operationalContentIds = new Set(operationalContents.map((content) => content.id));
+    const defaultBusinessContentIds = new Set(allContents.filter((content) => isDefaultUserWorkContent(content)).map((content) => content.id));
     const metrics = metricSnapshots.map(trustedReviewMetricFromSnapshot);
-    const platformVersions = allPlatformVersions.filter((version) => operationalContentIds.has(version.contentId));
+    const platformVersions = allPlatformVersions.filter((version) => defaultBusinessContentIds.has(version.contentId));
     const visiblePlatformVersionIds = new Set(platformVersions.map((version) => version.id));
-    const calendarItems = allCalendarItems.filter((item) => operationalContentIds.has(item.contentId) && visiblePlatformVersionIds.has(item.platformVersionId));
-    const visibleQueue = queue.filter((item) => operationalContentIds.has(item.contentId));
-    const visiblePublishRecords = this.repo.listPublishRecords().filter((record) => operationalContentIds.has(record.contentId) && visiblePlatformVersionIds.has(record.platformVersionId));
+    const calendarItems = allCalendarItems.filter((item) => defaultBusinessContentIds.has(item.contentId) && visiblePlatformVersionIds.has(item.platformVersionId));
+    const visibleQueue = queue.filter((item) => defaultBusinessContentIds.has(item.contentId));
+    const visiblePublishRecords = this.repo.listPublishRecords().filter((record) => defaultBusinessContentIds.has(record.contentId) && visiblePlatformVersionIds.has(record.platformVersionId));
     const visibleMetricSnapshots = allMetricSnapshots.filter((snapshot) => operationalContentIds.has(snapshot.contentId));
     const ideas = allIdeas.filter((idea) => !isQuarantinedLocalRecord(idea));
     const leads = allLeads.filter((lead) => !isQuarantinedLocalRecord(lead));

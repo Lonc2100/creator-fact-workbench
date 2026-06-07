@@ -424,14 +424,22 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /login-capture-auto-refresh/);
   assert.match(importPage, /一键刷新登录抓取/);
   assert.match(importPage, /进入本页会自动检查并尝试打开可复用的抖音\/小红书后台窗口/);
+  assert.match(importPage, /登录或切到作品页后回到本页会自动复查/);
   assert.match(importPage, /login-capture-auto-refresh-button/);
   assert.match(importPage, /自动开窗刷新/);
   assert.match(importPage, /login-capture-startup-check/);
   assert.match(importPage, /启动检查/);
   assert.match(importPage, /runLoginCaptureAutoRefresh\("startup"\)/);
+  assert.match(importPage, /runLoginCaptureAutoRefresh\("focus_return"\)/);
   assert.match(importPage, /startupAutoRefreshStarted/);
+  assert.match(importPage, /returnAutoRefreshLastRunAt/);
+  assert.match(importPage, /shouldRetryLoginCaptureOnReturn/);
+  assert.match(importPage, /visibilitychange/);
+  assert.match(importPage, /document\.visibilityState/);
   assert.match(importPage, /useRef/);
   assert.match(importPage, /login-capture-auto-refresh-results/);
+  assert.match(importPage, /login-capture-next-step/);
+  assert.match(importPage, /登录返回复查/);
   assert.match(importPage, /\/api\/self-media\/browser-capture\/auto-refresh/);
   assert.match(importPage, /autoOpen: true/);
   assert.match(importPage, /trigger/);
@@ -451,6 +459,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /抓取失败/);
   assert.match(importPage, /\/api\/self-media\/browser-capture/);
   assert.match(importPage, /douyin-login-browser-flow/);
+  assert.match(importPage, /id="douyin-authed-browser-capture-mvp"/);
   assert.match(importPage, /抖音登录后读取作品/);
   assert.doesNotMatch(importPage, /\.local\/browser-profiles\/douyin|\.local\/browser-profiles\/xiaohongshu/);
   assert.match(importPage, /作品管理\/数据表现/);
@@ -797,7 +806,7 @@ test("browser capture profile route exposes local-only session controls", () => 
 test("browser capture auto refresh is user-triggered preview only", () => {
   const route = read("src/app/api/self-media/browser-capture/auto-refresh/route.ts");
   assert.match(route, /mode: "user_triggered_preview_only"/);
-  assert.match(route, /trigger = body\.trigger === "startup" \? "startup" : "manual"/);
+  assert.match(route, /trigger = body\.trigger === "startup" \? "startup" : body\.trigger === "focus_return" \? "focus_return" : "manual"/);
   assert.match(route, /const autoOpen = body\.autoOpen !== false/);
   assert.match(route, /autoOpenEnabled: autoOpen/);
   assert.match(route, /openedWindowCount/);

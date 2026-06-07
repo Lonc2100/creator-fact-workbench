@@ -95,7 +95,19 @@ The data-import mainline now prioritizes login-assisted automatic preview over l
 - Auto-open remains preview-only. The route never calls `save`, never marks `userConfirmedContentMetrics: true`, and never stores password, cookie, token, header, storage state, raw request, raw response, screenshot, HAR, or trace material.
 - Result states are business-facing: preview ready, needs login, needs content page, failed, or unsupported. Local paths, run ids, raw capture details, and implementation logs stay out of the default `/import` first screen.
 - Video Account remains discovery-only for authenticated browser capture. Bilibili browser capture remains unsupported; Bilibili account metrics remain preview-only.
-- Obsidian PRD-drift prevention note was written to `D:\Obsidian\Repository\LifeOS Pro\1. 项目\自媒体\PRD偏离复盘与防偏清单.md`. Future sessions should use it to keep PRD > CURRENT > main closure > worker handoff.
+- Obsidian PRD-drift prevention note was written to `D:\codex work\codex-session-vault\20_Decisions\2026-06-07 PRD偏离复盘与防偏清单.md`. Future sessions should use it to keep PRD > CURRENT > main closure > worker handoff.
+
+## 089 Login Capture Return-to-Preview Baseline
+
+The `/import` login-capture flow now handles the realistic "I logged in or switched pages in the platform window" step:
+
+- If startup/manual auto-refresh opens or attempts Douyin/Xiaohongshu and the result still needs login, needs a content page, or failed, `/import` listens for the user returning to the app window and automatically retries `capture_preview`.
+- This return retry is throttled and labeled as `focus_return`, so it is visible as "登录返回复查" instead of being hidden as background work.
+- The auto-refresh panel now puts a business-facing "下一步" card before detailed platform cards: go confirm preview, log in, switch to works page, or accept unsupported/discovery boundaries.
+- The Douyin preview anchor now points to the actual Douyin capture panel, so "查看预览并确认保存" does not send the user to a missing section.
+- Default dashboard snapshot now filters calendar items, publish queue rows, platform versions, and publish records to `dataDomain=user_work` content. System-log/action-generated drafts remain available in the content workbench but do not pollute the default calendar or dashboard.
+- Acceptance/test text detection no longer treats bare `050`-`072` digit fragments inside generated IDs or timestamps as acceptance markers; those numbers must be delimited. This prevents real user ideas from being misclassified as `acceptance_run`.
+- Safety boundary is unchanged: return retry is still preview-only, no silent save, no automatic content-metric confirmation, no sensitive login material, no WeChat, Video Account discovery-only, Bilibili browser capture unsupported.
 
 ## Current Facts
 
@@ -106,6 +118,8 @@ The data-import mainline now prioritizes login-assisted automatic preview over l
 - Xiaohongshu has the second authenticated browser capture MVP on `/import`: open the creator service platform with the local profile, reject public/wrong pages, capture visible creator note/work rows only, preview, confirm save, and write `xiaohongshu_creator_center` trusted content-level metrics.
 - `/import` also has user-triggered auto-refresh preview for Douyin and Xiaohongshu via the login-capture refresh route; this is not silent background collection and not an automatic save.
 - `/import` now also starts an automatic page-load check and can auto-open reusable Douyin/Xiaohongshu local backend windows for preview. Save still requires explicit user confirmation in the platform preview panel.
+- `/import` now retries preview when the user returns from a platform login/content page window, and the first auto-refresh result card explains the next business action.
+- Default dashboard/calendar/publish ledger data is now service-filtered to user-owned work instead of relying only on page-level filtering.
 - Creator business loop is closed for daily use: idea -> discussion -> four-platform drafts -> save -> future schedule -> edit schedule -> clear future schedule -> manual data refresh.
 - Closed loop means: logged-in/local capture evidence -> mapping preview -> explicit save -> content/platform version/metric snapshot -> dashboard/review visibility -> import operations smoke.
 - WeChat Official Account / backend is paused. Do not resume WeChat backend discovery, mapping, sync, or public-account backend work unless the user explicitly reopens that scope.

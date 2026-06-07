@@ -210,7 +210,7 @@ export async function POST(request: Request) {
     const requested = body.platforms === "all" || !body.platforms
       ? null
       : new Set(body.platforms.map((item) => normalizePlatform(item)));
-    const trigger = body.trigger === "startup" ? "startup" : "manual";
+    const trigger = body.trigger === "startup" ? "startup" : body.trigger === "focus_return" ? "focus_return" : "manual";
     const autoOpen = body.autoOpen !== false;
     const profiles = getAuthedBrowserProfileStatusView().profiles.filter((profile) => !requested || requested.has(profile.platform));
     const origin = new URL(request.url).origin;

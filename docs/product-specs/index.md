@@ -49,6 +49,7 @@ This index separates active release scope from paused or diagnostic-only work. D
 - [Live creator mouse walkthrough 087](../handoffs/LIVE-CREATOR-MOUSE-WALKTHROUGH-087-worker-handoff.md)
 - [Login capture refresh closure 087](../handoffs/MAINLINE-LOGIN-CAPTURE-REFRESH-CLOSURE-087-orchestrator-review.md)
 - [Login capture auto-open 088](../handoffs/MAINLINE-LOGIN-CAPTURE-AUTO-OPEN-088-worker-handoff.md)
+- [Login capture return-to-preview 089](../handoffs/MAINLINE-LOGIN-CAPTURE-RETURN-PREVIEW-089-worker-handoff.md)
 
 ## Paused / Diagnostic-Only
 

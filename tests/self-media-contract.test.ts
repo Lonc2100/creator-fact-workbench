@@ -4714,7 +4714,7 @@ test("action task operating loop keeps safe sources and supports four status pat
   }
 });
 
-test("trusted action item can become scheduled content and calendar entry", async () => {
+test("trusted action item can become scheduled content without entering default calendar", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-action-to-content-"));
   let repo: SqliteSelfMediaRepo | undefined;
   try {
@@ -4754,7 +4754,13 @@ test("trusted action item can become scheduled content and calendar entry", asyn
 
     const after = await service.dashboard();
     assert.equal(after.contents.some((item) => item.id === converted.content.id), false);
-    assert.ok(after.calendarItems.some((item) => item.platformVersionId === converted.platformVersion.id && item.scheduledAt === scheduledAt));
+    assert.equal(after.calendarItems.some((item) => item.platformVersionId === converted.platformVersion.id && item.scheduledAt === scheduledAt), false);
+    const workbench = await service.contentWorkbench();
+    const row = workbench.contentRows.find((item) => item.content.id === converted.content.id);
+    assert.ok(row);
+    assert.equal(row.originKind, "action_item_generated");
+    assert.ok(row.platformVersions.some((item) => item.id === converted.platformVersion.id && item.scheduledAt === scheduledAt));
+    assert.ok(row.queueItems.some((item) => item.id === converted.queue.id && item.scheduledAt === scheduledAt));
     assert.doesNotMatch(JSON.stringify(converted), /raw payload|cookie|token|headers|comment body|danmu/i);
   } finally {
     repo?.close();
@@ -5667,7 +5673,7 @@ test("content workbench shows all local drafts and source classifications withou
     }, beforeTotals);
     assert.equal(afterDashboard.contents.some((item) => item.title === "工作台手动导入"), false);
     assert.equal(afterDashboard.contents.some((item) => item.id === "workbench-csv"), false);
-    assert.equal(afterDashboard.publishRecords.some((item) => item.id === publishConfirmation.publishRecord.id), true);
+    assert.equal(afterDashboard.publishRecords.some((item) => item.id === publishConfirmation.publishRecord.id), false);
     assert.ok(workbench.contents.some((item) => item.title === "工作台手动导入"));
     assert.ok(workbench.contents.some((item) => item.id === "workbench-csv"));
     assert.ok(workbench.contents.some((item) => item.id === ideaContent.content.id));
@@ -5784,8 +5790,9 @@ test("publish queue state machine accepts legal transitions and rejects illegal 
 
 test("idea can become draft content and enter publish queue", () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-idea-content-"));
+  let repo: SqliteSelfMediaRepo | undefined;
   try {
-    const repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
     const service = new SelfMediaService(repo);
     const created = service.createIdea({ title: "AI表达训练", platform: "video_account", rationale: "每天一条真人表达。" });
     const converted = service.convertIdeaToContent({ id: created.idea.id, scheduledAt: "2026-06-04T09:00:00.000Z" });
@@ -5796,8 +5803,8 @@ test("idea can become draft content and enter publish queue", () => {
     assert.equal(converted.queue.status, "draft");
     assert.ok(repo.listContents().some((item) => item.id === converted.content.id));
     assert.ok(repo.listQueue().some((item) => item.id === converted.queue.id));
-    repo.close();
   } finally {
+    repo?.close();
     rmSync(dir, { recursive: true, force: true });
   }
 });

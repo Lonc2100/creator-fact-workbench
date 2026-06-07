@@ -536,11 +536,12 @@ function LoginCaptureAutoRefreshPanel({
   result: AuthedBrowserAutoRefreshResult | null;
   startupSummary: string;
 }) {
+  const primaryAction = result ? loginCapturePrimaryAction(result) : null;
   return (
     <div className="login-auto-refresh-panel" data-testid="login-capture-auto-refresh">
       <div>
         <strong>一键刷新登录抓取</strong>
-        <p>进入本页会自动检查并尝试打开可复用的抖音/小红书后台窗口；你也可以手动再刷新。系统只做预览，不会静默保存。</p>
+        <p>进入本页会自动检查并尝试打开可复用的抖音/小红书后台窗口；登录或切到作品页后回到本页会自动复查。系统只做预览，不会静默保存。</p>
         <small data-testid="login-capture-startup-check">{startupSummary}</small>
       </div>
       <div className="import-preview-actions">
@@ -550,12 +551,25 @@ function LoginCaptureAutoRefreshPanel({
         <div className="platform-operation-grid" data-testid="login-capture-auto-refresh-results">
           <article className="platform-operation-card">
             <div className="platform-operation-card-head">
-              <strong>{result.trigger === "startup" ? "启动自动检查" : "手动刷新"}</strong>
+              <strong>{loginCaptureTriggerLabel(result.trigger)}</strong>
               <Badge tone={result.openedWindowCount > 0 ? "info" : "success"}>{result.openedWindowCount} 个窗口</Badge>
             </div>
             <p>{result.summary}</p>
             <small>自动开窗：{result.autoOpenEnabled ? "已启用" : "未启用"} / 保存：仍需你确认。</small>
           </article>
+          {primaryAction && (
+            <article className="platform-operation-card" data-testid="login-capture-next-step">
+              <div className="platform-operation-card-head">
+                <strong>下一步</strong>
+                <Badge tone={primaryAction.tone}>{primaryAction.badge}</Badge>
+              </div>
+              <p>{primaryAction.title}</p>
+              <small>{primaryAction.detail}</small>
+              <div className="import-preview-actions">
+                {primaryAction.href ? <a className="sm-button sm-button-primary" href={primaryAction.href}>{primaryAction.actionLabel}</a> : <Button onClick={onRefresh} variant="primary" disabled={isRunning}>{primaryAction.actionLabel}</Button>}
+              </div>
+            </article>
+          )}
           {result.results.map((item) => (
             <article key={`auto-refresh-${item.platform}`} className="platform-operation-card">
               <div className="platform-operation-card-head">
@@ -572,6 +586,58 @@ function LoginCaptureAutoRefreshPanel({
       )}
     </div>
   );
+}
+
+function loginCaptureTriggerLabel(trigger: AuthedBrowserAutoRefreshResult["trigger"]) {
+  if (trigger === "startup") return "启动自动检查";
+  if (trigger === "focus_return") return "登录返回复查";
+  return "手动刷新";
+}
+
+function loginCapturePrimaryAction(result: AuthedBrowserAutoRefreshResult) {
+  const capturePlatforms = new Set<AuthedBrowserPlatform>(["douyin", "xiaohongshu"]);
+  const active = result.results.filter((item) => capturePlatforms.has(item.platform));
+  const preview = active.find((item) => item.status === "preview_ready");
+  if (preview) {
+    return {
+      title: `${preview.label} 已抓到预览`,
+      detail: "请跳到对应平台预览区，确认是本人后台作品级数据后再保存。",
+      badge: "去确认",
+      tone: "success" as const,
+      href: preview.platform === "xiaohongshu" ? "#xiaohongshu-authed-browser-capture-mvp" : "#douyin-authed-browser-capture-mvp",
+      actionLabel: "查看预览并确认保存"
+    };
+  }
+  const needsContentPage = active.find((item) => item.status === "needs_content_page");
+  if (needsContentPage) {
+    return {
+      title: `${needsContentPage.label} 需要切到作品页`,
+      detail: "在已打开的平台后台切到作品管理、笔记管理或数据表现列表；回到本页会自动复查，也可以手动刷新。",
+      badge: "切页面",
+      tone: "warning" as const,
+      href: "",
+      actionLabel: "我已切到作品页，重新预览"
+    };
+  }
+  const needsLogin = active.find((item) => item.status === "needs_login" || item.status === "failed");
+  if (needsLogin) {
+    return {
+      title: `${needsLogin.label} 需要你完成登录`,
+      detail: "请在自动打开的平台窗口完成登录或验证码；回到本页后系统会自动复查。",
+      badge: "需登录",
+      tone: "info" as const,
+      href: "",
+      actionLabel: "我已登录，重新预览"
+    };
+  }
+  return {
+    title: "当前没有可自动抓取的平台",
+    detail: "抖音和小红书支持登录后预览；视频号仍是 discovery-only，B站浏览器抓取暂未接入。",
+    badge: "边界",
+    tone: "info" as const,
+    href: "",
+    actionLabel: "重新检查"
+  };
 }
 
 function OperationSummaryList({ summaries, capabilities }: { summaries: PlatformImportOperationResult["summaries"]; capabilities: PlatformImportOperationCapability[] }) {
@@ -1575,6 +1641,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [isXiaohongshuBrowserLoading, setIsXiaohongshuBrowserLoading] = useState(false);
   const [isBilibiliLoading, setIsBilibiliLoading] = useState(false);
   const startupAutoRefreshStarted = useRef(false);
+  const returnAutoRefreshLastRunAt = useRef(0);
 
   const previewStats = useMemo(() => previewStatsFor(preview), [preview]);
   const douyinStats = useMemo(() => previewStatsFor(douyinPreview), [douyinPreview]);
@@ -1596,6 +1663,14 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     if (reusable > 0) return `启动检查：${reusable} 个平台可能可直接刷新，${needsLogin} 个平台需要先登录${failed > 0 ? `，${failed} 个平台上次抓取失败` : ""}。`;
     return `启动检查：暂未发现可直接刷新的登录会话，${needsLogin} 个平台需要先打开后台登录。`;
   }, [autoRefreshMessage, browserProfileStatus]);
+  const shouldRetryLoginCaptureOnReturn = useMemo(() => {
+    const results = autoRefreshResult?.results ?? [];
+    return results.some((item) => {
+      if (item.platform !== "douyin" && item.platform !== "xiaohongshu") return false;
+      if (!item.attemptedPreview && !item.openedWindow) return false;
+      return item.status === "needs_login" || item.status === "needs_content_page" || item.status === "failed";
+    });
+  }, [autoRefreshResult]);
   const handleCaptureAuthCheck = () => setAuthCheckMessage("还没有连接好。请打开平台后台，登录后切到作品管理页，再点下一步。");
 
   async function refreshAuthedBrowserProfiles() {
@@ -1628,9 +1703,9 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     }
   }
 
-  async function runLoginCaptureAutoRefresh(trigger: "startup" | "manual" = "manual") {
+  async function runLoginCaptureAutoRefresh(trigger: AuthedBrowserAutoRefreshResult["trigger"] = "manual") {
     setIsAutoRefreshing(true);
-    setAutoRefreshMessage(trigger === "startup" ? "启动自动检查：正在尝试打开可复用平台并预览。" : "正在按平台登录状态尝试预览。");
+    setAutoRefreshMessage(trigger === "startup" ? "启动自动检查：正在尝试打开可复用平台并预览。" : trigger === "focus_return" ? "检测到你回到本页：正在重新预览登录抓取结果。" : "正在按平台登录状态尝试预览。");
     try {
       const response = await fetch("/api/self-media/browser-capture/auto-refresh", {
         method: "POST",
@@ -1844,6 +1919,23 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       });
   }, []);
 
+  useEffect(() => {
+    if (!shouldRetryLoginCaptureOnReturn || isAutoRefreshing) return;
+    const retryOnReturn = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - returnAutoRefreshLastRunAt.current < 15000) return;
+      returnAutoRefreshLastRunAt.current = now;
+      void runLoginCaptureAutoRefresh("focus_return");
+    };
+    window.addEventListener("focus", retryOnReturn);
+    document.addEventListener("visibilitychange", retryOnReturn);
+    return () => {
+      window.removeEventListener("focus", retryOnReturn);
+      document.removeEventListener("visibilitychange", retryOnReturn);
+    };
+  }, [isAutoRefreshing, shouldRetryLoginCaptureOnReturn]);
+
   async function runXiaohongshuLocalFile(action: "preview" | "save") {
     setIsXiaohongshuLoading(true);
     setXiaohongshuMessage(action === "preview" ? "小红书导出表预览中" : "正在保存小红书内容级指标");
@@ -2021,7 +2113,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         <Panel
           className="douyin-login-browser-flow"
           data-testid="douyin-login-browser-flow"
-          id="douyin-login-browser-flow"
+          id="douyin-authed-browser-capture-mvp"
           title="抖音登录后读取作品"
           eyebrow="抖音"
           action={<Badge tone={douyinBrowserRows.length > 0 ? "success" : douyinBrowserResult?.browserOpened ? "info" : "warning"}>{douyinBrowserRows.length > 0 ? `${douyinBrowserRows.length} 条可预览` : douyinBrowserResult?.browserOpened ? "会话已开" : "待登录"}</Badge>}

@@ -1038,14 +1038,14 @@ export interface AuthedBrowserAutoRefreshPlatformResult {
 export interface AuthedBrowserAutoRefreshRequest {
   platforms?: Array<AuthedBrowserPlatform | PlatformImportOperationPlatform> | "all";
   autoOpen?: boolean;
-  trigger?: "startup" | "manual";
+  trigger?: "startup" | "manual" | "focus_return";
 }
 
 export interface AuthedBrowserAutoRefreshResult {
   ok: boolean;
   generatedAt: string;
   mode: "user_triggered_preview_only";
-  trigger: "startup" | "manual";
+  trigger: "startup" | "manual" | "focus_return";
   summary: string;
   autoOpenEnabled: boolean;
   openedWindowCount: number;
