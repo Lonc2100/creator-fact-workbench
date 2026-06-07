@@ -17,6 +17,7 @@ const TEXT_EXTENSIONS = new Set([".md", ".mjs", ".ts", ".tsx", ".js", ".json"]);
 const TEST_DATA_PATTERN = /\b(demo|smoke|fixture|fake|sample|seed|test|acceptance|e2e|o2)\b|烟测|演示|样例|测试/i;
 const PAUSED_PATTERN = /wechat|微信|公众号|backend|bilibili-account|account-metrics/i;
 const SENSITIVE_LOCAL_PATTERN = /chrome-profile|cookies|token|credential|self-media\.sqlite|raw\//i;
+const QUARANTINED_DATA_DOMAINS = new Set(["acceptance_run", "demo_seed", "system_log"]);
 
 function runGit(args) {
   const result = spawnSync("git", args, { cwd: rootDir, encoding: "utf8" });
@@ -36,6 +37,18 @@ function rel(filePath) {
 
 function bytesToMiB(bytes) {
   return Math.round((bytes / 1024 / 1024) * 100) / 100;
+}
+
+function parseJson(value, fallback = {}) {
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return fallback;
+  }
+}
+
+function isQuarantinedDbRecord(data) {
+  return QUARANTINED_DATA_DOMAINS.has(data?.dataDomain) || typeof data?.quarantineTaskId === "string";
 }
 
 function listFiles(dir, options = {}) {
@@ -277,6 +290,8 @@ function dbPollutionEvidence() {
     if (tables.includes("entities")) {
       const rows = db.prepare("SELECT collection, id, data FROM entities").all();
       for (const row of rows) {
+        const data = parseJson(row.data);
+        if (isQuarantinedDbRecord(data)) continue;
         const text = `${row.collection} ${row.id} ${row.data ?? ""}`;
         if (TEST_DATA_PATTERN.test(text)) {
           evidence.suspectRecordCount += 1;
@@ -289,6 +304,8 @@ function dbPollutionEvidence() {
     if (tables.includes("import_runs")) {
       const rows = db.prepare("SELECT id, source, status, data FROM import_runs").all();
       for (const row of rows) {
+        const data = parseJson(row.data);
+        if (isQuarantinedDbRecord(data)) continue;
         const text = `${row.id} ${row.source} ${row.status} ${row.data ?? ""}`;
         if (TEST_DATA_PATTERN.test(text)) {
           evidence.suspectRecordCount += 1;

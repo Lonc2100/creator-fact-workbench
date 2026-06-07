@@ -587,14 +587,16 @@ function TrustedScopeCurationPanel({
 }
 
 function WorkbenchSummaryPanel({ snapshot }: { snapshot: ContentWorkbenchSnapshot }) {
-  const operatingRowCount = snapshot.contentRows.filter(isOperatingContentRow).length;
+  const operatingRows = snapshot.contentRows.filter(isOperatingContentRow);
+  const operatingContentIds = new Set(operatingRows.map((row) => row.content.id));
+  const operatingScheduledCount = snapshot.platformVersions.filter((item) => operatingContentIds.has(item.contentId) && item.status === "scheduled").length;
   return (
     <Panel title="内容运营概览" eyebrow="默认运营视图">
       <div className="metric-strip">
-        <div><strong>{operatingRowCount}</strong><span>默认可见</span></div>
+        <div><strong>{operatingRows.length}</strong><span>默认可见</span></div>
         <div><strong>{snapshot.summary.trustedDashboardContentCount}</strong><span>进入运营看板</span></div>
         <div><strong>{snapshot.summary.draftContentCount}</strong><span>待审草稿</span></div>
-        <div><strong>{snapshot.platformVersions.filter((item) => item.status === "scheduled").length}</strong><span>已排期稿件</span></div>
+        <div><strong>{operatingScheduledCount}</strong><span>已排期稿件</span></div>
         <div><strong>{snapshot.summary.actionGeneratedDraftCount}</strong><span>行动项草稿</span></div>
         <div><strong>{snapshot.summary.publishRecordCount}</strong><span>人工发布记录</span></div>
       </div>
@@ -606,7 +608,8 @@ function WorkbenchSummaryPanel({ snapshot }: { snapshot: ContentWorkbenchSnapsho
 function ContentCurrentTaskPanel({ snapshot }: { snapshot: ContentWorkbenchSnapshot }) {
   const packages = snapshot.publishToMetricsWorkbench.publishHandoffPackages;
   const scheduledPackages = packages.filter((item) => item.status === "scheduled");
-  const reviewDrafts = snapshot.platformVersions.filter((item) => item.status === "draft" || item.status === "needs_review");
+  const operatingContentIds = new Set(snapshot.contentRows.filter(isOperatingContentRow).map((row) => row.content.id));
+  const reviewDrafts = snapshot.platformVersions.filter((item) => operatingContentIds.has(item.contentId) && (item.status === "draft" || item.status === "needs_review"));
   const nextPackage = scheduledPackages[0] ?? packages[0];
   return (
     <Panel

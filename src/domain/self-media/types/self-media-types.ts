@@ -1078,6 +1078,9 @@ export interface AuditRecord {
   status: "pass" | "warn" | "fail";
   finding: string;
   createdAt: string;
+  dataDomain?: Extract<ContentDataDomain, "system_log">;
+  dataDomainUpdatedAt?: string;
+  dataDomainReason?: string;
 }
 
 export type PlatformDataHealthStatus = "ok" | "warn" | "error" | "missing";

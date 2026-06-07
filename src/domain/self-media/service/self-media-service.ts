@@ -140,9 +140,10 @@ function createQueue(): PublishQueueItem[] {
 }
 
 function createAudits(): AuditRecord[] {
+  const now = new Date().toISOString();
   return [
-    { id: "audit-provider-boundary", target: "Providers", status: "pass", finding: "外部数据先通过 Providers 转为内部模型。", createdAt: new Date().toISOString() },
-    { id: "audit-observability-o1", target: "O1", status: "warn", finding: "结构化日志已落地，Chrome DevTools 和本地观测栈仍在 O2/O3。", createdAt: new Date().toISOString() }
+    { id: "audit-provider-boundary", target: "Providers", status: "pass", finding: "外部数据先通过 Providers 转为内部模型。", createdAt: now, dataDomain: "system_log", dataDomainUpdatedAt: now, dataDomainReason: "seeded_system_audit" },
+    { id: "audit-observability-o1", target: "O1", status: "warn", finding: "结构化日志已落地，Chrome DevTools 和本地观测栈仍在 O2/O3。", createdAt: now, dataDomain: "system_log", dataDomainUpdatedAt: now, dataDomainReason: "seeded_system_audit" }
   ];
 }
 
@@ -474,6 +475,11 @@ function classifyContentDataDomain(input: {
 
 function isDefaultUserWorkContent(content: ContentItem | undefined) {
   return content?.dataDomain === "user_work";
+}
+
+function isQuarantinedLocalRecord(record: unknown) {
+  const item = record as { dataDomain?: ContentDataDomain; quarantineTaskId?: string };
+  return item.quarantineTaskId === "OPERATING-DB-POLLUTION-QUARANTINE-077" || item.dataDomain === "acceptance_run" || item.dataDomain === "demo_seed";
 }
 
 function isUserExcludedFromTrustedScope(content: ContentItem | undefined) {
@@ -4064,15 +4070,17 @@ export class SelfMediaService {
     const traceId = createTraceId("saved-review");
     this.backfillContentDataDomains();
     const allContents = this.repo.listContents();
-    const ideas = this.repo.listIdeas();
+    const allIdeas = this.repo.listIdeas();
     const queue = this.repo.listQueue();
-    const leads = this.repo.listLeads();
+    const allLeads = this.repo.listLeads();
     const platformVersions = this.repo.listPlatformVersions();
     const contentsById = new Map(allContents.map((content) => [content.id, content]));
     const snapshots = this.repo.listMetricSnapshots().filter((snapshot) => isTrustedRealMetricSnapshot(snapshot, contentsById));
     const trustedContentIds = new Set(snapshots.map((snapshot) => snapshot.contentId));
     const contents = allContents.filter((content) => trustedContentIds.has(content.id));
     const metrics = snapshots.map(trustedReviewMetricFromSnapshot);
+    const ideas = allIdeas.filter((idea) => !isQuarantinedLocalRecord(idea));
+    const leads = allLeads.filter((lead) => !isQuarantinedLocalRecord(lead));
     const report = generateReview(input.period, contents, metrics, { ideas, queue, leads });
     const insights = this.buildEvidenceInsights(snapshots);
     const actionItems: ReviewActionItem[] = report.actions.map((action) => ({
@@ -4183,7 +4191,18 @@ export class SelfMediaService {
     const trustedScopeCuration = buildTrustedScopeCurationSummary(contents, metricSnapshots, trustedSnapshots);
     const contentRows = buildContentWorkbenchRows({ contents, platformVersions, queue, actionItems, ideas, metricSnapshots, trustedSnapshots });
     const generatedAt = new Date().toISOString();
-    const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({ generatedAt, contents, platformVersions, queue, publishRecords, imports: this.repo.listImports(), metricSnapshots, trustedSnapshots });
+    const defaultContentIds = new Set(contents.filter(isDefaultUserWorkContent).map((content) => content.id));
+    const defaultVersionIds = new Set(platformVersions.filter((version) => defaultContentIds.has(version.contentId)).map((version) => version.id));
+    const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({
+      generatedAt,
+      contents: contents.filter((content) => defaultContentIds.has(content.id)),
+      platformVersions: platformVersions.filter((version) => defaultContentIds.has(version.contentId)),
+      queue: queue.filter((item) => defaultContentIds.has(item.contentId)),
+      publishRecords: publishRecords.filter((record) => defaultContentIds.has(record.contentId) && defaultVersionIds.has(record.platformVersionId)),
+      imports,
+      metricSnapshots: metricSnapshots.filter((snapshot) => defaultContentIds.has(snapshot.contentId)),
+      trustedSnapshots
+    });
     return {
       generatedAt,
       contents,
@@ -4218,23 +4237,34 @@ export class SelfMediaService {
     this.backfillContentDataDomains();
     const allContents = this.repo.listContents();
     const allMetrics = this.repo.listMetrics();
-    const ideas = this.repo.listIdeas();
+    const allIdeas = this.repo.listIdeas();
     const queue = this.repo.listQueue();
-    const leads = this.repo.listLeads();
+    const allLeads = this.repo.listLeads();
     const allPlatformVersions = this.repo.listPlatformVersions();
-    const calendarItems = this.calendar();
+    const allCalendarItems = this.calendar();
     const allMetricSnapshots = this.repo.listMetricSnapshots();
     const imports = this.repo.listImports();
-    const savedReviews = this.repo.listSavedReviews();
-    const actionItems = this.repo.listActionItems();
+    const allSavedReviews = this.repo.listSavedReviews();
+    const allActionItems = this.repo.listActionItems();
     const contentsById = new Map(allContents.map((content) => [content.id, content]));
     const metricSnapshots = allMetricSnapshots.filter((snapshot) => isTrustedRealMetricSnapshot(snapshot, contentsById));
     const trustedContentIds = new Set(metricSnapshots.map((snapshot) => snapshot.contentId));
     const visibleContentIds = new Set([...trustedContentIds].filter((id) => isDefaultUserWorkContent(contentsById.get(id))));
     const trustedContents = allContents.filter((content) => trustedContentIds.has(content.id));
     const contents = allContents.filter((content) => visibleContentIds.has(content.id));
+    const operationalContents = allContents.filter((content) => !isQuarantinedLocalRecord(content));
+    const operationalContentIds = new Set(operationalContents.map((content) => content.id));
     const metrics = metricSnapshots.map(trustedReviewMetricFromSnapshot);
-    const platformVersions = allPlatformVersions.filter((version) => visibleContentIds.has(version.contentId));
+    const platformVersions = allPlatformVersions.filter((version) => operationalContentIds.has(version.contentId));
+    const visiblePlatformVersionIds = new Set(platformVersions.map((version) => version.id));
+    const calendarItems = allCalendarItems.filter((item) => operationalContentIds.has(item.contentId) && visiblePlatformVersionIds.has(item.platformVersionId));
+    const visibleQueue = queue.filter((item) => operationalContentIds.has(item.contentId));
+    const visiblePublishRecords = this.repo.listPublishRecords().filter((record) => operationalContentIds.has(record.contentId) && visiblePlatformVersionIds.has(record.platformVersionId));
+    const visibleMetricSnapshots = allMetricSnapshots.filter((snapshot) => operationalContentIds.has(snapshot.contentId));
+    const ideas = allIdeas.filter((idea) => !isQuarantinedLocalRecord(idea));
+    const leads = allLeads.filter((lead) => !isQuarantinedLocalRecord(lead));
+    const actionItems = allActionItems.filter((item) => !isQuarantinedLocalRecord(item) && (!item.contentDraftId || visibleContentIds.has(item.contentDraftId)) && (!item.platformVersionId || visiblePlatformVersionIds.has(item.platformVersionId)));
+    const savedReviews = allSavedReviews.filter((review) => !isQuarantinedLocalRecord(review));
     const metricSourceGroups = buildMetricSourceGroups(metricSnapshots, metrics);
     const metricPlatformGroups = buildMetricPlatformGroups(metricSnapshots, metrics);
     const accountMetricSnapshots = this.repo.listAccountMetricSnapshots();
@@ -4248,13 +4278,13 @@ export class SelfMediaService {
     const trustedAutoCaptureScheduler = buildTrustedAutoCaptureScheduler({ generatedAt, platformDataHealth, platformImportStatuses });
     const realDataScope = buildRealDataScopeSummary({ contents: allContents, metrics: allMetrics, metricSnapshots: allMetricSnapshots, imports, trustedSnapshots: metricSnapshots });
     const trustedOperatingStatus = buildTrustedOperatingStatus(realDataScope, metricSnapshots);
-    const trustedScopeCuration = buildTrustedScopeCurationSummary(allContents, allMetricSnapshots, metricSnapshots);
+    const trustedScopeCuration = buildTrustedScopeCurationSummary(operationalContents, allMetricSnapshots, metricSnapshots);
     const postImportActionSuggestions = enrichPostImportActionSuggestions(buildPostImportActionSuggestions({ contents: trustedContents, metricSnapshots, metricPlatformGroups, platformDataHealth }), actionItems);
     const automationRuns = this.repo.listAutomationRuns();
     const evidenceInsights = this.buildEvidenceInsights(metricSnapshots);
-    const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({ generatedAt, contents: allContents, platformVersions: allPlatformVersions, queue, publishRecords: this.repo.listPublishRecords(), imports, metricSnapshots: allMetricSnapshots, trustedSnapshots: metricSnapshots });
-    const weeklyReview = generateReview("weekly", trustedContents, metrics, { ideas, queue, leads });
-    const monthlyReview = generateReview("monthly", trustedContents, metrics, { ideas, queue, leads });
+    const publishToMetricsWorkbench = buildPublishToMetricsWorkbench({ generatedAt, contents: operationalContents, platformVersions, queue: visibleQueue, publishRecords: visiblePublishRecords, imports, metricSnapshots: visibleMetricSnapshots, trustedSnapshots: metricSnapshots });
+    const weeklyReview = generateReview("weekly", trustedContents, metrics, { ideas, queue: visibleQueue, leads });
+    const monthlyReview = generateReview("monthly", trustedContents, metrics, { ideas, queue: visibleQueue, leads });
     const trustedWeeklySummary = buildTrustedWeeklyReportSummary({ generatedAt, realDataScope, trustedOperatingStatus, metricPlatformGroups, platformDataHealth, dailyPlatformOpsGate, weeklyReview });
     return {
       generatedAt,
@@ -4280,10 +4310,10 @@ export class SelfMediaService {
       dailyPlatformOpsGate,
       dailySelfMediaOps,
       trustedScopeCuration,
-      queue,
+      queue: visibleQueue,
       platformVersions,
       calendarItems,
-      publishRecords: this.repo.listPublishRecords(),
+      publishRecords: visiblePublishRecords,
       metricSnapshots,
       metricSourceGroups,
       metricPlatformGroups,
@@ -4292,12 +4322,12 @@ export class SelfMediaService {
       postImportActionSuggestions,
       savedReviews,
       actionItems,
-      automationRuns,
+      automationRuns: automationRuns.filter((run) => !isQuarantinedLocalRecord(run)),
       evidenceInsights,
       weeklyReview,
       monthlyReview,
       logs: this.repo.listLogs(),
-      audits: this.repo.listAudits(),
+      audits: this.repo.listAudits().filter((audit) => !isQuarantinedLocalRecord(audit)),
       publishToMetricsWorkbench
     };
   }
