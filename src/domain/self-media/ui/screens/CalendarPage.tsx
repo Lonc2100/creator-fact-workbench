@@ -401,14 +401,14 @@ function CalendarAcceptanceDataPanel({
     <details className="calendar-acceptance-data-pool" data-testid="calendar-acceptance-data-pool">
       <summary>
         <span>
-          <strong>本地验收数据 / 测试内容</strong>
-          <small>{items.length} 条已从默认日历隔离；只供开发审计，不进入用户作品排期。</small>
+          <strong>隔离数据</strong>
+          <small>{items.length} 条已从默认日历隔离；默认收起，不进入用户作品排期。</small>
         </span>
         <i>展开</i>
       </summary>
       <div className="calendar-draft-pool-body">
         {items.length === 0 ? (
-          <p className="muted">暂无被隔离的本地验收排期。</p>
+          <p className="muted">暂无被隔离的本地排期。</p>
         ) : (
           <div className="calendar-draft-pool-grid">
             {items.slice(0, 12).map((item) => {

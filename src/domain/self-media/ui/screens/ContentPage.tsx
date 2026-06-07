@@ -642,8 +642,8 @@ function LocalAcceptanceContentPanel({ rows }: { rows: ContentWorkbenchContentRo
     <details className="calendar-acceptance-data-pool content-acceptance-data-pool" data-testid="content-acceptance-data-pool">
       <summary>
         <span>
-          <strong>本地验收/测试内容</strong>
-          <small>验收、测试、demo、seed 内容默认隔离，不进入作品库默认视图。</small>
+          <strong>隔离数据</strong>
+          <small>隔离内容默认收起，不进入作品库默认视图。</small>
         </span>
         <i>展开</i>
       </summary>
@@ -671,7 +671,7 @@ function LocalAcceptanceContentPanel({ rows }: { rows: ContentWorkbenchContentRo
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4}>暂无本地验收/测试内容。</td>
+                <td colSpan={4}>暂无被隔离的本地内容。</td>
               </tr>
             )}
           </tbody>
@@ -766,7 +766,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
       const firstUserWork = next.contentRows.find(isOperatingContentRow);
       setSelectedContentId(firstUserWork?.content.id);
       setSelectedVersionId(firstUserWork?.platformVersions[0]?.id);
-      setMessage("新内容已保存到本地验收/测试内容折叠区，不进入默认作品库或日历。");
+      setMessage("新内容已保存到隔离数据折叠区，不进入默认作品库或日历。");
       return;
     }
     const persistedRow = next.contentRows.find((row) => row.content.id === result.content.id);

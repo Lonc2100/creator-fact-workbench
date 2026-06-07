@@ -50,6 +50,7 @@ This index separates active release scope from paused or diagnostic-only work. D
 - [Login capture refresh closure 087](../handoffs/MAINLINE-LOGIN-CAPTURE-REFRESH-CLOSURE-087-orchestrator-review.md)
 - [Login capture auto-open 088](../handoffs/MAINLINE-LOGIN-CAPTURE-AUTO-OPEN-088-worker-handoff.md)
 - [Login capture return-to-preview 089](../handoffs/MAINLINE-LOGIN-CAPTURE-RETURN-PREVIEW-089-worker-handoff.md)
+- [Usable creator mainline closure 090](../handoffs/MAINLINE-USABLE-CLOSURE-090-worker-handoff.md)
 
 ## Paused / Diagnostic-Only
 

@@ -109,6 +109,18 @@ The `/import` login-capture flow now handles the realistic "I logged in or switc
 - Acceptance/test text detection no longer treats bare `050`-`072` digit fragments inside generated IDs or timestamps as acceptance markers; those numbers must be delimited. This prevents real user ideas from being misclassified as `acceptance_run`.
 - Safety boundary is unchanged: return retry is still preview-only, no silent save, no automatic content-metric confirmation, no sensitive login material, no WeChat, Video Account discovery-only, Bilibili browser capture unsupported.
 
+## 090 Usable Creator Mainline Closure
+
+The current mainline is closed as a usable creator workflow on fixed `http://localhost:3200/dashboard`:
+
+- `/dashboard`, `/calendar`, and `/import` default page text is clean of backend logs, local paths, API URLs, run ids, raw/evidence labels, and acceptance/test wording.
+- `/calendar` default scope continues to show only `dataDomain=user_work` operating schedules. Seed/demo/acceptance/system-log rows stay in collapsed isolation areas and do not occupy the default schedule grid.
+- `/content` and `/calendar` isolation folds are now business-facing as "隔离数据" instead of exposing acceptance/test labels in default summaries.
+- `/import` first screen shows only four-platform login capture status and next actions. Local export, diagnostics, and technical profile paths remain outside the default first-screen path.
+- Douyin and Xiaohongshu authenticated browser capture remain persistent-profile, user-triggered, preview-before-save flows. Auto-open/return retry remains preview-only and must not silently save.
+- Video Account authenticated browser capture remains discovery-only until a stable content table with title, publish time, views/play count, likes, comments, and shares is proven. Bilibili browser capture remains unsupported; Bilibili archive/work content metrics remain the accepted content-level path.
+- Evidence screenshots for the 090 closure were written locally under `.local/mainline-usable-closure-090/` and are not committed.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
@@ -119,7 +131,9 @@ The `/import` login-capture flow now handles the realistic "I logged in or switc
 - `/import` also has user-triggered auto-refresh preview for Douyin and Xiaohongshu via the login-capture refresh route; this is not silent background collection and not an automatic save.
 - `/import` now also starts an automatic page-load check and can auto-open reusable Douyin/Xiaohongshu local backend windows for preview. Save still requires explicit user confirmation in the platform preview panel.
 - `/import` now retries preview when the user returns from a platform login/content page window, and the first auto-refresh result card explains the next business action.
+- `/import` first screen is now status-and-next-action only: four platform login state, check action, and next-step links. Local export and diagnostics remain below/folded.
 - Default dashboard/calendar/publish ledger data is now service-filtered to user-owned work instead of relying only on page-level filtering.
+- Default `/dashboard`, `/calendar`, and `/import` should not visibly expose backend logs, local paths, API route strings, raw/evidence labels, or acceptance/test wording.
 - Creator business loop is closed for daily use: idea -> discussion -> four-platform drafts -> save -> future schedule -> edit schedule -> clear future schedule -> manual data refresh.
 - Closed loop means: logged-in/local capture evidence -> mapping preview -> explicit save -> content/platform version/metric snapshot -> dashboard/review visibility -> import operations smoke.
 - WeChat Official Account / backend is paused. Do not resume WeChat backend discovery, mapping, sync, or public-account backend work unless the user explicitly reopens that scope.

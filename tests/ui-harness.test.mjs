@@ -140,7 +140,7 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /isUserWorkContentRow/);
   assert.match(contentScreen, /dataDomain === "user_work"/);
   assert.match(contentScreen, /content-acceptance-data-pool/);
-  assert.match(contentScreen, /本地验收\/测试内容/);
+  assert.match(contentScreen, /隔离数据/);
   assert.match(contentScreen, /requestedAcceptanceRunIdFromUrl/);
   assert.match(contentScreen, /acceptanceRunId/);
   assert.match(contentScreen, /不进运营看板/);
@@ -237,7 +237,7 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /素材池 \/ 待排草稿/);
   assert.match(calendarScreen, /pendingItems=\{\[\]\}/);
   assert.match(calendarScreen, /isAcceptanceOrTestCalendarText/);
-  assert.match(calendarScreen, /本地验收数据 \/ 测试内容/);
+  assert.match(calendarScreen, /隔离数据/);
   assert.match(calendarScreen, /calendar-acceptance-data-pool/);
   assert.match(calendarScreen, /072|测试|验收|creator day workflow|MAINLINE/i);
   assert.match(calendarScreen, /真实作品：六月内容计划|我的真实作品070测试|AI选题计划|AI短片复盘|小雏菊|想拍一条短视频/);
@@ -451,7 +451,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /不会静默保存/);
   assert.match(importPage, /authed-browser-profile-manager/);
   assert.match(importPage, /本机登录会话/);
-  assert.match(importPage, /\.local\/browser-profiles\/&lt;platform&gt;\//);
+  assert.match(importPage, /每个平台使用独立本机会话/);
   assert.match(importPage, /未打开/);
   assert.match(importPage, /等待登录/);
   assert.match(importPage, /已登录可能可用/);

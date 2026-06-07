@@ -481,12 +481,12 @@ function AuthedBrowserProfileManager({
       className="authed-browser-profile-manager"
       data-testid="authed-browser-profile-manager"
       title="本机登录会话"
-      eyebrow="四平台 profile"
+      eyebrow="四平台登录会话"
       action={<Badge tone={profiles.some((item) => item.state === "session_maybe_available") ? "success" : "warning"}>{profiles.filter((item) => item.state === "session_maybe_available").length} 个可能可用</Badge>}
     >
       <div className="capture-reality-box" data-testid="authed-browser-profile-boundary">
-        <strong>本地 profile 边界</strong>
-        <p>每个平台使用独立 .local/browser-profiles/&lt;platform&gt;/；登录材料不写入业务 DB、文档、测试或 Git。本地导出仍是折叠兜底，不恢复公众号；B站账号指标仍 preview-only。</p>
+        <strong>本地登录边界</strong>
+        <p>每个平台使用独立本机会话；登录材料不写入业务数据、文档或仓库。本地导出仍是折叠兜底，不恢复公众号；B站账号指标仍 preview-only。</p>
       </div>
       <div className="capture-mode-status-grid" data-testid="authed-browser-profile-state-labels">
         <span>未打开</span>
@@ -505,7 +505,7 @@ function AuthedBrowserProfileManager({
                 <Badge tone={authedBrowserStateTone(profile.state)}>{profile.stateLabel}</Badge>
               </div>
               <p>{profile.nextAction}</p>
-              <small>{profile.profileDirRef} / {profile.profileExists ? "profile 已存在" : "profile 未创建"}</small>
+              <small>本机会话：{profile.profileExists ? "已准备" : "未创建"}</small>
               <small>最近打开：{profile.lastOpenedAt ? formatDateTime(profile.lastOpenedAt) : "暂无"} / 确认登录：{profile.lastUserConfirmedLoginAt ? formatDateTime(profile.lastUserConfirmedLoginAt) : "暂无"}</small>
               {profile.failureMessage && <small>失败提示：{profile.failureMessage}</small>}
               <div className="import-preview-actions">
@@ -516,7 +516,7 @@ function AuthedBrowserProfileManager({
             </article>
           );
         })}
-        {profiles.length === 0 && <article className="platform-operation-card"><strong>正在读取本机浏览器 profile 状态</strong><p>如果长时间没有状态，请刷新页面或检查本地服务。</p></article>}
+        {profiles.length === 0 && <article className="platform-operation-card"><strong>正在读取本机浏览器会话状态</strong><p>如果长时间没有状态，请刷新页面或检查本地服务。</p></article>}
       </div>
       <div className="trusted-weekly-summary-foot">
         <span>{message}</span>
@@ -1678,7 +1678,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     const body = await response.json() as AuthedBrowserProfileStatusView & { errorMessage?: string };
     if (!response.ok) throw new Error(body.errorMessage ?? "读取本机登录会话失败");
     setBrowserProfileStatus(body);
-    setBrowserProfileMessage("本机登录会话状态已刷新；profile 只保存在 .local/browser-profiles。");
+    setBrowserProfileMessage("本机登录会话状态已刷新；会话只保存在本机。");
   }
 
   async function runAuthedBrowserProfileAction(platform: AuthedBrowserPlatform, action: "open" | "confirm_login") {
@@ -1691,13 +1691,13 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         body: JSON.stringify({ action, platform })
       });
       const body = await response.json() as { message?: string; errorMessage?: string };
-      if (!response.ok) throw new Error(body.errorMessage ?? body.message ?? "浏览器 profile 操作失败");
-      setBrowserProfileMessage(body.message ?? "浏览器 profile 状态已更新");
+      if (!response.ok) throw new Error(body.errorMessage ?? body.message ?? "浏览器会话操作失败");
+      setBrowserProfileMessage(body.message ?? "浏览器会话状态已更新");
       await refreshAuthedBrowserProfiles();
       if (platform === "douyin" && action === "confirm_login") setDouyinBrowserLoginConfirmed(true);
       if (platform === "xiaohongshu" && action === "confirm_login") setXiaohongshuBrowserLoginConfirmed(true);
     } catch (error) {
-      setBrowserProfileMessage(error instanceof Error ? error.message : "浏览器 profile 操作失败");
+      setBrowserProfileMessage(error instanceof Error ? error.message : "浏览器会话操作失败");
     } finally {
       setBrowserProfileLoadingKey("");
     }
@@ -2185,7 +2185,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           <div className="import-guide-steps">
             <article>
               <strong>1. 打开小红书后台</strong>
-              <p>系统会打开小红书专用的本机受控浏览器 profile；你自己完成登录、验证码或风控确认。</p>
+              <p>系统会打开小红书专用的本机受控浏览器会话；你自己完成登录、验证码或风控确认。</p>
             </article>
             <article>
               <strong>2. 抓取当前页笔记</strong>
@@ -2198,7 +2198,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
           <div className="login-safety-box" data-testid="xiaohongshu-login-browser-safety">
             <strong>安全边界</strong>
-            <p>本流程不接收、不保存账号密码或登录材料；浏览器会话只留在小红书专用本机 profile，不进业务 DB、文档、测试或 Git。抓取结果只保存内容级可信指标。</p>
+            <p>本流程不接收、不保存账号密码或登录材料；浏览器会话只留在小红书专用本机会话，不进业务数据、文档或仓库。抓取结果只保存内容级可信指标。</p>
           </div>
           <div className="form-grid">
             <label className="import-confirm-check">

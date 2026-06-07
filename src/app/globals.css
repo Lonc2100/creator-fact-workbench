@@ -762,7 +762,7 @@ button:disabled {
 
 .import-first-viewport-guide {
   display: grid;
-  align-content: center;
+  align-content: start;
   min-height: calc(100vh - 160px);
   border-color: rgba(42, 35, 28, 0.12);
   background:
@@ -800,7 +800,14 @@ button:disabled {
 
 .import-first-next-row {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.import-first-next-row span {
+  flex: 1 1 280px;
 }
 
 .import-guide-steps {
