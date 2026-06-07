@@ -300,7 +300,7 @@ test("operator UX polish keeps default copy Chinese and quiet", () => {
 
   for (const phrase of ["运营提醒", "本周复盘", "导入建议", "行动推进"]) assert.match(dashboardScreen, new RegExp(phrase));
   assert.match(metricDashboard, /eyebrow="来源平台"/);
-  assert.match(metricDashboard, /参与看板和复盘/);
+  assert.match(metricDashboard, /只展示内容级可信指标/);
   assert.match(importPage, /eyebrow="运行记录"/);
   assert.match(importPage, /eyebrow="手动导入"/);
   assert.match(importPage, /eyebrow="字段预览"/);
@@ -595,7 +595,7 @@ test("dashboard default view is data-only and folds internal diagnostics", () =>
     dashboardScreen.indexOf("<AppShell active=\"/dashboard\">"),
     dashboardScreen.indexOf("<DashboardSecondaryOperationsPanel")
   );
-  for (const workflowPattern of [/StartCreatorDayFlowPanel/, /DailyOperatingChecklistPanel/, /PublishExecutionDashboardPanel/, /PostImportActionSuggestionsPanel/, /ActionTasksOperatingPanel/]) {
+  for (const workflowPattern of [/StartCreatorDayFlowPanel/, /AccountMetricTrendPanel/, /DailyOperatingChecklistPanel/, /PublishExecutionDashboardPanel/, /PostImportActionSuggestionsPanel/, /ActionTasksOperatingPanel/]) {
     assert.doesNotMatch(dashboardDefaultRender, workflowPattern, "dashboard default should stay data and charts only");
   }
   assert.match(dashboardScreen, /businessIssueSummary/);

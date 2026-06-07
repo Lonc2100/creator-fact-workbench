@@ -531,7 +531,7 @@ export function MetricDashboardGrid({ snapshot }: { snapshot: DashboardSnapshot 
       </Panel>
 
       <Panel title="平台原生字段预览" eyebrow="数据回收模板">
-        <p className="muted">按抖音、小红书、视频号、B站导入快照优先展示；B站当前作为内容级指标参与看板和复盘，不混入账号级趋势。</p>
+        <p className="muted">按抖音、小红书、视频号、B站导入快照优先展示；当前只展示内容级可信指标，不混入账号趋势。</p>
         <div className="table-wrap">
           <table className="sm-table analytics-native-table">
             <thead><tr><th>平台</th><th>日期</th><th>内容</th><th>主指标</th><th>点赞</th><th>评论</th><th>收藏/收藏类</th><th>分享/转发</th><th>粉丝/关注</th></tr></thead>

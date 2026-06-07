@@ -394,6 +394,9 @@ function DashboardSecondaryOperationsPanel({
       </summary>
       <div className="dashboard-secondary-operations-body">
         <StartCreatorDayFlowPanel snapshot={snapshot} />
+        <div className="dashboard-ops-grid">
+          <AccountMetricTrendPanel snapshot={snapshot} />
+        </div>
         <DailyOperatingChecklistPanel snapshot={snapshot} />
         <PublishExecutionDashboardPanel snapshot={snapshot} />
         <div className="dashboard-action-grid">
@@ -1135,9 +1138,6 @@ export function DashboardPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           safeReportMarkdown={safeReportMarkdown}
           snapshot={current}
         />
-        <div className="dashboard-ops-grid">
-          <AccountMetricTrendPanel snapshot={current} />
-        </div>
         <DashboardSecondaryOperationsPanel
           busyActionId={busyActionId}
           busySuggestionId={busySuggestionId}
