@@ -63,6 +63,9 @@ Creator business loop is now the accepted mainline path:
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
+- Data recovery mainline is user-assisted authenticated browser capture: the app opens a controlled local platform backend browser, the user manually logs in or completes verification, the app reads only the user's visible creator/backend content-level data, preview comes before save, and saved rows enter trusted content metrics only after explicit confirmation.
+- Local CSV/XLSX export is fallback-only. It remains available for platform risk blocks, unstable browser capture, or user preference, but it is not the default product direction.
+- Douyin has the first authenticated browser capture MVP on `/import`: open controlled browser, user confirms login, capture current visible works/data rows, preview, confirm save, and write `douyin_creator_center` trusted content-level metrics without saving password, cookie, token, header, storage state, raw request, or raw response records.
 - Creator business loop is closed for daily use: idea -> discussion -> four-platform drafts -> save -> future schedule -> edit schedule -> clear future schedule -> manual data refresh.
 - Closed loop means: logged-in/local capture evidence -> mapping preview -> explicit save -> content/platform version/metric snapshot -> dashboard/review visibility -> import operations smoke.
 - WeChat Official Account / backend is paused. Do not resume WeChat backend discovery, mapping, sync, or public-account backend work unless the user explicitly reopens that scope.

@@ -12,6 +12,7 @@ This index separates active release scope from paused or diagnostic-only work. D
 - [VIDEO-ACCOUNT-PERSONAL-V0](./video-account-personal-v0.md)
 - [VIDEO-ACCOUNT-PERSONAL-V1](./video-account-personal-v1.md)
 - [BILIBILI-PERSONAL-V0](./bilibili-personal-v0.md)
+- [Authenticated Browser Capture 085](./authenticated-browser-capture-085.md)
 - Daily operator runbook: [self-media-daily-ops](../runbooks/self-media-daily-ops.md)
 - Current release/status entrypoint: [CURRENT-PLATFORM-STATUS](../handoffs/CURRENT-PLATFORM-STATUS.md)
 - Creator business loop baseline: [055 operating loop](../handoffs/MAINLINE-CREATOR-OPERATING-LOOP-V2-055-worker-handoff.md), [056 live hardening](../handoffs/MAINLINE-CREATOR-LOOP-LIVE-WALKTHROUGH-056-worker-handoff.md), [057 copilot discussion](../handoffs/MAINLINE-CREATOR-COPILOT-DISCUSSION-057-worker-handoff.md), [058 acceptance](../handoffs/MAINLINE-CREATOR-BUSINESS-LOOP-ACCEPTANCE-058-worker-handoff.md)
