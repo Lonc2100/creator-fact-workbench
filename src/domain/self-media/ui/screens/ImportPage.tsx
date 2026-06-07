@@ -25,6 +25,11 @@ const sampleDouyinLocalExportCsv = [
   "dy-local-001,AI短片三秒钩子复盘,2026-06-01T09:00:00.000Z,1800,120,18,44,15,6,3,11,42%,19s,AI短片"
 ].join("\n");
 
+const sampleXiaohongshuLocalExportCsv = [
+  "笔记ID,标题,发布时间,浏览量,点赞,评论,收藏,分享,涨粉,曝光量,互动量,互动率,流量来源,搜索词,选题",
+  "xhs-local-001,AI工具复盘清单,2026-06-01T09:00:00.000Z,900,66,11,80,12,5,2000,169,18%,搜索,AI工具,AI工具"
+].join("\n");
+
 const sampleBilibiliLocalExportCsv = [
   "稿件ID,BV号,标题,发布时间,播放量,点赞数,评论数,弹幕数,收藏数,分享数,投币数,涨粉,完播率,平均播放时长,选题",
   "bili-local-001,BV1local001,AI短片工作流拆解,2026-06-01T09:00:00.000Z,1600,88,22,12,61,19,30,9,45%,32s,AI短片"
@@ -1288,7 +1293,7 @@ function previewStatsFor(preview: ImportPreviewResult | null) {
   };
 }
 
-type LocalFilePlatform = "douyin" | "bilibili";
+type LocalFilePlatform = "douyin" | "xiaohongshu" | "bilibili";
 
 export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [currentSnapshot, setCurrentSnapshot] = useState(snapshot);
@@ -1301,6 +1306,11 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [douyinPreview, setDouyinPreview] = useState<ImportPreviewResult | null>(null);
   const [douyinConfirmed, setDouyinConfirmed] = useState(false);
   const [douyinMessage, setDouyinMessage] = useState("等待抖音导出表");
+  const [xiaohongshuCsv, setXiaohongshuCsv] = useState(sampleXiaohongshuLocalExportCsv);
+  const [xiaohongshuFile, setXiaohongshuFile] = useState<File | null>(null);
+  const [xiaohongshuPreview, setXiaohongshuPreview] = useState<ImportPreviewResult | null>(null);
+  const [xiaohongshuConfirmed, setXiaohongshuConfirmed] = useState(false);
+  const [xiaohongshuMessage, setXiaohongshuMessage] = useState("等待小红书导出表");
   const [bilibiliCsv, setBilibiliCsv] = useState(sampleBilibiliLocalExportCsv);
   const [bilibiliFile, setBilibiliFile] = useState<File | null>(null);
   const [bilibiliPreview, setBilibiliPreview] = useState<ImportPreviewResult | null>(null);
@@ -1310,18 +1320,27 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [authCheckMessage, setAuthCheckMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDouyinLoading, setIsDouyinLoading] = useState(false);
+  const [isXiaohongshuLoading, setIsXiaohongshuLoading] = useState(false);
   const [isBilibiliLoading, setIsBilibiliLoading] = useState(false);
 
   const previewStats = useMemo(() => previewStatsFor(preview), [preview]);
   const douyinStats = useMemo(() => previewStatsFor(douyinPreview), [douyinPreview]);
+  const xiaohongshuStats = useMemo(() => previewStatsFor(xiaohongshuPreview), [xiaohongshuPreview]);
   const bilibiliStats = useMemo(() => previewStatsFor(bilibiliPreview), [bilibiliPreview]);
   const canSaveDouyinLocalFile = douyinStats.confirmable > 0 && douyinConfirmed;
+  const canSaveXiaohongshuLocalFile = xiaohongshuStats.confirmable > 0 && xiaohongshuConfirmed;
   const canSaveBilibiliLocalFile = bilibiliStats.confirmable > 0 && bilibiliConfirmed;
 
   function resetDouyinPreview(nextMessage?: string) {
     setDouyinPreview(null);
     setDouyinConfirmed(false);
     if (nextMessage) setDouyinMessage(nextMessage);
+  }
+
+  function resetXiaohongshuPreview(nextMessage?: string) {
+    setXiaohongshuPreview(null);
+    setXiaohongshuConfirmed(false);
+    if (nextMessage) setXiaohongshuMessage(nextMessage);
   }
 
   function resetBilibiliPreview(nextMessage?: string) {
@@ -1390,6 +1409,36 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       setDouyinMessage(error instanceof Error ? error.message : "抖音本地导出处理失败");
     } finally {
       setIsDouyinLoading(false);
+    }
+  }
+
+  async function runXiaohongshuLocalFile(action: "preview" | "save") {
+    setIsXiaohongshuLoading(true);
+    setXiaohongshuMessage(action === "preview" ? "小红书导出表预览中" : "正在保存小红书内容级指标");
+    try {
+      const request = await buildPlatformLocalFileRequest("xiaohongshu", xiaohongshuFile, xiaohongshuCsv);
+      const response = await fetch(action === "preview" ? "/api/self-media/import/preview" : "/api/self-media/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(request)
+      });
+      const body = await response.json() as (ImportPreviewResult & { errorMessage?: string }) | { run?: { importedCount?: number; status?: string }; errorMessage?: string };
+      if (!response.ok) throw new Error(body.errorMessage ?? "小红书本地导出处理失败");
+      if (action === "preview") {
+        const result = body as ImportPreviewResult;
+        setXiaohongshuPreview(result);
+        setXiaohongshuConfirmed(false);
+        setXiaohongshuMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后来源将保存为 xiaohongshu_creator_center。`);
+      } else {
+        const dashboardResponse = await fetch("/api/self-media/dashboard");
+        setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
+        setXiaohongshuMessage(`已保存小红书本地导出指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入可信内容级回收。`);
+        setXiaohongshuConfirmed(false);
+      }
+    } catch (error) {
+      setXiaohongshuMessage(error instanceof Error ? error.message : "小红书本地导出处理失败");
+    } finally {
+      setIsXiaohongshuLoading(false);
     }
   }
 
@@ -1561,6 +1610,75 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             <span><b>{douyinStats.nativeMetrics}</b> 抖音原生字段</span>
           </div>
           <RealPreviewRows rows={douyinStats.rows} />
+        </Panel>
+        <Panel
+          className="xiaohongshu-local-file-mvp"
+          data-testid="xiaohongshu-local-file-mvp"
+          title="小红书本地导出回收 MVP"
+          eyebrow="真实闭环"
+          action={<Badge tone={xiaohongshuStats.blocked > 0 ? "warning" : xiaohongshuStats.total > 0 ? "success" : "info"}>{xiaohongshuStats.confirmable} 行可保存</Badge>}
+        >
+          <div className="import-guide-steps">
+            <article>
+              <strong>1. 从小红书后台导出或复制</strong>
+              <p>当前未确认公开稳定个人创作者数据 API；只接收你主动拿到的内容级表格。</p>
+            </article>
+            <article>
+              <strong>2. 本地预览字段</strong>
+              <p>确认笔记 ID、标题、发布时间、浏览、点赞、评论、收藏、分享等字段后再保存。</p>
+            </article>
+            <article>
+              <strong>3. 保存到可信指标</strong>
+              <p>保存来源固定为 xiaohongshu_creator_center；网页登录刷新不会自动抓取系统数据。</p>
+            </article>
+          </div>
+          <div className="form-grid">
+            <Field label="上传小红书 CSV / XLSX">
+              <input
+                className="sm-input"
+                data-testid="xiaohongshu-local-file-upload"
+                type="file"
+                accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] ?? null;
+                  setXiaohongshuFile(nextFile);
+                  resetXiaohongshuPreview(nextFile ? `已选择 ${nextFile.name}，请先预览字段。` : "等待小红书导出表");
+                }}
+              />
+            </Field>
+            <Field label="或粘贴小红书导出 CSV">
+              <TextArea
+                data-testid="xiaohongshu-local-file-csv"
+                value={xiaohongshuCsv}
+                onChange={(event) => {
+                  setXiaohongshuCsv(event.target.value);
+                  resetXiaohongshuPreview("CSV 已更新，请重新预览字段。");
+                }}
+              />
+            </Field>
+            <label className="import-confirm-check">
+              <input
+                checked={xiaohongshuConfirmed}
+                data-testid="xiaohongshu-local-file-confirm"
+                disabled={xiaohongshuStats.confirmable === 0 || isXiaohongshuLoading}
+                onChange={(event) => setXiaohongshuConfirmed(event.target.checked)}
+                type="checkbox"
+              />
+              <span>我确认这是本人从小红书创作服务平台导出的内容级表格；保存后进入数据看板，且不保存登录凭证、请求头或原始请求。</span>
+            </label>
+            <div className="import-preview-actions">
+              <Button data-testid="xiaohongshu-local-file-preview" onClick={() => runXiaohongshuLocalFile("preview")} variant="secondary" disabled={isXiaohongshuLoading}>{isXiaohongshuLoading ? "处理中" : "预览小红书导出"}</Button>
+              <Button data-testid="xiaohongshu-local-file-save" onClick={() => runXiaohongshuLocalFile("save")} variant="primary" disabled={isXiaohongshuLoading || !canSaveXiaohongshuLocalFile}>{isXiaohongshuLoading ? "保存中" : "确认保存到看板"}</Button>
+              <a className="sm-button sm-button-secondary" data-testid="xiaohongshu-local-file-dashboard-link" href="/dashboard">查看数据看板</a>
+              <span>{xiaohongshuMessage}</span>
+            </div>
+          </div>
+          <div className="real-preview-summary">
+            <span><b>{xiaohongshuStats.total}</b> 行</span>
+            <span><b>{xiaohongshuStats.confirmable}</b> 可保存</span>
+            <span><b>{xiaohongshuStats.nativeMetrics}</b> 小红书原生字段</span>
+          </div>
+          <RealPreviewRows rows={xiaohongshuStats.rows} />
         </Panel>
         <Panel
           className="bilibili-local-file-mvp"

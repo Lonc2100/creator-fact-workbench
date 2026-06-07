@@ -2130,7 +2130,7 @@ const defaultChecklist: PlatformChecklist = {
 };
 
 function importSourceForRequest(request: ImportRequest): ImportSource {
-  if (request.mode === "platform_local_file") return request.platformLocalFile?.platform === "douyin" ? "douyin_creator_center" : "bilibili_creator_center";
+  if (request.mode === "platform_local_file") return platformLocalFileImportMeta[request.platformLocalFile?.platform ?? "bilibili"].source;
   const mode = request.mode;
   if (mode === "mediacrawler") return "mediacrawler";
   if (mode === "n8n") return "n8n";
@@ -2237,6 +2237,27 @@ function importSourceForClosedLoopPlatform(platform: ClosedLoopContentPlatform):
   if (platform === "video_account") return "video_account_creator_center";
   return "bilibili_creator_center";
 }
+
+const platformLocalFileImportMeta = {
+  douyin: {
+    source: "douyin_creator_center",
+    tag: "douyin_local_export",
+    label: "抖音创作者中心",
+    format: "short_video"
+  },
+  xiaohongshu: {
+    source: "xiaohongshu_creator_center",
+    tag: "xiaohongshu_local_export",
+    label: "小红书创作服务平台",
+    format: "image_text"
+  },
+  bilibili: {
+    source: "bilibili_creator_center",
+    tag: "bilibili_local_export",
+    label: "B站创作中心",
+    format: "short_video"
+  }
+} satisfies Record<NonNullable<ImportRequest["platformLocalFile"]>["platform"], { source: ImportSource; tag: string; label: string; format: ContentItem["format"] }>;
 
 const postPublishRecoveryGuides: Record<ClosedLoopContentPlatform, Pick<PostPublishRecoveryItem, "recommendedRefreshAction" | "manualRefreshSteps">> = {
   douyin: {
@@ -3048,19 +3069,17 @@ export class SelfMediaService {
   parsePlatformLocalFilePayload(request: ImportRequest, options: { allowInvalidPreviewRows?: boolean } = {}) {
     const input = request.platformLocalFile;
     const platform = input?.platform;
-    if (request.mode !== "platform_local_file" || !input || (platform !== "bilibili" && platform !== "douyin")) {
-      throw new Error("当前本地平台导出 MVP 只支持抖音和 B站。");
+    if (request.mode !== "platform_local_file" || !input || !platform || !(platform in platformLocalFileImportMeta)) {
+      throw new Error("当前本地平台导出 MVP 只支持抖音、小红书和 B站。");
     }
+    const meta = platformLocalFileImportMeta[platform];
     const fileName = input.fileName ?? "";
     const contentType = input.contentType ?? "";
     const payload = input.fileBase64 && (fileName.toLowerCase().endsWith(".xlsx") || contentType.includes("spreadsheetml"))
       ? this.csvPresetProvider.fromXlsxBase64(input.fileBase64, platform, options)
       : this.csvPresetProvider.fromCsv(input.csv ?? "", platform, options);
-    const source = platform === "douyin" ? "douyin_creator_center" : "bilibili_creator_center";
-    const tag = platform === "douyin" ? "douyin_local_export" : "bilibili_local_export";
-    const label = platform === "douyin" ? "抖音创作者中心" : "B站创作中心";
-    const complianceWarning = `${tag}: 用户主动从 ${label} 导出或复制内容级表格后本地导入；不读取网页登录态，不保存 cookie/token/header/raw request。`;
-    payload.source = source;
+    const complianceWarning = `${meta.tag}: 用户主动从 ${meta.label} 导出或复制内容级表格后本地导入；不读取网页登录态，不保存 cookie/token/header/raw request。`;
+    payload.source = meta.source;
     payload.provenance = {
       ...payload.provenance,
       isTestFixture: false,
@@ -3072,10 +3091,10 @@ export class SelfMediaService {
       ...content,
       platform,
       status: content.status === "idea" || content.status === "draft" ? "published" : content.status,
-      format: "short_video",
+      format: meta.format,
       workOwnership: "user_owned_work",
       userConfirmedForLibrary: true,
-      notes: [content.notes, `${tag}:manual_confirmed`].filter(Boolean).join("; ")
+      notes: [content.notes, `${meta.tag}:manual_confirmed`].filter(Boolean).join("; ")
     }));
     payload.metrics = payload.metrics.map((metric) => ({
       ...metric,

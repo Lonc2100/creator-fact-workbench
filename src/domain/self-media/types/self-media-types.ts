@@ -1220,7 +1220,7 @@ export interface ImportRequest {
   csv?: string;
   json?: unknown;
   platformLocalFile?: {
-    platform: "douyin" | "bilibili";
+    platform: "douyin" | "xiaohongshu" | "bilibili";
     csv?: string;
     fileBase64?: string;
     fileName?: string;

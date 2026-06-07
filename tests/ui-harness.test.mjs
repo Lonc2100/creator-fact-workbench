@@ -427,6 +427,15 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /douyin-local-file-save/);
   assert.match(importPage, /douyin-local-file-dashboard-link/);
   assert.match(importPage, /bilibili-local-file-mvp/);
+  assert.match(importPage, /xiaohongshu-local-file-mvp/);
+  assert.match(importPage, /小红书本地导出回收 MVP/);
+  assert.match(importPage, /xiaohongshu_creator_center/);
+  assert.match(importPage, /小红书创作服务平台导出的内容级表格/);
+  assert.match(importPage, /xiaohongshu-local-file-upload/);
+  assert.match(importPage, /xiaohongshu-local-file-confirm/);
+  assert.match(importPage, /xiaohongshu-local-file-preview/);
+  assert.match(importPage, /xiaohongshu-local-file-save/);
+  assert.match(importPage, /xiaohongshu-local-file-dashboard-link/);
   assert.match(importPage, /B站本地导出回收 MVP/);
   assert.match(importPage, /platform_local_file/);
   assert.match(importPage, /bilibili_creator_center/);

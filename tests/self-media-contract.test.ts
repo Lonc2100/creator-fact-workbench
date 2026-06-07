@@ -5237,6 +5237,55 @@ test("douyin local export file import enters trusted content metrics without pre
   }
 });
 
+test("xiaohongshu local export file import enters trusted content metrics without pretending web login auto capture", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-xiaohongshu-local-export-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const csv = [
+      "笔记ID,标题,发布时间,浏览量,点赞,评论,收藏,分享,涨粉,曝光量,互动量,互动率,流量来源,搜索词,选题",
+      "xhs-local-084,小红书本地导出闭环,2026-06-01T09:00:00.000Z,900,66,11,80,12,5,2000,169,18%,搜索,AI工具,AI工具"
+    ].join("\n");
+
+    const preview = service.previewImportRequest({
+      mode: "platform_local_file",
+      platformLocalFile: { platform: "xiaohongshu", csv }
+    });
+    assert.equal(preview.source, "xiaohongshu_creator_center");
+    assert.equal(preview.contentCount, 1);
+    assert.equal(preview.realPreviewRows?.[0]?.mappingConfidence, "draft_realistic");
+    assert.equal(preview.realPreviewRows?.[0]?.nativeMetrics["曝光量"], "2000");
+    assert.ok(preview.warnings.some((item) => item.includes("xiaohongshu_local_export")));
+    assert.ok(preview.realPreviewRows?.[0]?.warnings.some((item) => item.includes("draft_realistic_headers_need_real_export_confirmation")));
+
+    const result = service.importRequest({
+      mode: "platform_local_file",
+      platformLocalFile: { platform: "xiaohongshu", csv }
+    });
+    assert.equal(result.run.status, "success");
+    assert.equal(result.run.source, "xiaohongshu_creator_center");
+
+    const savedSnapshot = repo.listMetricSnapshots().find((item) => item.contentId === "xhs-local-084");
+    const dashboard = await service.dashboard();
+    assert.ok(savedSnapshot);
+    assert.equal(savedSnapshot?.source, "xiaohongshu_creator_center");
+    assert.equal(savedSnapshot?.dataDomain, "user_work");
+    assert.equal(savedSnapshot?.provenance?.trustedScopeEligible, true);
+    const savedContent = repo.getEntity("contents", "xhs-local-084");
+    assert.equal(savedContent?.dataDomain, "user_work");
+    assert.equal(savedContent?.format, "image_text");
+    assert.ok(dashboard.contents.some((item) => item.id === "xhs-local-084"));
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "xhs-local-084" && item.source === "xiaohongshu_creator_center"));
+    assert.equal(dashboard.weeklyReview.metrics.totalViews, 900);
+    assert.equal(dashboard.trustedAutoCaptureScheduler.schedulerEnabledCount, 0);
+    assert.doesNotMatch(JSON.stringify(savedSnapshot), /raw request|cookie|token|header/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("douyin local export xlsx import previews and saves without raw request persistence", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-douyin-local-xlsx-"));
   let repo: SqliteSelfMediaRepo | undefined;
