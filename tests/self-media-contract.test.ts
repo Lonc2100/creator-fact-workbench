@@ -10,6 +10,7 @@ import { SqliteSelfMediaRepo } from "../src/domain/self-media/repo";
 import { getSaveEnabledPlatformImportOperationPlatforms, runSelfMediaPlatformImportOperation } from "../src/domain/self-media/runtime";
 import { SelfMediaService, buildDataCaptureScheduleReliability, buildTrustedAutoCaptureScheduler, generateReview, readDailyPlatformOpsGateView, readDailySelfMediaOpsView, readPlatformDataHealthView, readTrustedDashboardAuditView } from "../src/domain/self-media/service";
 import { authedBrowserProfileConfigs, platformImportOperationCapabilities, resolveSelfMediaSeedMode, resolveWorkbenchDbPath } from "../src/domain/self-media/config";
+import { selectDouyinCreatorCenterRows, selectXiaohongshuCreatorCenterRows, type CreatorCenterDomCandidate } from "../src/domain/self-media/providers/creator-center-row-selector";
 import type { AccountMetricSnapshot, DashboardSnapshot, PlatformDataHealthView, TrustedWeeklySafeReportResponse } from "../src/domain/self-media/types";
 
 const projectRoot = process.cwd();
@@ -1181,6 +1182,72 @@ test("authed browser fallback id preview rows do not enter trusted dashboard or 
     repo?.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("creator-center row selectors accept only stable owned row candidates with same-row metrics", () => {
+  const capturedAt = "2026-06-08T08:00:00.000Z";
+  const douyinCandidates: CreatorCenterDomCandidate[] = [
+    {
+      text: "投稿作品直播场次投稿分析投稿列表 数据周期内投稿量 作品标题一 播放 1057 点赞 2600 评论 110 收藏 0 分享 340",
+      className: "semiTab list-container",
+      idAttr: "semiTab1",
+      hrefs: [],
+      dataValues: ["semiTab1"],
+      cells: ["投稿作品直播场次", "作品标题一", "播放", "1057", "点赞", "2600", "评论", "110"],
+      childCandidateCount: 2
+    },
+    {
+      text: "脱敏抖音作品标题 2026-06-01 播放 1,057 点赞 26 评论 3 收藏 4 分享 5",
+      tagName: "tr",
+      role: "row",
+      titleAttr: "脱敏抖音作品标题",
+      hrefs: ["https://www.douyin.com/video/7420123456789012345"],
+      dataValues: ["7420123456789012345"],
+      cells: ["脱敏抖音作品标题", "2026-06-01", "1,057", "26", "3", "4", "5"],
+      childCandidateCount: 0
+    }
+  ];
+  const xiaohongshuCandidates: CreatorCenterDomCandidate[] = [
+    {
+      text: "全部 6已发布审核中未通过 2026-06-05 19:55 notes-request 浏览 0 点赞 0 评论 0 收藏 0 分享 2026",
+      className: "notes-request semiTab",
+      idAttr: "notes-request",
+      hrefs: [],
+      dataValues: ["notes-request"],
+      cells: ["全部 6已发布", "2026-06-05", "分享", "2026"],
+      childCandidateCount: 1
+    },
+    {
+      text: "脱敏小红书笔记标题 2026-06-02 浏览 1200 点赞 66 评论 7 收藏 8 分享 9",
+      tagName: "article",
+      titleAttr: "脱敏小红书笔记标题",
+      hrefs: ["https://www.xiaohongshu.com/explore/66abc123456789000001?note_id=66abc123456789000001"],
+      dataValues: ["66abc123456789000001"],
+      cells: ["脱敏小红书笔记标题", "2026-06-02", "1200", "66", "7", "8", "9"],
+      childCandidateCount: 0
+    }
+  ];
+
+  const douyinRows = selectDouyinCreatorCenterRows(douyinCandidates, capturedAt);
+  const xiaohongshuRows = selectXiaohongshuCreatorCenterRows(xiaohongshuCandidates, capturedAt);
+
+  assert.equal(douyinRows.length, 1);
+  assert.equal(douyinRows[0].title, "脱敏抖音作品标题");
+  assert.equal(douyinRows[0].nativeId, "7420123456789012345");
+  assert.equal(douyinRows[0].nativeIdConfidence, "stable_platform_id");
+  assert.equal(douyinRows[0].views, 1057);
+  assert.equal(douyinRows[0].likes, 26);
+  assert.equal(douyinRows[0].shares, 5);
+  assert.equal(douyinRows.some((row) => row.nativeId === "semiTab1"), false);
+
+  assert.equal(xiaohongshuRows.length, 1);
+  assert.equal(xiaohongshuRows[0].title, "脱敏小红书笔记标题");
+  assert.equal(xiaohongshuRows[0].nativeId, "66abc123456789000001");
+  assert.equal(xiaohongshuRows[0].nativeIdConfidence, "stable_platform_id");
+  assert.equal(xiaohongshuRows[0].views, 1200);
+  assert.equal(xiaohongshuRows[0].likes, 66);
+  assert.equal(xiaohongshuRows[0].shares, 9);
+  assert.equal(xiaohongshuRows.some((row) => row.nativeId === "notes-request"), false);
 });
 
 test("authed browser profile configs isolate four platform sessions under local profiles", () => {

@@ -778,6 +778,7 @@ test("dashboard number audit live mode is read-only against existing 3200", () =
 
 test("douyin authed browser capture route keeps credential material outside the import contract", () => {
   const route = read("src/app/api/self-media/platform-imports/browser-capture/douyin/route.ts");
+  const selector = read("src/domain/self-media/providers/creator-center-row-selector.ts");
   const provider = read("src/domain/self-media/providers/authed-browser-profile-provider.ts");
   assert.match(route, /chromium\.launchPersistentContext/);
   assert.match(route, /authedBrowserProfileDir\("douyin"\)/);
@@ -787,11 +788,15 @@ test("douyin authed browser capture route keeps credential material outside the 
   assert.doesNotMatch(route, /browser\.newContext|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)/);
   assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "authorization", "raw", "request", "response", "storage", "storageState", "screenshot", "har", "trace", "credential"\]/);
   assert.match(route, /extractVisibleRows/);
-  assert.match(route, /sourcePageKind/);
-  assert.match(route, /nativeIdConfidence/);
-  assert.match(route, /hasNestedMetricCandidate/);
-  assert.match(route, /isLikelyContainerBlock/);
-  assert.match(route, /noisy_visible_dom_title/);
+  assert.match(route, /selectDouyinCreatorCenterRows/);
+  assert.match(route, /CreatorCenterDomCandidate/);
+  assert.match(route, /childCandidateCount/);
+  assert.match(route, /hasTrustedCreatorCenterRowShape/);
+  assert.match(selector, /sourcePageKind: "creator_center_owned_works"/);
+  assert.match(selector, /nativeIdConfidence/);
+  assert.match(selector, /isNoisyContainer/);
+  assert.match(selector, /noisy_visible_dom_title/);
+  assert.match(selector, /fallback_text_hash/);
   assert.match(route, /saveCandidateRows/);
   assert.match(route, /no_creator_center_owned_save_candidates/);
   assert.match(route, /importDouyinBrowserVisibleRows/);
@@ -802,6 +807,7 @@ test("douyin authed browser capture route keeps credential material outside the 
 
 test("xiaohongshu authed browser capture route keeps login material and public recommendations outside the import contract", () => {
   const route = read("src/app/api/self-media/platform-imports/browser-capture/xiaohongshu/route.ts");
+  const selector = read("src/domain/self-media/providers/creator-center-row-selector.ts");
   const config = read("src/domain/self-media/config/self-media-config.ts");
   const provider = read("src/domain/self-media/providers/authed-browser-profile-provider.ts");
   assert.match(route, /chromium\.launchPersistentContext/);
@@ -813,17 +819,21 @@ test("xiaohongshu authed browser capture route keeps login material and public r
   assert.doesNotMatch(route, /storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)/);
   assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "authorization", "raw", "request", "response", "storage", "storageState", "screenshot", "har", "trace", "credential"\]/);
   assert.match(route, /extractVisibleRows/);
-  assert.match(route, /sourcePageKind/);
-  assert.match(route, /nativeIdConfidence/);
-  assert.match(route, /hasNestedMetricCandidate/);
-  assert.match(route, /isLikelyContainerBlock/);
-  assert.match(route, /noisy_visible_dom_title/);
+  assert.match(route, /selectXiaohongshuCreatorCenterRows/);
+  assert.match(route, /CreatorCenterDomCandidate/);
+  assert.match(route, /childCandidateCount/);
+  assert.match(route, /hasTrustedCreatorCenterRowShape/);
+  assert.match(selector, /sourcePageKind: "creator_center_owned_works"/);
+  assert.match(selector, /nativeIdConfidence/);
+  assert.match(selector, /isNoisyContainer/);
+  assert.match(selector, /noisy_visible_dom_title/);
+  assert.match(selector, /notes-request/);
   assert.match(route, /saveCandidateRows/);
   assert.match(route, /no_creator_center_owned_save_candidates/);
   assert.match(route, /creator\.xiaohongshu\.com/);
   assert.match(route, /wrong_page/);
   assert.match(route, /publicRecommendationExcluded: true/);
-  assert.match(route, /publicRecommendation/);
+  assert.match(selector, /发现\|探索\|搜索\|推荐\|热门\|话题/);
   assert.match(route, /importXiaohongshuBrowserVisibleRows/);
   assert.match(route, /loginState === "logged_in_or_accessible"/);
   assert.doesNotMatch(route, /action:\s*"save"|userConfirmedContentMetrics:\s*true|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)|screenshot\s*\(|tracing\./);

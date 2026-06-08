@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
 import { authedBrowserProfileDir, markAuthedBrowserCaptureFailure, markAuthedBrowserProfileConfirmed, markAuthedBrowserProfileOpened, resolveAuthedBrowserTargetUrl } from "@/domain/self-media/providers";
+import { hasTrustedCreatorCenterRowShape, selectXiaohongshuCreatorCenterRows, type CreatorCenterDomCandidate } from "@/domain/self-media/providers/creator-center-row-selector";
 import { SelfMediaService } from "@/domain/self-media/service";
 import type { ImportProvenanceMetadata, XiaohongshuAuthedBrowserCaptureRequest, XiaohongshuAuthedBrowserCaptureResult, XiaohongshuAuthedBrowserLoginState, XiaohongshuBrowserVisibleRow } from "@/domain/self-media/types";
 
@@ -138,195 +139,64 @@ async function closeSession() {
 
 async function extractVisibleRows(page: Page): Promise<XiaohongshuBrowserVisibleRow[]> {
   const capturedAt = new Date().toISOString();
-  return page.evaluate((now) => {
-    type Row = XiaohongshuBrowserVisibleRow;
+  const candidates = await page.evaluate(() => {
     const creatorHost = window.location.hostname.endsWith("creator.xiaohongshu.com");
     if (!creatorHost) return [];
-    const sourcePageKind = /\/new\/note-manager|\/creator\/(?:note|content)|\/data/.test(window.location.pathname)
-      ? "creator_center_owned_works"
-      : "creator_center_unknown";
 
     const metricLabels = /(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/;
-    const creatorContentWords = /(笔记|作品|标题|发布|浏览|点赞|收藏|数据)/;
-    const publicRecommendation = /(发现|探索|搜索|推荐|热门|话题|灵感|种草|精选|达人|榜单)/;
-    const privateOrAccountOnly = /(私信|评论正文|用户画像|粉丝画像|账号总览|粉丝总数|粉丝分析|关注用户|手机号|邮箱)/;
     const rowSelector = "tr,[role='row'],article,li,[class*='table-row'],[class*='TableRow'],[class*='note'],[class*='Note'],[class*='card'],[class*='item']";
-    const noisyBlock = /(全部\s*\d+已发布|审核中未通过|投稿作品直播场次|投稿分析投稿列表|数据周期内投稿量)/;
-    const actionNoise = /(编辑作品设置权限|作品置顶删除作品|删除作品|设置权限|立即发布)/g;
 
     function clean(value: string | null | undefined) {
       return (value ?? "").replace(/\s+/g, " ").trim();
     }
 
-    function hash(value: string) {
-      let result = 0;
-      for (let index = 0; index < value.length; index += 1) result = Math.imul(31, result) + value.charCodeAt(index) | 0;
-      return Math.abs(result).toString(36);
-    }
-
-    function numberFrom(value: string) {
-      const source = clean(value).replace(/,/g, "");
-      const match = source.match(/(-?\d+(?:\.\d+)?)\s*(万|亿|k|K)?/);
-      if (!match) return 0;
-      const base = Number(match[1]);
-      if (!Number.isFinite(base)) return 0;
-      const unit = match[2];
-      if (unit === "亿") return Math.round(base * 100000000);
-      if (unit === "万") return Math.round(base * 10000);
-      if (unit === "k" || unit === "K") return Math.round(base * 1000);
-      return Math.round(base);
-    }
-
-    function metricValue(text: string, labels: string[]) {
-      for (const label of labels) {
-        const after = text.match(new RegExp(`${label}[^\\d-]{0,8}(-?\\d[\\d,.]*(?:\\.\\d+)?\\s*(?:万|亿|k|K)?)`));
-        if (after) return numberFrom(after[1]);
-        const before = text.match(new RegExp(`(-?\\d[\\d,.]*(?:\\.\\d+)?\\s*(?:万|亿|k|K)?)\\s*${label}`));
-        if (before) return numberFrom(before[1]);
-      }
-      return 0;
-    }
-
-    function publishedDateCount(text: string) {
-      return (text.match(/20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}/g) ?? []).length;
-    }
-
-    function actionNoiseCount(text: string) {
-      return (text.match(actionNoise) ?? []).length;
-    }
-
-    function hasNestedMetricCandidate(element: Element, text: string) {
+    function childCandidateCount(element: Element, text: string) {
       const children = Array.from(element.querySelectorAll(rowSelector));
-      return children.some((child) => {
+      return children.filter((child) => {
         if (child === element) return false;
         const childText = clean(child.textContent);
         return childText.length >= 12
           && childText.length < text.length - 12
-          && metricLabels.test(childText)
-          && !privateOrAccountOnly.test(childText);
-      });
-    }
-
-    function isLikelyContainerBlock(element: Element, text: string) {
-      if (hasNestedMetricCandidate(element, text)) return true;
-      if (noisyBlock.test(text)) return true;
-      if (publishedDateCount(text) > 1) return true;
-      if (actionNoiseCount(text) > 1) return true;
-      return false;
-    }
-
-    function hasStableNativeId(value: string | undefined) {
-      return Boolean(value && !/table|row|card|item|button|container|tab|panel|list|request|response|form|manager/i.test(value));
-    }
-
-    function hasCleanTitle(value: string) {
-      return !/全部\s*\d+已发布|审核中未通过|编辑作品设置权限|作品置顶删除作品|投稿作品直播场次|投稿分析投稿列表|数据周期内投稿量/.test(value);
-    }
-
-    function linkOf(element: Element) {
-      const anchor = element.querySelector("a[href*='xiaohongshu.com'],a[href*='note']");
-      const href = anchor?.getAttribute("href") ?? "";
-      if (!href) return "";
-      try {
-        const url = new URL(href, window.location.href);
-        url.search = "";
-        url.hash = "";
-        return url.toString();
-      } catch {
-        return href.split("?")[0];
-      }
-    }
-
-    function dataIdOf(element: Element) {
-      const candidates = [element, ...Array.from(element.querySelectorAll("[data-id],[data-note-id],[id]")).slice(0, 60)];
-      for (const candidate of candidates) {
-        for (const attribute of Array.from(candidate.attributes)) {
-          if (!/(^data-(?:note-)?id$|^id$|note)/i.test(attribute.name)) continue;
-          const value = clean(attribute.value);
-          const match = value.match(/([A-Za-z0-9_-]{6,})/);
-          if (match && !/table|row|card|item|button|container|tab|panel|list|request|response|form/i.test(match[1])) return match[1];
-        }
-      }
-      return "";
-    }
-
-    function idOf(element: Element, text: string) {
-      const href = linkOf(element);
-      const fromHref = href.match(/(?:note\/|note_id=|noteId=)([A-Za-z0-9_-]{6,})/i)?.[1];
-      if (fromHref) return { id: fromHref, nativeId: fromHref, nativeIdConfidence: "stable_platform_id" as const };
-      const fromData = dataIdOf(element);
-      if (fromData) return { id: fromData, nativeId: fromData, nativeIdConfidence: "stable_platform_id" as const };
-      const explicit = text.match(/(?:笔记ID|note[_\s-]?id|作品ID)[:：\s]*([A-Za-z0-9_-]{4,})/i)?.[1];
-      if (explicit) return { id: explicit, nativeId: explicit, nativeIdConfidence: "visible_platform_id" as const };
-      return { id: `xhs-browser-${hash(text.slice(0, 260))}`, nativeId: undefined, nativeIdConfidence: "fallback_text_hash" as const };
-    }
-
-    function titleOf(element: Element, text: string) {
-      const titled = element.querySelector("[title],h1,h2,h3,h4,a,span");
-      const fromAttribute = clean(titled?.getAttribute("title"));
-      if (fromAttribute && !metricLabels.test(fromAttribute) && !publicRecommendation.test(fromAttribute)) return fromAttribute.slice(0, 80);
-      const lines = (element.textContent ?? "").split(/\n|\r| {2,}/).map(clean).filter(Boolean);
-      const candidate = lines.find((line) => line.length >= 4 && line.length <= 80 && !metricLabels.test(line) && !/编辑|删除|查看|更多|置顶|发布时间|立即发布/.test(line));
-      if (candidate) return candidate;
-      return clean(text.replace(/浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动/g, " ")).slice(0, 80) || "小红书笔记";
-    }
-
-    function publishedAtOf(text: string) {
-      const match = text.match(/(20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}(?:日)?(?:\s+\d{1,2}:\d{2})?)/);
-      if (!match) return undefined;
-      const normalized = match[1].replace("年", "-").replace("月", "-").replace("日", "").replace(/\//g, "-");
-      const parsed = new Date(normalized.includes(":") ? normalized : `${normalized}T00:00:00`);
-      return Number.isNaN(parsed.valueOf()) ? undefined : parsed.toISOString();
+          && metricLabels.test(childText);
+      }).length;
     }
 
     const elements = Array.from(document.querySelectorAll(rowSelector));
-    const rows: Row[] = [];
-    const seen = new Set<string>();
-    for (const element of elements) {
+    return elements.map((element) => {
       const text = clean(element.textContent);
-      if (text.length < 12 || text.length > 1500) continue;
-      if (!metricLabels.test(text)) continue;
-      if (privateOrAccountOnly.test(text)) continue;
-      if (publicRecommendation.test(text) && !creatorContentWords.test(text)) continue;
-      if (!creatorContentWords.test(text)) continue;
-      if (isLikelyContainerBlock(element, text)) continue;
-      const title = titleOf(element, text);
-      if (publicRecommendation.test(title)) continue;
-      const idInfo = idOf(element, text);
-      const id = idInfo.id;
-      const key = `${id}|${title}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const row: Row = {
-        id,
-        nativeId: idInfo.nativeId,
-        title,
-        publishedAt: publishedAtOf(text),
-        capturedAt: now,
-        views: metricValue(text, ["浏览量", "浏览", "阅读量", "阅读", "观看量", "观看", "播放量", "播放"]),
-        likes: metricValue(text, ["点赞数", "点赞"]),
-        comments: metricValue(text, ["评论数", "评论"]),
-        saves: metricValue(text, ["收藏数", "收藏"]),
-        shares: metricValue(text, ["分享数", "分享"]),
-        followersDelta: 0,
-        noteUrl: linkOf(element) || undefined,
-        format: /视频|播放/.test(text) ? "short_video" : "image_text",
-        extractionSource: "visible_dom",
-        sourcePageKind,
-        confidence: sourcePageKind === "creator_center_owned_works" && /笔记|作品|标题/.test(text) ? "owned_creator_center_row" : "fallback_visible_card",
-        nativeIdConfidence: idInfo.nativeIdConfidence,
-        warnings: []
+      const scoped = [element, ...Array.from(element.querySelectorAll("[data-id],[data-note-id],[id]")).slice(0, 60)];
+      const dataValues = scoped.flatMap((item) => Array.from(item.attributes)
+        .filter((attribute) => /(^data-(?:note-)?id$|^id$|note)/i.test(attribute.name))
+        .map((attribute) => clean(attribute.value)));
+      const anchors = Array.from(element.querySelectorAll("a[href*='xiaohongshu.com'],a[href*='note'],a[href*='note_id'],a[href*='noteId'],a[href*='explore']"));
+      dataValues.push(...anchors.map((anchor) => anchor.getAttribute("href")?.match(/(?:note\/|explore\/|discovery\.|note_id=|noteId=)([A-Za-z0-9_-]{6,})/i)?.[1] ?? "").filter(Boolean));
+      const hrefs = anchors.map((anchor) => {
+        const href = anchor.getAttribute("href") ?? "";
+          try {
+            const url = new URL(href, window.location.href);
+            url.search = "";
+            url.hash = "";
+            return url.toString();
+          } catch {
+            return href.split("?")[0];
+          }
+        })
+        .filter(Boolean);
+      return {
+        text,
+        tagName: element.tagName.toLowerCase(),
+        role: element.getAttribute("role") ?? undefined,
+        className: clean(element.getAttribute("class")),
+        idAttr: clean(element.getAttribute("id")),
+        titleAttr: clean(element.querySelector("[title],h1,h2,h3,h4,a,span")?.getAttribute("title")),
+        hrefs,
+        dataValues,
+        cells: Array.from(element.querySelectorAll("td,[role='cell'],[class*='cell'],[class*='Cell'],[class*='metric'],[class*='Metric']")).map((cell) => clean(cell.textContent)).filter(Boolean),
+        childCandidateCount: childCandidateCount(element, text)
       };
-      if (row.views + row.likes + row.comments + row.saves + row.shares === 0) row.warnings.push("no_metric_number_detected");
-      if (row.nativeIdConfidence === "fallback_text_hash") row.warnings.push("fallback_id_from_visible_text");
-      if (!hasCleanTitle(row.title)) row.warnings.push("noisy_visible_dom_title");
-      if (!hasStableNativeId(row.nativeId)) row.warnings.push("unstable_native_id");
-      if (row.sourcePageKind !== "creator_center_owned_works") row.warnings.push("not_creator_center_owned_works_page");
-      rows.push(row);
-      if (rows.length >= 20) break;
-    }
-    return rows;
-  }, capturedAt);
+    });
+  }) as CreatorCenterDomCandidate[];
+  return selectXiaohongshuCreatorCenterRows(candidates, capturedAt);
 }
 
 function summarizeRows(rows: XiaohongshuBrowserVisibleRow[]) {
@@ -337,21 +207,10 @@ function summarizeRows(rows: XiaohongshuBrowserVisibleRow[]) {
   };
 }
 
-function hasStableNativeIdValue(value: string | undefined) {
-  return Boolean(value && !/table|row|card|item|button|container|tab|panel|list|request|response|form|manager/i.test(value));
-}
-
-function hasCleanVisibleTitle(value: string) {
-  return !/全部\s*\d+已发布|审核中未通过|编辑作品设置权限|作品置顶删除作品|投稿作品直播场次|投稿分析投稿列表|数据周期内投稿量/.test(value);
-}
-
 function canSaveRow(row: XiaohongshuBrowserVisibleRow) {
   return row.sourcePageKind === "creator_center_owned_works"
     && row.confidence === "owned_creator_center_row"
-    && (row.nativeIdConfidence === "stable_platform_id" || row.nativeIdConfidence === "visible_platform_id")
-    && hasStableNativeIdValue(row.nativeId)
-    && hasCleanVisibleTitle(row.title)
-    && row.views + row.likes + row.comments + row.saves + row.shares > 0;
+    && hasTrustedCreatorCenterRowShape(row, "xiaohongshu");
 }
 
 function saveCandidateRows(rows: XiaohongshuBrowserVisibleRow[]) {

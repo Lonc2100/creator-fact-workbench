@@ -1,4 +1,5 @@
 import type { ContentItem, DouyinBrowserVisibleRow, PlatformMetric, ProviderImportPayload } from "../types";
+import { hasTrustedCreatorCenterRowShape } from "./creator-center-row-selector";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -103,21 +104,10 @@ function safeRef(value: string) {
   }
 }
 
-function hasStableBrowserNativeId(value: string | undefined) {
-  return Boolean(value && !/table|row|card|item|button|container|tab|panel|list|request|response|form|semi/i.test(value));
-}
-
-function hasCleanBrowserTitle(value: string) {
-  return !/投稿作品直播场次|投稿分析投稿列表|数据周期内投稿量|编辑作品设置权限|作品置顶删除作品|全部\s*\d+已发布|审核中未通过/.test(value);
-}
-
 function isTrustedBrowserVisibleRow(row: DouyinBrowserVisibleRow) {
   return row.sourcePageKind === "creator_center_owned_works"
     && row.confidence === "owned_creator_center_row"
-    && (row.nativeIdConfidence === "stable_platform_id" || row.nativeIdConfidence === "visible_platform_id")
-    && hasStableBrowserNativeId(row.nativeId)
-    && hasCleanBrowserTitle(row.title)
-    && row.views + row.likes + row.comments + row.saves + row.shares > 0;
+    && hasTrustedCreatorCenterRowShape(row, "douyin");
 }
 
 export class DouyinPersonalProvider {
