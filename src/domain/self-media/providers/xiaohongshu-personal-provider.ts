@@ -123,8 +123,9 @@ function createNote(id: string, capturedAt: string): XiaohongshuMappedNote {
 }
 
 function isTrustedBrowserVisibleRow(row: XiaohongshuBrowserVisibleRow) {
-  return row.sourcePageKind === "creator_center_owned_works"
-    && row.confidence === "owned_creator_center_row"
+  const trustedContext = (row.sourcePageKind === "creator_center_owned_works" && row.confidence === "owned_creator_center_row")
+    || (row.sourcePageKind === "creator_center_owned_detail" && row.confidence === "owned_creator_center_detail");
+  return trustedContext
     && hasTrustedCreatorCenterRowShape(row, "xiaohongshu");
 }
 

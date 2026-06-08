@@ -365,6 +365,7 @@ function summaryWarnings(summary: PlatformImportOperationResult["summaries"][num
 
 function sourcePageKindLabel(value?: DouyinBrowserVisibleRow["sourcePageKind"] | XiaohongshuBrowserVisibleRow["sourcePageKind"]) {
   if (value === "creator_center_owned_works") return "本人后台作品页";
+  if (value === "creator_center_owned_detail") return "本人后台详情页";
   if (value === "public_creator_home") return "公开主页";
   if (value === "public_or_wrong_page") return "非后台页";
   return "后台页待确认";
@@ -378,8 +379,9 @@ function nativeIdConfidenceLabel(value?: DouyinBrowserVisibleRow["nativeIdConfid
 }
 
 function canSaveAuthedBrowserRow(row: DouyinBrowserVisibleRow | XiaohongshuBrowserVisibleRow) {
-  return row.sourcePageKind === "creator_center_owned_works"
-    && row.confidence === "owned_creator_center_row"
+  const trustedContext = (row.sourcePageKind === "creator_center_owned_works" && row.confidence === "owned_creator_center_row")
+    || (row.sourcePageKind === "creator_center_owned_detail" && row.confidence === "owned_creator_center_detail");
+  return trustedContext
     && (row.nativeIdConfidence === "stable_platform_id" || row.nativeIdConfidence === "visible_platform_id")
     && Boolean(row.nativeId)
     && row.views + row.likes + row.comments + row.saves + row.shares > 0;
@@ -390,7 +392,7 @@ function DouyinAuthedBrowserRows({ rows }: { rows: DouyinBrowserVisibleRow[] }) 
     return (
       <div className="real-preview-empty">
         <strong>暂无抖音页面抓取预览</strong>
-        <span>打开抖音后台并登录后，进入作品管理或数据表现列表，再点击抓取当前页作品。</span>
+        <span>打开抖音后台并登录后，进入作品管理列表，或点开单个作品的数据/详情页，再点击预览。</span>
       </div>
     );
   }
@@ -441,7 +443,7 @@ function XiaohongshuAuthedBrowserRows({ rows }: { rows: XiaohongshuBrowserVisibl
     return (
       <div className="real-preview-empty" data-testid="xiaohongshu-authed-browser-preview">
         <strong>暂无小红书页面抓取预览</strong>
-        <span>打开小红书创作服务平台并登录后，进入笔记管理或数据表现列表，再点击抓取当前页笔记。</span>
+        <span>打开小红书创作服务平台并登录后，进入笔记管理列表，或点开单个笔记的数据/详情页，再点击预览。</span>
       </div>
     );
   }
@@ -1583,10 +1585,10 @@ function humanDouyinBrowserMessage(message: string | undefined, action: DouyinAu
   if (/cookie|token|password|header|headers|raw|request|storage|credential|sensitive/i.test(normalized)) {
     return "这次输入包含登录材料，系统不会接收或保存；请只在平台网页里完成登录。";
   }
-  if (/not_opened|needs_login|login|登录|未打开|未登录|browser/i.test(normalized) && action !== "capture_preview") {
+  if (/not_opened|needs_login|login|登录|未打开|未登录|browser/i.test(normalized) && action !== "capture_preview" && action !== "capture_current_detail_preview") {
     return "请先打开抖音后台并完成登录。";
   }
-  if (/no rows|未识别|empty|作品管理|数据表现|current page|content|row|table|列表/i.test(normalized) || action === "capture_preview") {
+  if (/no rows|未识别|empty|作品管理|数据表现|详情页|current page|content|row|table|列表/i.test(normalized) || action === "capture_preview" || action === "capture_current_detail_preview") {
     if (message && /已从当前抖音页面识别|已识别|保存前请确认/.test(message)) return message;
     return "请切到作品管理页再抓。";
   }
@@ -1618,10 +1620,10 @@ function humanXiaohongshuBrowserMessage(message: string | undefined, action: Xia
   if (/wrong_page|creator\.xiaohongshu\.com|公开推荐|非本人|不是小红书创作服务平台/i.test(normalized)) {
     return "请回到小红书创作服务平台后台；公开推荐页、搜索页和非本人内容不会保存。";
   }
-  if (/not_opened|needs_login|login|登录|未打开|未登录|browser/i.test(normalized) && action !== "capture_preview") {
+  if (/not_opened|needs_login|login|登录|未打开|未登录|browser/i.test(normalized) && action !== "capture_preview" && action !== "capture_current_detail_preview") {
     return "请先打开小红书创作服务平台并完成登录。";
   }
-  if (/no rows|未识别|empty|笔记管理|数据表现|current page|content|row|table|列表/i.test(normalized) || action === "capture_preview") {
+  if (/no rows|未识别|empty|笔记管理|数据表现|详情页|current page|content|row|table|列表/i.test(normalized) || action === "capture_preview" || action === "capture_current_detail_preview") {
     if (message && /已从当前小红书后台页面识别|已识别|保存前请确认/.test(message)) return message;
     return "请切到笔记管理或数据表现页再抓。";
   }
@@ -1867,6 +1869,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       open: "正在打开抖音后台",
       status: "正在检查登录状态",
       capture_preview: "正在抓取当前页作品",
+      capture_current_detail_preview: "正在抓取当前作品详情页",
       save: "正在保存抖音内容级指标",
       close: "正在关闭浏览器窗口"
     };
@@ -1887,7 +1890,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       setDouyinBrowserMessage(humanDouyinBrowserMessage(body.message, action));
       refreshAuthedBrowserProfiles().catch(() => undefined);
       if (!response.ok) return;
-      if (action === "capture_preview") setDouyinBrowserMetricsConfirmed(false);
+      if (action === "capture_preview" || action === "capture_current_detail_preview") setDouyinBrowserMetricsConfirmed(false);
       if (action === "save") {
         const dashboardResponse = await fetch("/api/self-media/dashboard");
         setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
@@ -1910,6 +1913,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       open: "正在打开小红书后台",
       status: "正在检查登录状态",
       capture_preview: "正在抓取当前页笔记",
+      capture_current_detail_preview: "正在抓取当前笔记详情页",
       save: "正在保存小红书内容级指标",
       close: "正在关闭浏览器窗口"
     };
@@ -1930,7 +1934,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       setXiaohongshuBrowserMessage(humanXiaohongshuBrowserMessage(body.message, action));
       refreshAuthedBrowserProfiles().catch(() => undefined);
       if (!response.ok) return;
-      if (action === "capture_preview") setXiaohongshuBrowserMetricsConfirmed(false);
+      if (action === "capture_preview" || action === "capture_current_detail_preview") setXiaohongshuBrowserMetricsConfirmed(false);
       if (action === "save") {
         const dashboardResponse = await fetch("/api/self-media/dashboard");
         setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
@@ -2162,8 +2166,8 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <p>系统会打开本机登录抓取窗口；你自己完成登录、验证码或风控确认。</p>
             </article>
             <article>
-              <strong>2. 抓取当前页作品</strong>
-              <p>进入作品管理或数据表现列表后，只读取页面上可见的作品级标题和指标。</p>
+              <strong>2. 预览列表或详情页</strong>
+              <p>列表抓不到时，先在平台窗口点开具体作品的数据/详情页，再回到这里从当前作品详情页预览。</p>
             </article>
             <article>
               <strong>3. 预览后保存</strong>
@@ -2182,7 +2186,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                 onChange={(event) => setDouyinBrowserLoginConfirmed(event.target.checked)}
                 type="checkbox"
               />
-              <span>我已在弹出的抖音后台完成登录，并切到作品管理/数据表现这类内容级页面。</span>
+              <span>我已在弹出的抖音后台完成登录，并切到作品管理/数据表现列表，或已点开单个作品的数据/详情页。</span>
             </label>
             <label className="import-confirm-check">
               <input
@@ -2198,6 +2202,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <Button data-testid="douyin-login-browser-open" onClick={() => runDouyinAuthedBrowserCapture("open", "works_page")} variant="secondary" disabled={isDouyinBrowserLoading}>{isDouyinBrowserLoading ? "处理中" : "打开抖音作品管理页"}</Button>
               <Button data-testid="douyin-login-browser-status" onClick={() => runDouyinAuthedBrowserCapture("status")} variant="ghost" disabled={isDouyinBrowserLoading}>确认已登录</Button>
               <Button data-testid="douyin-login-browser-read" onClick={() => runDouyinAuthedBrowserCapture("capture_preview")} variant="secondary" disabled={isDouyinBrowserLoading || !douyinBrowserLoginConfirmed}>读取当前页作品</Button>
+              <Button data-testid="douyin-login-browser-detail-read" onClick={() => runDouyinAuthedBrowserCapture("capture_current_detail_preview")} variant="secondary" disabled={isDouyinBrowserLoading || !douyinBrowserLoginConfirmed}>从当前作品详情页预览</Button>
               <Button data-testid="douyin-login-browser-save" onClick={() => runDouyinAuthedBrowserCapture("save")} variant="primary" disabled={isDouyinBrowserLoading || !canSaveDouyinBrowserCapture}>保存到可信看板</Button>
               <Button data-testid="douyin-login-browser-close" onClick={() => runDouyinAuthedBrowserCapture("close")} variant="ghost" disabled={isDouyinBrowserLoading}>关闭浏览器窗口</Button>
               <a className="sm-button sm-button-secondary" data-testid="douyin-login-browser-dashboard-link" href="/dashboard">查看数据看板</a>
@@ -2227,8 +2232,8 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <p>系统会打开小红书专用的本机受控浏览器会话；你自己完成登录、验证码或风控确认。</p>
             </article>
             <article>
-              <strong>2. 抓取当前页笔记</strong>
-              <p>进入小红书创作服务平台的笔记管理或数据表现列表后，只读取页面上可见的本人笔记标题和指标。</p>
+              <strong>2. 预览列表或详情页</strong>
+              <p>列表抓不到时，先在平台窗口点开具体笔记的数据/详情页，再回到这里从当前笔记详情页预览。</p>
             </article>
             <article>
               <strong>3. 预览后保存</strong>
@@ -2247,7 +2252,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                 onChange={(event) => setXiaohongshuBrowserLoginConfirmed(event.target.checked)}
                 type="checkbox"
               />
-              <span>我已在弹出的小红书创作服务平台完成登录，并切到笔记管理/数据表现这类内容级页面。</span>
+              <span>我已在弹出的小红书创作服务平台完成登录，并切到笔记管理/数据表现列表，或已点开单个笔记的数据/详情页。</span>
             </label>
             <label className="import-confirm-check">
               <input
@@ -2263,6 +2268,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <Button data-testid="xiaohongshu-login-browser-open" onClick={() => runXiaohongshuAuthedBrowserCapture("open", "works_page")} variant="secondary" disabled={isXiaohongshuBrowserLoading}>{isXiaohongshuBrowserLoading ? "处理中" : "打开小红书笔记管理页"}</Button>
               <Button data-testid="xiaohongshu-login-browser-status" onClick={() => runXiaohongshuAuthedBrowserCapture("status")} variant="ghost" disabled={isXiaohongshuBrowserLoading}>确认已登录</Button>
               <Button data-testid="xiaohongshu-login-browser-read" onClick={() => runXiaohongshuAuthedBrowserCapture("capture_preview")} variant="secondary" disabled={isXiaohongshuBrowserLoading || !xiaohongshuBrowserLoginConfirmed}>读取当前页笔记</Button>
+              <Button data-testid="xiaohongshu-login-browser-detail-read" onClick={() => runXiaohongshuAuthedBrowserCapture("capture_current_detail_preview")} variant="secondary" disabled={isXiaohongshuBrowserLoading || !xiaohongshuBrowserLoginConfirmed}>从当前笔记详情页预览</Button>
               <Button data-testid="xiaohongshu-login-browser-save" onClick={() => runXiaohongshuAuthedBrowserCapture("save")} variant="primary" disabled={isXiaohongshuBrowserLoading || !canSaveXiaohongshuBrowserCapture}>保存到可信看板</Button>
               <Button data-testid="xiaohongshu-login-browser-close" onClick={() => runXiaohongshuAuthedBrowserCapture("close")} variant="ghost" disabled={isXiaohongshuBrowserLoading}>关闭浏览器窗口</Button>
               <a className="sm-button sm-button-secondary" data-testid="xiaohongshu-login-browser-dashboard-link" href="/dashboard">查看数据看板</a>

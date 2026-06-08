@@ -78,6 +78,7 @@ function isGenericNativeId(value: string | undefined, platform: Platform) {
   if (!value) return true;
   const generic = /table|row|card|item|button|container|tab|panel|list|request|response|form|semi/i;
   if (generic.test(value)) return true;
+  if (/^__|svg|sprite|node|icon|symbol/i.test(value)) return true;
   if (platform === "xiaohongshu" && /manager|notes-request/i.test(value)) return true;
   return false;
 }
@@ -229,6 +230,56 @@ function candidateHasMetricText(candidate: CreatorCenterDomCandidate, platform: 
   return candidate.cells.some((cell) => numericCellValue(cell) !== undefined);
 }
 
+function hasMetricLabel(text: string, labels: string[]) {
+  return labels.some((label) => new RegExp(label).test(text));
+}
+
+function hasDetailMetricCoverage(candidate: CreatorCenterDomCandidate, platform: Platform, metrics: MetricSet) {
+  const text = `${candidate.text} ${candidate.cells.join(" ")}`;
+  const labels = metricLabels(platform);
+  const hasViews = hasMetricLabel(text, labels.views);
+  const hasInteraction = hasMetricLabel(text, [...labels.likes, ...labels.comments, ...labels.saves, ...labels.shares]);
+  return hasViews && hasInteraction && metrics.views + metrics.likes + metrics.comments + metrics.saves + metrics.shares > 0;
+}
+
+function isGenericDetailTitle(value: string, platform: Platform) {
+  if (platform === "douyin" && /^(抖音|创作者中心|内容管理|作品管理|作品数据|数据详情|内容数据|作品分析|数据表现|作品详情)$/.test(value)) return true;
+  if (platform === "xiaohongshu" && /^(小红书|创作服务平台|笔记管理|笔记数据|笔记详情|数据详情|数据表现|作品详情)$/.test(value)) return true;
+  return false;
+}
+
+export function selectDouyinCreatorCenterDetailRow(candidate: CreatorCenterDomCandidate | undefined, capturedAt: string): DouyinBrowserVisibleRow[] {
+  if (!candidate) return [];
+  const text = clean(candidate.text);
+  if (text.length < 12 || text.length > 5000) return [];
+  if (!candidateHasMetricText(candidate, "douyin")) return [];
+  if (/(粉丝画像|账号总览|账号数据|主页访问|净增粉丝|粉丝总数|私信|评论内容)/.test(text)) return [];
+  const idInfo = idOf(candidate, "douyin");
+  if (idInfo.nativeIdConfidence !== "stable_platform_id") return [];
+  const title = titleOf(candidate, "douyin");
+  const metrics = metricsOf(candidate, title, "douyin");
+  const row: DouyinBrowserVisibleRow = {
+    id: idInfo.id,
+    nativeId: idInfo.nativeId,
+    title,
+    publishedAt: publishedAtOf(text),
+    capturedAt,
+    ...metrics,
+    followersDelta: 0,
+    itemUrl: candidate.hrefs[0],
+    extractionSource: "visible_dom",
+    sourcePageKind: "creator_center_owned_detail",
+    confidence: "owned_creator_center_detail",
+    nativeIdConfidence: idInfo.nativeIdConfidence,
+    warnings: []
+  };
+  row.warnings = commonWarnings(row, "douyin");
+  if (isGenericDetailTitle(row.title, "douyin")) row.warnings.push("generic_detail_page_title");
+  if (!hasDetailMetricCoverage(candidate, "douyin", metrics)) row.warnings.push("incomplete_detail_metric_context");
+  if (!hasTrustedCreatorCenterRowShape(row, "douyin") || row.warnings.includes("generic_detail_page_title") || row.warnings.includes("incomplete_detail_metric_context")) return [];
+  return [row];
+}
+
 export function selectDouyinCreatorCenterRows(candidates: CreatorCenterDomCandidate[], capturedAt: string): DouyinBrowserVisibleRow[] {
   const rows: DouyinBrowserVisibleRow[] = [];
   const seen = new Set<string>();
@@ -265,6 +316,40 @@ export function selectDouyinCreatorCenterRows(candidates: CreatorCenterDomCandid
     if (rows.length >= 20) break;
   }
   return rows;
+}
+
+export function selectXiaohongshuCreatorCenterDetailRow(candidate: CreatorCenterDomCandidate | undefined, capturedAt: string): XiaohongshuBrowserVisibleRow[] {
+  if (!candidate) return [];
+  const text = clean(candidate.text);
+  if (text.length < 12 || text.length > 5000) return [];
+  if (!candidateHasMetricText(candidate, "xiaohongshu")) return [];
+  if (/(私信|评论正文|用户画像|粉丝画像|账号总览|粉丝总数|粉丝分析|关注用户|手机号|邮箱)/.test(text)) return [];
+  if (/(notes-request|semiTab|全部\s*\d+已发布|审核中未通过)/i.test(text)) return [];
+  const idInfo = idOf(candidate, "xiaohongshu");
+  if (idInfo.nativeIdConfidence !== "stable_platform_id") return [];
+  const title = titleOf(candidate, "xiaohongshu");
+  const metrics = metricsOf(candidate, title, "xiaohongshu");
+  const row: XiaohongshuBrowserVisibleRow = {
+    id: idInfo.id,
+    nativeId: idInfo.nativeId,
+    title,
+    publishedAt: publishedAtOf(text),
+    capturedAt,
+    ...metrics,
+    followersDelta: 0,
+    noteUrl: candidate.hrefs[0],
+    format: /视频|播放/.test(text) ? "short_video" : "image_text",
+    extractionSource: "visible_dom",
+    sourcePageKind: "creator_center_owned_detail",
+    confidence: "owned_creator_center_detail",
+    nativeIdConfidence: idInfo.nativeIdConfidence,
+    warnings: []
+  };
+  row.warnings = commonWarnings(row, "xiaohongshu");
+  if (isGenericDetailTitle(row.title, "xiaohongshu")) row.warnings.push("generic_detail_page_title");
+  if (!hasDetailMetricCoverage(candidate, "xiaohongshu", metrics)) row.warnings.push("incomplete_detail_metric_context");
+  if (!hasTrustedCreatorCenterRowShape(row, "xiaohongshu") || row.warnings.includes("generic_detail_page_title") || row.warnings.includes("incomplete_detail_metric_context")) return [];
+  return [row];
 }
 
 export function selectXiaohongshuCreatorCenterRows(candidates: CreatorCenterDomCandidate[], capturedAt: string): XiaohongshuBrowserVisibleRow[] {

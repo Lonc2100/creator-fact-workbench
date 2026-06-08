@@ -10,7 +10,7 @@ import { SqliteSelfMediaRepo } from "../src/domain/self-media/repo";
 import { getSaveEnabledPlatformImportOperationPlatforms, runSelfMediaPlatformImportOperation } from "../src/domain/self-media/runtime";
 import { SelfMediaService, buildDataCaptureScheduleReliability, buildTrustedAutoCaptureScheduler, generateReview, readDailyPlatformOpsGateView, readDailySelfMediaOpsView, readPlatformDataHealthView, readTrustedDashboardAuditView } from "../src/domain/self-media/service";
 import { authedBrowserProfileConfigs, platformImportOperationCapabilities, resolveSelfMediaSeedMode, resolveWorkbenchDbPath } from "../src/domain/self-media/config";
-import { selectDouyinCreatorCenterRows, selectXiaohongshuCreatorCenterRows, type CreatorCenterDomCandidate } from "../src/domain/self-media/providers/creator-center-row-selector";
+import { selectDouyinCreatorCenterDetailRow, selectDouyinCreatorCenterRows, selectXiaohongshuCreatorCenterDetailRow, selectXiaohongshuCreatorCenterRows, type CreatorCenterDomCandidate } from "../src/domain/self-media/providers/creator-center-row-selector";
 import type { AccountMetricSnapshot, DashboardSnapshot, PlatformDataHealthView, TrustedWeeklySafeReportResponse } from "../src/domain/self-media/types";
 
 const projectRoot = process.cwd();
@@ -1248,6 +1248,102 @@ test("creator-center row selectors accept only stable owned row candidates with 
   assert.equal(xiaohongshuRows[0].likes, 66);
   assert.equal(xiaohongshuRows[0].shares, 9);
   assert.equal(xiaohongshuRows.some((row) => row.nativeId === "notes-request"), false);
+});
+
+test("creator-center detail selectors save only stable single-work detail rows", async () => {
+  const capturedAt = "2026-06-08T09:00:00.000Z";
+  const douyinDetail: CreatorCenterDomCandidate = {
+    text: "脱敏抖音详情作品标题 2026-06-01 播放量 2300 点赞 188 评论 26 收藏 41 分享 17",
+    tagName: "page",
+    role: "document",
+    titleAttr: "脱敏抖音详情作品标题",
+    hrefs: ["https://creator.douyin.com/creator-micro/data-center/content/detail"],
+    dataValues: ["7134567890123456798"],
+    cells: ["脱敏抖音详情作品标题", "播放量 2300", "点赞 188", "评论 26", "收藏 41", "分享 17"],
+    childCandidateCount: 0
+  };
+  const xiaohongshuDetail: CreatorCenterDomCandidate = {
+    text: "脱敏小红书详情笔记标题 2026-06-01 浏览量 1200 点赞 166 评论 18 收藏 90 分享 12",
+    tagName: "page",
+    role: "document",
+    titleAttr: "脱敏小红书详情笔记标题",
+    hrefs: ["https://creator.xiaohongshu.com/new/note-detail"],
+    dataValues: ["66abc123456789000002"],
+    cells: ["脱敏小红书详情笔记标题", "浏览量 1200", "点赞 166", "评论 18", "收藏 90", "分享 12"],
+    childCandidateCount: 0
+  };
+  const badDouyinDetail: CreatorCenterDomCandidate = {
+    text: "作品数据 播放量 2300 点赞 188 评论 26",
+    titleAttr: "作品数据",
+    hrefs: [],
+    dataValues: ["fallback_text_hash"],
+    cells: ["作品数据", "播放量 2300", "点赞 188", "评论 26"],
+    childCandidateCount: 0
+  };
+  const badDouyinSpriteDetail: CreatorCenterDomCandidate = {
+    text: "内容管理 2026-06-05 播放量 2325 点赞 58 评论 1 收藏 20 分享 2",
+    titleAttr: "内容管理",
+    hrefs: ["https://creator.douyin.com/creator-micro/content/manage"],
+    dataValues: ["__SVG_SPRITE_NODE__"],
+    cells: ["内容管理", "播放量 2325", "点赞 58", "评论 1", "收藏 20", "分享 2"],
+    childCandidateCount: 0
+  };
+  const badXiaohongshuDetail: CreatorCenterDomCandidate = {
+    text: "notes-request 全部 6已发布 2026-06-05 分享 2026",
+    titleAttr: "笔记数据",
+    hrefs: [],
+    dataValues: ["notes-request"],
+    cells: ["笔记数据", "2026-06-05", "分享 2026"],
+    childCandidateCount: 0
+  };
+
+  const douyinRows = selectDouyinCreatorCenterDetailRow(douyinDetail, capturedAt);
+  const xiaohongshuRows = selectXiaohongshuCreatorCenterDetailRow(xiaohongshuDetail, capturedAt);
+  assert.equal(selectDouyinCreatorCenterDetailRow(badDouyinDetail, capturedAt).length, 0);
+  assert.equal(selectDouyinCreatorCenterDetailRow(badDouyinSpriteDetail, capturedAt).length, 0);
+  assert.equal(selectXiaohongshuCreatorCenterDetailRow(badXiaohongshuDetail, capturedAt).length, 0);
+  assert.equal(douyinRows.length, 1);
+  assert.equal(douyinRows[0].sourcePageKind, "creator_center_owned_detail");
+  assert.equal(douyinRows[0].confidence, "owned_creator_center_detail");
+  assert.equal(douyinRows[0].nativeId, "7134567890123456798");
+  assert.equal(douyinRows[0].views, 2300);
+  assert.equal(douyinRows[0].likes, 188);
+  assert.equal(xiaohongshuRows.length, 1);
+  assert.equal(xiaohongshuRows[0].sourcePageKind, "creator_center_owned_detail");
+  assert.equal(xiaohongshuRows[0].confidence, "owned_creator_center_detail");
+  assert.equal(xiaohongshuRows[0].nativeId, "66abc123456789000002");
+  assert.equal(xiaohongshuRows[0].views, 1200);
+  assert.equal(xiaohongshuRows[0].saves, 90);
+
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-browser-detail-capture-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    service.importDouyinBrowserVisibleRows(douyinRows, {
+      isTestFixture: false,
+      operationKind: "platform_save",
+      trustedScopeEligible: true,
+      dataDomain: "user_work"
+    });
+    service.importXiaohongshuBrowserVisibleRows(xiaohongshuRows, {
+      isTestFixture: false,
+      operationKind: "platform_save",
+      trustedScopeEligible: true,
+      dataDomain: "user_work"
+    });
+    const dashboard = await service.dashboard();
+    assert.equal(dashboard.contents.some((item) => item.id === "7134567890123456798"), true);
+    assert.equal(dashboard.contents.some((item) => item.id === "66abc123456789000002"), true);
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "7134567890123456798"), true);
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "66abc123456789000002"), true);
+    assert.equal(service.calendar().some((item) => item.contentId === "7134567890123456798" || item.contentId === "66abc123456789000002"), false);
+    assert.doesNotMatch(JSON.stringify(repo.listContents()), /cookie|token|header|raw request|notes-request|semiTab/i);
+    assert.doesNotMatch(JSON.stringify(repo.listMetricSnapshots()), /cookie|token|header|raw request|notes-request|semiTab/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("authed browser profile configs isolate four platform sessions under local profiles", () => {

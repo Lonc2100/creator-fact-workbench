@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { chromium, type BrowserContext, type Page } from "playwright-core";
 import { authedBrowserProfileDir, markAuthedBrowserCaptureFailure, markAuthedBrowserProfileConfirmed, markAuthedBrowserProfileOpened, resolveAuthedBrowserTargetUrl } from "@/domain/self-media/providers";
-import { hasTrustedCreatorCenterRowShape, selectXiaohongshuCreatorCenterRows, type CreatorCenterDomCandidate } from "@/domain/self-media/providers/creator-center-row-selector";
+import { hasTrustedCreatorCenterRowShape, selectXiaohongshuCreatorCenterDetailRow, selectXiaohongshuCreatorCenterRows, type CreatorCenterDomCandidate } from "@/domain/self-media/providers/creator-center-row-selector";
 import { SelfMediaService } from "@/domain/self-media/service";
 import type { ImportProvenanceMetadata, XiaohongshuAuthedBrowserCaptureRequest, XiaohongshuAuthedBrowserCaptureResult, XiaohongshuAuthedBrowserLoginState, XiaohongshuBrowserVisibleRow } from "@/domain/self-media/types";
 
@@ -199,6 +199,63 @@ async function extractVisibleRows(page: Page): Promise<XiaohongshuBrowserVisible
   return selectXiaohongshuCreatorCenterRows(candidates, capturedAt);
 }
 
+async function extractCurrentDetailRow(page: Page): Promise<XiaohongshuBrowserVisibleRow[]> {
+  const capturedAt = new Date().toISOString();
+  const candidate = await page.evaluate(() => {
+    if (!window.location.hostname.endsWith("creator.xiaohongshu.com")) return undefined;
+    if (/\/new\/note-manager\/?$/.test(window.location.pathname)) return undefined;
+    if (!/(detail|analysis|analyse|note|data|note_id=|noteId=|explore\/)/i.test(window.location.href)) return undefined;
+
+    function clean(value: string | null | undefined) {
+      return (value ?? "").replace(/\s+/g, " ").trim();
+    }
+
+    function sanitizedUrl(value: string) {
+      try {
+        const url = new URL(value, window.location.href);
+        url.search = "";
+        url.hash = "";
+        return url.toString();
+      } catch {
+        return value.split("?")[0];
+      }
+    }
+
+    const currentUrl = window.location.href;
+    const idPattern = /(?:note\/|explore\/|discovery\.|note_id=|noteId=)([A-Za-z0-9_-]{6,})/i;
+    const dataValues = [currentUrl.match(idPattern)?.[1] ?? ""].filter(Boolean);
+    const anchors = Array.from(document.querySelectorAll("a[href*='xiaohongshu.com'],a[href*='note'],a[href*='note_id'],a[href*='noteId'],a[href*='explore']"));
+    dataValues.push(...anchors.map((anchor) => anchor.getAttribute("href")?.match(idPattern)?.[1] ?? "").filter(Boolean));
+    const scoped = Array.from(document.querySelectorAll("[data-id],[data-note-id],[id]")).slice(0, 120);
+    dataValues.push(...scoped.flatMap((item) => Array.from(item.attributes)
+      .filter((attribute) => /(^data-(?:note-)?id$|^id$|note)/i.test(attribute.name))
+      .map((attribute) => clean(attribute.value))));
+    const titleCandidates = Array.from(document.querySelectorAll("h1,h2,h3,[class*='title'],[class*='Title'],[data-testid*='title'],[class*='note-name'],[class*='NoteName']"))
+      .map((element) => clean(element.getAttribute("title")) || clean(element.textContent))
+      .filter((text) => text.length >= 4 && text.length <= 140 && !/(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动|数据详情|笔记数据)/.test(text))
+      .slice(0, 12);
+    const metricCandidates = Array.from(document.querySelectorAll("section,article,div,li,span,p,td,[role='cell'],[class*='metric'],[class*='Metric'],[class*='data'],[class*='Data']"))
+      .map((element) => clean(element.textContent))
+      .filter((text) => text.length >= 2 && text.length <= 180 && /\d/.test(text) && /(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/.test(text))
+      .slice(0, 80);
+    const hrefs = [sanitizedUrl(currentUrl), ...anchors.map((anchor) => sanitizedUrl(anchor.getAttribute("href") ?? "")).filter(Boolean)];
+    const cells = [...titleCandidates, ...metricCandidates];
+    return {
+      text: cells.join(" "),
+      tagName: "page",
+      role: "document",
+      className: "creator-center-detail",
+      idAttr: "",
+      titleAttr: titleCandidates[0],
+      hrefs,
+      dataValues,
+      cells,
+      childCandidateCount: 0
+    };
+  }) as CreatorCenterDomCandidate | undefined;
+  return selectXiaohongshuCreatorCenterDetailRow(candidate, capturedAt);
+}
+
 function summarizeRows(rows: XiaohongshuBrowserVisibleRow[]) {
   return {
     contentCount: rows.length,
@@ -208,8 +265,9 @@ function summarizeRows(rows: XiaohongshuBrowserVisibleRow[]) {
 }
 
 function canSaveRow(row: XiaohongshuBrowserVisibleRow) {
-  return row.sourcePageKind === "creator_center_owned_works"
-    && row.confidence === "owned_creator_center_row"
+  const trustedContext = (row.sourcePageKind === "creator_center_owned_works" && row.confidence === "owned_creator_center_row")
+    || (row.sourcePageKind === "creator_center_owned_detail" && row.confidence === "owned_creator_center_detail");
+  return trustedContext
     && hasTrustedCreatorCenterRowShape(row, "xiaohongshu");
 }
 
@@ -230,7 +288,7 @@ export async function POST(request: Request) {
     const body = await request.json() as XiaohongshuAuthedBrowserCaptureRequest;
     if (hasBlockedKey(body)) return Response.json(emptyResult(body.action ?? "status", { message: "浏览器辅助接口不接收 cookie/token/password/header/raw request/storage。", warnings: ["blocked_sensitive_input_key"] }), { status: 400 });
     const action = body.action;
-    if (!["open", "status", "capture_preview", "save", "close"].includes(action)) {
+    if (!["open", "status", "capture_preview", "capture_current_detail_preview", "save", "close"].includes(action)) {
       return Response.json(emptyResult("status", { loginState: "error", message: "不支持的小红书浏览器辅助操作。", warnings: ["unsupported_action"] }), { status: 400 });
     }
 
@@ -275,18 +333,27 @@ export async function POST(request: Request) {
       return Response.json(emptyResult(action, { ...base, message: "页面仍像登录页；请先完成登录并勾选确认已登录。", warnings: ["needs_login"] }), { status: 400 });
     }
 
-    const rows = await extractVisibleRows(session.page);
-    session.lastRows = rows;
+    const rows = action === "save"
+      ? session.lastRows
+      : action === "capture_current_detail_preview"
+        ? await extractCurrentDetailRow(session.page)
+        : await extractVisibleRows(session.page);
+    if (action !== "save") session.lastRows = rows;
     const summary = summarizeRows(rows);
-    if (action === "capture_preview") {
+    if (action === "capture_preview" || action === "capture_current_detail_preview") {
+      const isDetail = action === "capture_current_detail_preview";
       return Response.json(emptyResult(action, {
         ...base,
         ok: rows.length > 0,
         rows,
         ...summary,
         capturedAt: new Date().toISOString(),
-        message: rows.length > 0 ? `已从当前小红书后台页面识别 ${rows.length} 条可见本人笔记/作品级数据，保存前请确认。` : "当前页面未识别到本人笔记/作品级指标行；请进入小红书创作服务平台的笔记管理，确认列表里有单条笔记标题和浏览/点赞/评论/收藏等指标后重试。",
-        warnings: rows.length > 0 ? rows.flatMap((row) => row.warnings) : ["no_visible_creator_note_rows"]
+        message: rows.length > 0
+          ? `已从当前小红书${isDetail ? "笔记详情页" : "后台页面"}识别 ${rows.length} 条本人笔记/作品级数据，保存前请确认。`
+          : isDetail
+            ? "当前详情页未识别到可靠笔记 ID、单条笔记标题和同一笔记上下文的指标；请在小红书后台点开具体笔记的数据/详情页后重试。"
+            : "当前页面未识别到本人笔记/作品级指标行；请进入小红书创作服务平台的笔记管理，确认列表里有单条笔记标题和浏览/点赞/评论/收藏等指标后重试。",
+        warnings: rows.length > 0 ? rows.flatMap((row) => row.warnings) : [isDetail ? "no_visible_detail_note_row" : "no_visible_creator_note_rows"]
       }), { status: rows.length > 0 ? 200 : 400 });
     }
 
