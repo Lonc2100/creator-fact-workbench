@@ -789,6 +789,9 @@ test("douyin authed browser capture route keeps credential material outside the 
   assert.match(route, /extractVisibleRows/);
   assert.match(route, /sourcePageKind/);
   assert.match(route, /nativeIdConfidence/);
+  assert.match(route, /hasNestedMetricCandidate/);
+  assert.match(route, /isLikelyContainerBlock/);
+  assert.match(route, /noisy_visible_dom_title/);
   assert.match(route, /saveCandidateRows/);
   assert.match(route, /no_creator_center_owned_save_candidates/);
   assert.match(route, /importDouyinBrowserVisibleRows/);
@@ -812,6 +815,9 @@ test("xiaohongshu authed browser capture route keeps login material and public r
   assert.match(route, /extractVisibleRows/);
   assert.match(route, /sourcePageKind/);
   assert.match(route, /nativeIdConfidence/);
+  assert.match(route, /hasNestedMetricCandidate/);
+  assert.match(route, /isLikelyContainerBlock/);
+  assert.match(route, /noisy_visible_dom_title/);
   assert.match(route, /saveCandidateRows/);
   assert.match(route, /no_creator_center_owned_save_candidates/);
   assert.match(route, /creator\.xiaohongshu\.com/);

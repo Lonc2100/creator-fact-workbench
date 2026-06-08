@@ -1088,6 +1088,23 @@ test("authed browser fallback id preview rows do not enter trusted dashboard or 
         confidence: "owned_creator_center_row" as const,
         nativeIdConfidence: "fallback_text_hash" as const,
         warnings: ["fallback_id_from_visible_text"]
+      },
+      {
+        id: "semiTab1",
+        nativeId: "semiTab1",
+        title: "投稿作品直播场次投稿分析投稿列表 体裁全部发布时间 ~ 投稿概览导出数据周期内投稿量",
+        capturedAt: "2026-06-07T10:00:00.000Z",
+        views: 1057,
+        likes: 2600,
+        comments: 110,
+        saves: 0,
+        shares: 340,
+        followersDelta: 0,
+        extractionSource: "visible_dom" as const,
+        sourcePageKind: "creator_center_owned_works" as const,
+        confidence: "owned_creator_center_row" as const,
+        nativeIdConfidence: "stable_platform_id" as const,
+        warnings: []
       }
     ];
     const xiaohongshuRows = [
@@ -1107,6 +1124,25 @@ test("authed browser fallback id preview rows do not enter trusted dashboard or 
         confidence: "fallback_visible_card" as const,
         nativeIdConfidence: "visible_platform_id" as const,
         warnings: ["not_creator_center_owned_works_page"]
+      },
+      {
+        id: "notes-request",
+        nativeId: "notes-request",
+        title: "全部 6已发布审核中未通过00:24AI机甲大片感，终于有一点出来了2026-06-05 19:5551803014000:10末日来临的那一刻",
+        publishedAt: "2026-06-05T11:55:00.000Z",
+        capturedAt: "2026-06-07T10:00:00.000Z",
+        views: 0,
+        likes: 0,
+        comments: 0,
+        saves: 0,
+        shares: 2026,
+        followersDelta: 0,
+        format: "image_text" as const,
+        extractionSource: "visible_dom" as const,
+        sourcePageKind: "creator_center_owned_works" as const,
+        confidence: "owned_creator_center_row" as const,
+        nativeIdConfidence: "stable_platform_id" as const,
+        warnings: []
       }
     ];
 
@@ -1116,8 +1152,8 @@ test("authed browser fallback id preview rows do not enter trusted dashboard or 
     assert.equal(douyinPreview.metrics.length, 0);
     assert.equal(xiaohongshuPreview.contents.length, 0);
     assert.equal(xiaohongshuPreview.metrics.length, 0);
-    assert.ok(douyinPreview.warnings?.some((item) => /skipped 1 preview rows/.test(item)));
-    assert.ok(xiaohongshuPreview.warnings?.some((item) => /skipped 1 preview rows/.test(item)));
+    assert.ok(douyinPreview.warnings?.some((item) => /skipped 2 preview rows/.test(item)));
+    assert.ok(xiaohongshuPreview.warnings?.some((item) => /skipped 2 preview rows/.test(item)));
 
     service.importDouyinBrowserVisibleRows(douyinRows, {
       isTestFixture: false,
@@ -1134,9 +1170,13 @@ test("authed browser fallback id preview rows do not enter trusted dashboard or 
     const dashboard = await service.dashboard();
     assert.equal(dashboard.contents.some((item) => item.id === "dy-browser-fallback-low-confidence"), false);
     assert.equal(dashboard.contents.some((item) => item.id === "xhs-browser-public-low-confidence"), false);
+    assert.equal(dashboard.contents.some((item) => item.id === "semiTab1"), false);
+    assert.equal(dashboard.contents.some((item) => item.id === "notes-request"), false);
     assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "dy-browser-fallback-low-confidence"), false);
     assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "xhs-browser-public-low-confidence"), false);
-    assert.equal(service.calendar().some((item) => item.contentId === "dy-browser-fallback-low-confidence" || item.contentId === "xhs-browser-public-low-confidence"), false);
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "semiTab1"), false);
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "notes-request"), false);
+    assert.equal(service.calendar().some((item) => item.contentId === "dy-browser-fallback-low-confidence" || item.contentId === "xhs-browser-public-low-confidence" || item.contentId === "semiTab1" || item.contentId === "notes-request"), false);
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });

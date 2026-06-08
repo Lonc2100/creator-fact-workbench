@@ -150,6 +150,9 @@ async function extractVisibleRows(page: Page): Promise<XiaohongshuBrowserVisible
     const creatorContentWords = /(笔记|作品|标题|发布|浏览|点赞|收藏|数据)/;
     const publicRecommendation = /(发现|探索|搜索|推荐|热门|话题|灵感|种草|精选|达人|榜单)/;
     const privateOrAccountOnly = /(私信|评论正文|用户画像|粉丝画像|账号总览|粉丝总数|粉丝分析|关注用户|手机号|邮箱)/;
+    const rowSelector = "tr,[role='row'],article,li,[class*='table-row'],[class*='TableRow'],[class*='note'],[class*='Note'],[class*='card'],[class*='item']";
+    const noisyBlock = /(全部\s*\d+已发布|审核中未通过|投稿作品直播场次|投稿分析投稿列表|数据周期内投稿量)/;
+    const actionNoise = /(编辑作品设置权限|作品置顶删除作品|删除作品|设置权限|立即发布)/g;
 
     function clean(value: string | null | undefined) {
       return (value ?? "").replace(/\s+/g, " ").trim();
@@ -184,6 +187,42 @@ async function extractVisibleRows(page: Page): Promise<XiaohongshuBrowserVisible
       return 0;
     }
 
+    function publishedDateCount(text: string) {
+      return (text.match(/20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}/g) ?? []).length;
+    }
+
+    function actionNoiseCount(text: string) {
+      return (text.match(actionNoise) ?? []).length;
+    }
+
+    function hasNestedMetricCandidate(element: Element, text: string) {
+      const children = Array.from(element.querySelectorAll(rowSelector));
+      return children.some((child) => {
+        if (child === element) return false;
+        const childText = clean(child.textContent);
+        return childText.length >= 12
+          && childText.length < text.length - 12
+          && metricLabels.test(childText)
+          && !privateOrAccountOnly.test(childText);
+      });
+    }
+
+    function isLikelyContainerBlock(element: Element, text: string) {
+      if (hasNestedMetricCandidate(element, text)) return true;
+      if (noisyBlock.test(text)) return true;
+      if (publishedDateCount(text) > 1) return true;
+      if (actionNoiseCount(text) > 1) return true;
+      return false;
+    }
+
+    function hasStableNativeId(value: string | undefined) {
+      return Boolean(value && !/table|row|card|item|button|container|tab|panel|list|request|response|form|manager/i.test(value));
+    }
+
+    function hasCleanTitle(value: string) {
+      return !/全部\s*\d+已发布|审核中未通过|编辑作品设置权限|作品置顶删除作品|投稿作品直播场次|投稿分析投稿列表|数据周期内投稿量/.test(value);
+    }
+
     function linkOf(element: Element) {
       const anchor = element.querySelector("a[href*='xiaohongshu.com'],a[href*='note']");
       const href = anchor?.getAttribute("href") ?? "";
@@ -205,7 +244,7 @@ async function extractVisibleRows(page: Page): Promise<XiaohongshuBrowserVisible
           if (!/(^data-(?:note-)?id$|^id$|note)/i.test(attribute.name)) continue;
           const value = clean(attribute.value);
           const match = value.match(/([A-Za-z0-9_-]{6,})/);
-          if (match && !/table|row|card|item|button|container/i.test(match[1])) return match[1];
+          if (match && !/table|row|card|item|button|container|tab|panel|list|request|response|form/i.test(match[1])) return match[1];
         }
       }
       return "";
@@ -240,7 +279,7 @@ async function extractVisibleRows(page: Page): Promise<XiaohongshuBrowserVisible
       return Number.isNaN(parsed.valueOf()) ? undefined : parsed.toISOString();
     }
 
-    const elements = Array.from(document.querySelectorAll("tr,[role='row'],article,li,[class*='table-row'],[class*='TableRow'],[class*='note'],[class*='Note'],[class*='card'],[class*='item']"));
+    const elements = Array.from(document.querySelectorAll(rowSelector));
     const rows: Row[] = [];
     const seen = new Set<string>();
     for (const element of elements) {
@@ -250,6 +289,7 @@ async function extractVisibleRows(page: Page): Promise<XiaohongshuBrowserVisible
       if (privateOrAccountOnly.test(text)) continue;
       if (publicRecommendation.test(text) && !creatorContentWords.test(text)) continue;
       if (!creatorContentWords.test(text)) continue;
+      if (isLikelyContainerBlock(element, text)) continue;
       const title = titleOf(element, text);
       if (publicRecommendation.test(title)) continue;
       const idInfo = idOf(element, text);
@@ -279,6 +319,8 @@ async function extractVisibleRows(page: Page): Promise<XiaohongshuBrowserVisible
       };
       if (row.views + row.likes + row.comments + row.saves + row.shares === 0) row.warnings.push("no_metric_number_detected");
       if (row.nativeIdConfidence === "fallback_text_hash") row.warnings.push("fallback_id_from_visible_text");
+      if (!hasCleanTitle(row.title)) row.warnings.push("noisy_visible_dom_title");
+      if (!hasStableNativeId(row.nativeId)) row.warnings.push("unstable_native_id");
       if (row.sourcePageKind !== "creator_center_owned_works") row.warnings.push("not_creator_center_owned_works_page");
       rows.push(row);
       if (rows.length >= 20) break;
@@ -295,11 +337,20 @@ function summarizeRows(rows: XiaohongshuBrowserVisibleRow[]) {
   };
 }
 
+function hasStableNativeIdValue(value: string | undefined) {
+  return Boolean(value && !/table|row|card|item|button|container|tab|panel|list|request|response|form|manager/i.test(value));
+}
+
+function hasCleanVisibleTitle(value: string) {
+  return !/全部\s*\d+已发布|审核中未通过|编辑作品设置权限|作品置顶删除作品|投稿作品直播场次|投稿分析投稿列表|数据周期内投稿量/.test(value);
+}
+
 function canSaveRow(row: XiaohongshuBrowserVisibleRow) {
   return row.sourcePageKind === "creator_center_owned_works"
     && row.confidence === "owned_creator_center_row"
     && (row.nativeIdConfidence === "stable_platform_id" || row.nativeIdConfidence === "visible_platform_id")
-    && Boolean(row.nativeId)
+    && hasStableNativeIdValue(row.nativeId)
+    && hasCleanVisibleTitle(row.title)
     && row.views + row.likes + row.comments + row.saves + row.shares > 0;
 }
 
