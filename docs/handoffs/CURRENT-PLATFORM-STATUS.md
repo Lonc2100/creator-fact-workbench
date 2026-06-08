@@ -157,13 +157,32 @@ Douyin and Xiaohongshu login capture now starts from content-level management su
 - Live 3200 acceptance got preview-only content-level rows from both platforms: Douyin `1` content/metric row and Xiaohongshu `1` content/metric row. No save occurred; trusted contents, metric snapshots, and import run counts remained unchanged.
 - Fallback visible-text ids are still present in the live previews, so saving remains explicitly user-gated and should be hardened before routine trusted saves.
 
+## 104 Real Creator-Center Capture Status
+
+Current real saved creator-center baseline as of 2026-06-08:
+
+| Platform | Current real path | Save status | Dashboard impact | Calendar impact |
+| --- | --- | --- | --- | --- |
+| Douyin | AI-assisted mouse click into a creator-center work detail/data page | Saved 1 real work after explicit user confirmation | Trusted dashboard increased in the 100 acceptance path | No new historical/import card pollution |
+| Xiaohongshu | `creator.xiaohongshu.com/statistics/data-analysis` content-analysis `笔记数据` table | Saved 7 real notes after explicit user confirmation | Trusted contents `13 -> 20`; metric snapshots/metrics `13 -> 21` | No new historical/import card pollution; calendar stayed `195` |
+
+Current import reality:
+
+- Xiaohongshu no longer needs to force a single-note detail page as the main path. The primary path is the creator-service content-analysis table at `https://creator.xiaohongshu.com/statistics/data-analysis`, with one visible table row per note.
+- Xiaohongshu detail-page capture remains a fallback preview path only.
+- Douyin's proven real path is assisted browser mouse clickthrough into a specific work detail/data page, then preview and explicit save.
+- All creator-center saves still require explicit user confirmation. Do not silently save, do not auto-set `userConfirmedContentMetrics: true`, and do not save password, cookie, token, header, storageState, raw request, raw response, screenshot, HAR, trace, or real platform DOM.
+- Video Account remains discovery-only for authenticated browser capture.
+- Bilibili account metrics remain preview-only; Bilibili archive/work content metrics remain the accepted content-level path.
+- WeChat Official Account / WeChat backend remains paused.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
 - Data recovery mainline is user-assisted authenticated browser capture: the app opens a controlled local platform backend browser, the user manually logs in or completes verification, the app reads only the user's visible creator/backend content-level data, preview comes before save, and saved rows enter trusted content metrics only after explicit confirmation.
 - Local CSV/XLSX export is fallback-only. It remains available for platform risk blocks, unstable browser capture, or user preference, but it is not the default product direction.
-- Douyin has the first authenticated browser capture MVP on `/import`: open controlled browser, user confirms login, capture current visible works/data rows, preview, confirm save, and write `douyin_creator_center` trusted content-level metrics without saving password, cookie, token, header, storage state, raw request, or raw response records.
-- Xiaohongshu has the second authenticated browser capture MVP on `/import`: open the creator service platform with the local profile, reject public/wrong pages, capture visible creator note/work rows only, preview, confirm save, and write `xiaohongshu_creator_center` trusted content-level metrics.
+- Douyin has a proven real authenticated browser capture path on `/import`: open controlled browser, AI mouse-clicks a visible creator-center work into a detail/data page, preview, explicit user confirm save, and write `douyin_creator_center` trusted content-level metrics without saving password, cookie, token, header, storage state, raw request, or raw response records.
+- Xiaohongshu has a proven real authenticated browser capture path on `/import`: open the creator service platform with the local profile, read the `statistics/data-analysis` content-analysis `笔记数据` table, capture one row per note, preview, explicit user confirm save, and write `xiaohongshu_creator_center` trusted content-level metrics.
 - 091 real assisted login acceptance did not save data: Douyin and Xiaohongshu opened and were accessible, but both were on account/operation overview pages rather than visible content-level metric tables.
 - 093 fixed the Douyin/Xiaohongshu navigation gap: platform windows now open or return to works/note management targets and live preview-only checks reached content-level rows on both platforms.
 - `/import` also has user-triggered auto-refresh preview for Douyin and Xiaohongshu via the login-capture refresh route; this is not silent background collection and not an automatic save.
