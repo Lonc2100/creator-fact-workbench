@@ -129,7 +129,7 @@ async function previewPlatform(origin: string, profile: AuthedBrowserProfileStat
         status: "needs_login",
         statusLabel: statusLabel("needs_login"),
         message: `${profile.label} 本机窗口未打开。`,
-        nextAction: "打开平台后台后再刷新；系统不会静默保存数据。",
+        nextAction: "点击“手动打开后台并刷新”后再预览；系统不会静默保存数据。",
         attemptedPreview: true,
         openedWindow: false,
         contentCount: 0,
@@ -190,7 +190,7 @@ async function previewPlatform(origin: string, profile: AuthedBrowserProfileStat
     status: needsLogin ? "needs_login" : "needs_content_page",
     statusLabel: statusLabel(needsLogin ? "needs_login" : "needs_content_page"),
     message: needsLogin ? `${profile.label} 页面仍像登录页；请完成登录后再刷新。` : sanitized.message,
-    nextAction: needsLogin ? "在弹出的平台后台完成登录并确认登录状态。" : platformPageAction(profile.platform),
+    nextAction: needsLogin ? "手动打开平台后台，完成登录并确认登录状态。" : platformPageAction(profile.platform),
     attemptedPreview: true,
     openedWindow,
     contentCount: sanitized.contentCount,
@@ -211,7 +211,7 @@ export async function POST(request: Request) {
       ? null
       : new Set(body.platforms.map((item) => normalizePlatform(item)));
     const trigger = body.trigger === "startup" ? "startup" : body.trigger === "focus_return" ? "focus_return" : "manual";
-    const autoOpen = body.autoOpen !== false;
+    const autoOpen = trigger === "manual" && body.autoOpen === true;
     const profiles = getAuthedBrowserProfileStatusView().profiles.filter((profile) => !requested || requested.has(profile.platform));
     const origin = new URL(request.url).origin;
     const results: AuthedBrowserAutoRefreshPlatformResult[] = [];
@@ -223,11 +223,11 @@ export async function POST(request: Request) {
     const needsContentPage = results.filter((item) => item.status === "needs_content_page").length;
     const openedWindowCount = results.filter((item) => item.openedWindow).length;
     const summary = previewReady > 0
-      ? `已抓到 ${previewReady} 个平台的预览，等待你确认保存。${openedWindowCount > 0 ? ` 已自动打开 ${openedWindowCount} 个后台窗口。` : ""}`
+      ? `已抓到 ${previewReady} 个平台的预览，等待你确认保存。${openedWindowCount > 0 ? ` 已按手动操作打开 ${openedWindowCount} 个后台窗口。` : ""}`
       : needsLogin > 0
-        ? `有 ${needsLogin} 个平台需要先登录或确认登录。${openedWindowCount > 0 ? ` 已自动打开 ${openedWindowCount} 个后台窗口。` : ""}`
+        ? `有 ${needsLogin} 个平台需要先登录或确认登录。${openedWindowCount > 0 ? ` 已按手动操作打开 ${openedWindowCount} 个后台窗口。` : ""}`
         : needsContentPage > 0
-          ? `已尝试抓取，但需要先切到作品/笔记管理页面。${openedWindowCount > 0 ? ` 已自动打开 ${openedWindowCount} 个后台窗口。` : ""}`
+          ? `已尝试抓取，但需要先切到作品/笔记管理页面。${openedWindowCount > 0 ? ` 已按手动操作打开 ${openedWindowCount} 个后台窗口。` : ""}`
           : "当前没有可自动预览的平台；请查看每个平台下一步。";
 
     const result: AuthedBrowserAutoRefreshResult = {

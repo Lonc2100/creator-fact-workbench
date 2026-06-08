@@ -585,12 +585,12 @@ function LoginCaptureAutoRefreshPanel({
   return (
     <div className="login-auto-refresh-panel" data-testid="login-capture-auto-refresh">
       <div>
-        <strong>一键刷新登录抓取</strong>
-        <p>进入本页会自动检查并尝试打开可复用的抖音/小红书后台窗口；登录或切到作品页后回到本页会自动复查。系统只做预览，不会静默保存。</p>
+        <strong>登录抓取状态检查</strong>
+        <p>进入本页只刷新本机登录 profile 状态，不会自动打开抖音/小红书窗口；需要抓取时请手动点击按钮打开平台后台。系统只做预览，不会静默保存。</p>
         <small data-testid="login-capture-startup-check">{startupSummary}</small>
       </div>
       <div className="import-preview-actions">
-        <Button data-testid="login-capture-auto-refresh-button" onClick={onRefresh} variant="primary" disabled={isRunning}>{isRunning ? "正在刷新" : "自动开窗刷新"}</Button>
+        <Button data-testid="login-capture-auto-refresh-button" onClick={onRefresh} variant="primary" disabled={isRunning}>{isRunning ? "正在刷新" : "手动打开后台并刷新"}</Button>
       </div>
       {result && (
         <div className="platform-operation-grid" data-testid="login-capture-auto-refresh-results">
@@ -600,7 +600,7 @@ function LoginCaptureAutoRefreshPanel({
               <Badge tone={result.openedWindowCount > 0 ? "info" : "success"}>{result.openedWindowCount} 个窗口</Badge>
             </div>
             <p>{result.summary}</p>
-            <small>自动开窗：{result.autoOpenEnabled ? "已启用" : "未启用"} / 保存：仍需你确认。</small>
+            <small>后台开窗：{result.autoOpenEnabled ? "由本次手动点击启用" : "未启用"} / 保存：仍需你确认。</small>
           </article>
           {primaryAction && (
             <article className="platform-operation-card" data-testid="login-capture-next-step">
@@ -623,7 +623,7 @@ function LoginCaptureAutoRefreshPanel({
               </div>
               <p>{item.message}</p>
               <small>{item.nextAction}</small>
-              {item.openedWindow && <small>已自动打开作品/笔记管理入口；如果平台跳回首页，请按下一步提示进入对应管理页。</small>}
+              {item.openedWindow && <small>已按你的点击打开作品/笔记管理入口；如果平台跳回首页，请按下一步提示进入对应管理页。</small>}
               <small>{formatNumber(item.contentCount)} 条内容 / {formatNumber(item.metricCount)} 条指标</small>
             </article>
           ))}
@@ -635,8 +635,8 @@ function LoginCaptureAutoRefreshPanel({
 
 function loginCaptureTriggerLabel(trigger: AuthedBrowserAutoRefreshResult["trigger"]) {
   if (trigger === "startup") return "启动自动检查";
-  if (trigger === "focus_return") return "登录返回复查";
-  return "手动刷新";
+  if (trigger === "focus_return") return "登录返回提示";
+  return "手动打开刷新";
 }
 
 function loginCapturePrimaryAction(result: AuthedBrowserAutoRefreshResult) {
@@ -1662,7 +1662,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [browserProfileLoadingKey, setBrowserProfileLoadingKey] = useState("");
   const [browserProfileMessage, setBrowserProfileMessage] = useState("正在读取本机登录会话状态");
   const [autoRefreshResult, setAutoRefreshResult] = useState<AuthedBrowserAutoRefreshResult | null>(null);
-  const [autoRefreshMessage, setAutoRefreshMessage] = useState("启动检查中：正在确认是否需要补抓。");
+  const [autoRefreshMessage, setAutoRefreshMessage] = useState("启动检查中：仅确认本机登录状态，不会自动打开平台后台。");
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
   const [xiaohongshuCsv, setXiaohongshuCsv] = useState(sampleXiaohongshuLocalExportCsv);
   const [xiaohongshuFile, setXiaohongshuFile] = useState<File | null>(null);
@@ -1687,7 +1687,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [isXiaohongshuBrowserLoading, setIsXiaohongshuBrowserLoading] = useState(false);
   const [isBilibiliLoading, setIsBilibiliLoading] = useState(false);
   const startupAutoRefreshStarted = useRef(false);
-  const returnAutoRefreshLastRunAt = useRef(0);
+  const returnRefreshPromptLastShownAt = useRef(0);
 
   const previewStats = useMemo(() => previewStatsFor(preview), [preview]);
   const douyinStats = useMemo(() => previewStatsFor(douyinPreview), [douyinPreview]);
@@ -1711,7 +1711,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     if (reusable > 0) return `启动检查：${reusable} 个平台可能可直接刷新，${needsLogin} 个平台需要先登录${failed > 0 ? `，${failed} 个平台上次抓取失败` : ""}。`;
     return `启动检查：暂未发现可直接刷新的登录会话，${needsLogin} 个平台需要先打开后台登录。`;
   }, [autoRefreshMessage, browserProfileStatus]);
-  const shouldRetryLoginCaptureOnReturn = useMemo(() => {
+  const shouldPromptLoginCaptureRefreshOnReturn = useMemo(() => {
     const results = autoRefreshResult?.results ?? [];
     return results.some((item) => {
       if (item.platform !== "douyin" && item.platform !== "xiaohongshu") return false;
@@ -1751,14 +1751,14 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     }
   }
 
-  async function runLoginCaptureAutoRefresh(trigger: AuthedBrowserAutoRefreshResult["trigger"] = "manual") {
+  async function runLoginCaptureAutoRefresh(trigger: AuthedBrowserAutoRefreshResult["trigger"] = "manual", autoOpen = false) {
     setIsAutoRefreshing(true);
-    setAutoRefreshMessage(trigger === "startup" ? "启动自动检查：正在尝试打开可复用平台并预览。" : trigger === "focus_return" ? "检测到你回到本页：正在重新预览登录抓取结果。" : "正在按平台登录状态尝试预览。");
+    setAutoRefreshMessage(autoOpen ? "正在按你的点击打开平台后台并尝试预览。" : "正在按平台登录状态尝试预览，不会自动打开后台窗口。");
     try {
       const response = await fetch("/api/self-media/browser-capture/auto-refresh", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ platforms: "all", autoOpen: true, trigger })
+        body: JSON.stringify({ platforms: "all", autoOpen, trigger })
       });
       const body = await response.json() as AuthedBrowserAutoRefreshResult & { errorMessage?: string };
       if (!response.ok) throw new Error(body.errorMessage ?? "登录抓取刷新失败");
@@ -1968,28 +1968,33 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     if (startupAutoRefreshStarted.current) return;
     startupAutoRefreshStarted.current = true;
     refreshAuthedBrowserProfiles()
-      .then(() => runLoginCaptureAutoRefresh("startup"))
+      .then(() => {
+        setAutoRefreshMessage("启动检查完成：只刷新本机登录状态；需要抓取时请点击“手动打开后台并刷新”。");
+      })
       .catch((error) => {
         setBrowserProfileMessage(error instanceof Error ? error.message : "读取本机登录会话失败");
       });
   }, []);
 
   useEffect(() => {
-    if (!shouldRetryLoginCaptureOnReturn || isAutoRefreshing) return;
-    const retryOnReturn = () => {
+    if (!shouldPromptLoginCaptureRefreshOnReturn || isAutoRefreshing) return;
+    const promptRefreshOnReturn = () => {
       if (document.visibilityState !== "visible") return;
       const now = Date.now();
-      if (now - returnAutoRefreshLastRunAt.current < 15000) return;
-      returnAutoRefreshLastRunAt.current = now;
-      void runLoginCaptureAutoRefresh("focus_return");
+      if (now - returnRefreshPromptLastShownAt.current < 15000) return;
+      returnRefreshPromptLastShownAt.current = now;
+      setAutoRefreshMessage("检测到你回到本页，可点击“手动打开后台并刷新”重新读取数据；系统不会自动打开平台窗口。");
+      void refreshAuthedBrowserProfiles().catch((error) => {
+        setBrowserProfileMessage(error instanceof Error ? error.message : "读取本机登录会话失败");
+      });
     };
-    window.addEventListener("focus", retryOnReturn);
-    document.addEventListener("visibilitychange", retryOnReturn);
+    window.addEventListener("focus", promptRefreshOnReturn);
+    document.addEventListener("visibilitychange", promptRefreshOnReturn);
     return () => {
-      window.removeEventListener("focus", retryOnReturn);
-      document.removeEventListener("visibilitychange", retryOnReturn);
+      window.removeEventListener("focus", promptRefreshOnReturn);
+      document.removeEventListener("visibilitychange", promptRefreshOnReturn);
     };
-  }, [isAutoRefreshing, shouldRetryLoginCaptureOnReturn]);
+  }, [isAutoRefreshing, shouldPromptLoginCaptureRefreshOnReturn]);
 
   async function runXiaohongshuLocalFile(action: "preview" | "save") {
     setIsXiaohongshuLoading(true);
@@ -2152,7 +2157,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
           <LoginCaptureAutoRefreshPanel
             isRunning={isAutoRefreshing}
-            onRefresh={() => runLoginCaptureAutoRefresh("manual")}
+            onRefresh={() => runLoginCaptureAutoRefresh("manual", true)}
             result={autoRefreshResult}
             startupSummary={browserProfileStartupSummary}
           />
