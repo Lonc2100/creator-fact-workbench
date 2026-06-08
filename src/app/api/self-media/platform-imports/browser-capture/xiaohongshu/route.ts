@@ -291,6 +291,7 @@ async function extractCurrentDetailRow(page: Page): Promise<XiaohongshuBrowserVi
 async function diagnoseCurrentDetailPage(page: Page) {
   return page.evaluate(() => {
     const currentUrl = window.location.href;
+    const creatorHost = window.location.hostname.endsWith("creator.xiaohongshu.com");
     const idPattern = /(?:note\/|explore\/|discovery\.|note_id=|noteId=)([A-Za-z0-9_-]{6,})/i;
     function clean(value: string | null | undefined) {
       return (value ?? "").replace(/\s+/g, " ").trim();
@@ -331,7 +332,8 @@ async function diagnoseCurrentDetailPage(page: Page) {
       .map((element) => clean(element.textContent))
       .filter((text) => text.length >= 2 && text.length <= 180 && /\d/.test(text) && /(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/.test(text))
       .length;
-    const urlLooksDetail = !/\/new\/note-manager\/?$/.test(window.location.pathname)
+    const urlLooksDetail = creatorHost
+      && !/\/new\/note-manager\/?$/.test(window.location.pathname)
       && /(detail|analysis|analyse|note|data|note_id=|noteId=|explore\/)/i.test(currentUrl);
     return {
       urlLooksDetail,
@@ -353,16 +355,71 @@ async function diagnoseCurrentDetailPage(page: Page) {
   }));
 }
 
-async function openFirstVisibleDetail(page: Page) {
-  const beforeUrl = safePageUrl(page.url());
-  const target = await page.evaluate(() => {
+type XiaohongshuDetailClickTarget = {
+  x: number;
+  y: number;
+  kind: "action" | "title" | "cover" | "row";
+  score: number;
+};
+
+async function evaluateCurrentDetailState(page: Page) {
+  return page.evaluate(() => {
+    const currentUrl = window.location.href;
+    const creatorHost = window.location.hostname.endsWith("creator.xiaohongshu.com");
+    const idPattern = /(?:note\/|explore\/|discovery\.|note_id=|noteId=)([A-Za-z0-9_-]{6,})/i;
+    function clean(value: string | null | undefined) {
+      return (value ?? "").replace(/\s+/g, " ").trim();
+    }
+    function visible(element: Element) {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return rect.width >= 80
+        && rect.height >= 80
+        && rect.bottom > 0
+        && rect.right > 0
+        && rect.top < window.innerHeight
+        && rect.left < window.innerWidth
+        && style.visibility !== "hidden"
+        && style.display !== "none";
+    }
+    const urlLooksDetail = creatorHost
+      && !/\/new\/note-manager\/?$/.test(window.location.pathname)
+      && /(detail|analysis|analyse|note|data|note_id=|noteId=|explore\/)/i.test(currentUrl);
+    const rootsWithStableId = Array.from(document.querySelectorAll("[role='dialog'],[class*='drawer'],[class*='Drawer'],[class*='modal'],[class*='Modal'],[class*='detail'],[class*='Detail']"))
+      .filter(visible)
+      .filter((element) => {
+        const scopedText = clean(element.textContent);
+        const scopedLinks = Array.from(element.querySelectorAll("a[href*='xiaohongshu.com'],a[href*='note'],a[href*='note_id'],a[href*='noteId'],a[href*='explore']"));
+        const scopedAttrs = Array.from(element.querySelectorAll("[data-id],[data-note-id],[id]")).slice(0, 80);
+        return idPattern.test(scopedText)
+          || scopedLinks.some((anchor) => idPattern.test(anchor.getAttribute("href") ?? ""))
+          || scopedAttrs.some((item) => Array.from(item.attributes).some((attribute) => /(^data-(?:note-)?id$|^id$|note)/i.test(attribute.name) && idPattern.test(attribute.value)));
+      });
+    return {
+      urlLooksDetail,
+      stableUrlId: creatorHost && idPattern.test(currentUrl),
+      stableRootCount: rootsWithStableId.length
+    };
+  }).catch(() => ({ urlLooksDetail: false, stableUrlId: false, stableRootCount: 0 }));
+}
+
+function hasEnteredXiaohongshuDetail(detailState: Awaited<ReturnType<typeof evaluateCurrentDetailState>>) {
+  return (detailState.urlLooksDetail && detailState.stableUrlId) || detailState.stableRootCount > 0;
+}
+
+async function collectVisibleDetailClickTargets(page: Page): Promise<XiaohongshuDetailClickTarget[]> {
+  return page.evaluate(() => {
     if (!window.location.hostname.endsWith("creator.xiaohongshu.com")) return undefined;
 
     const positive = /(笔记数据|数据详情|数据表现|详情|查看数据|查看详情|分析)/;
-    const stableHref = /(note_id=|noteId=|\/note\/|explore\/|detail|analysis|analyse|data)/i;
+    const stableHref = /(note_id=|noteId=|\/note\/|detail|analysis|analyse|data)/i;
+    const positiveClass = /(detail|analysis|analyse|data|metric|stats|insight)/i;
+    const publicNoteHref = /(?:^https?:)?\/\/(?:www\.)?xiaohongshu\.com\/explore\//i;
     const dangerous = /(发布|删除|提交|审核|修改|编辑|授权|开通|支付|上传|私信|消息|充值|导出|下载|复制|关闭|取消|保存|确认|确定)/;
     const selector = "a[href],button,[role='button'],[tabindex]";
     const rowSelector = "tr,[role='row'],article,li,[class*='table-row'],[class*='TableRow'],[class*='note'],[class*='Note'],[class*='card'],[class*='item']";
+    const titleSelector = "[class*='title'],[class*='Title'],[class*='name'],[class*='Name'],[data-testid*='title'],h1,h2,h3,h4";
+    const coverSelector = "img,[class*='cover'],[class*='Cover'],[class*='thumb'],[class*='Thumb']";
 
     function clean(value: string | null | undefined) {
       return (value ?? "").replace(/\s+/g, " ").trim();
@@ -382,85 +439,147 @@ async function openFirstVisibleDetail(page: Page) {
         && style.pointerEvents !== "none";
     }
 
-    function safeHref(value: string) {
-      try {
-        const url = new URL(value, window.location.href);
-        url.search = "";
-        url.hash = "";
-        return url.toString();
-      } catch {
-        return value.split("?")[0];
-      }
+    function isSafeElement(element: Element) {
+      const text = clean(`${element.getAttribute("aria-label") ?? ""} ${element.getAttribute("title") ?? ""} ${element.textContent ?? ""}`);
+      const href = element.getAttribute("href") ?? "";
+      const className = element.getAttribute("class") ?? "";
+      return visible(element)
+        && !dangerous.test(`${text} ${href} ${className}`)
+        && !element.closest("[aria-label*='发布'],[aria-label*='删除'],[aria-label*='上传'],[aria-label*='支付']");
     }
 
-    const elements = Array.from(document.querySelectorAll(selector));
-    const candidates = elements
-      .map((element) => {
+    function targetForElement(element: Element, kind: "action" | "title" | "cover" | "row", score: number, xRatio = 0.5) {
+      if (!isSafeElement(element)) return undefined;
+      const rect = element.getBoundingClientRect();
+      return {
+        x: Math.round(rect.left + rect.width * xRatio),
+        y: Math.round(rect.top + rect.height / 2),
+        kind,
+        score
+      };
+    }
+
+    function hasCompactRowShape(element: Element, text: string) {
+      const nestedRows = Array.from(element.querySelectorAll(rowSelector)).filter((item) => item !== element).length;
+      const hasMetricLabel = /(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/.test(text);
+      const hasNoteLikeChild = Boolean(element.querySelector(`${titleSelector},${coverSelector},a[href],button,[role='button']`));
+      return text.length >= 4
+        && text.length <= 700
+        && nestedRows <= 2
+        && !dangerous.test(text)
+        && (hasMetricLabel || hasNoteLikeChild);
+    }
+
+    const targets: Array<{ x: number; y: number; kind: "action" | "title" | "cover" | "row"; score: number }> = [];
+    const seen = new Set<string>();
+    function addTarget(target: { x: number; y: number; kind: "action" | "title" | "cover" | "row"; score: number } | undefined) {
+      if (!target) return;
+      if (target.x < 0 || target.y < 0 || target.x > window.innerWidth || target.y > window.innerHeight) return;
+      const key = `${Math.round(target.x / 8)}:${Math.round(target.y / 8)}:${target.kind}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      targets.push(target);
+    }
+
+    for (const element of Array.from(document.querySelectorAll(selector))) {
         const text = clean(`${element.getAttribute("aria-label") ?? ""} ${element.getAttribute("title") ?? ""} ${element.textContent ?? ""}`);
         const href = element.getAttribute("href") ?? "";
-        const rect = element.getBoundingClientRect();
+        const className = element.getAttribute("class") ?? "";
         const hasStableHref = stableHref.test(href);
         const hasActionText = positive.test(text);
+        const hasActionClass = positiveClass.test(className);
         const score = (hasStableHref ? 20 : 0)
           + (hasActionText ? 10 : 0)
+          + (hasActionClass ? 5 : 0)
           + (/详情|数据|分析/.test(text) ? 4 : 0)
-          + (/(note_id=|noteId=|\/note\/|explore\/)/i.test(href) ? 6 : 0)
-          - (!hasStableHref && !hasActionText ? 100 : 0)
+          + (/(note_id=|noteId=|\/note\/)/i.test(href) ? 6 : 0)
+          - (!hasStableHref && !hasActionText && !hasActionClass ? 100 : 0)
           - (dangerous.test(`${text} ${href}`) ? 100 : 0)
+          - (publicNoteHref.test(href) ? 80 : 0)
           - (text.length > 120 ? 12 : 0);
-        return {
-          element,
-          score,
-          href: safeHref(href),
-          x: rect.left + rect.width / 2,
-          y: rect.top + rect.height / 2
-        };
-      })
-      .filter((item) => item.score > 0 && visible(item.element))
-      .sort((a, b) => b.score - a.score);
+        if (score > 0) addTarget(targetForElement(element, "action", score));
+    }
 
-    const rowCandidates = Array.from(document.querySelectorAll(rowSelector))
-      .map((element) => {
+    for (const element of Array.from(document.querySelectorAll(rowSelector))) {
         const text = clean(element.textContent);
-        const rect = element.getBoundingClientRect();
+        if (!hasCompactRowShape(element, text) || !visible(element)) continue;
         const score = (/(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/.test(text) ? 18 : 0)
           + (/\d/.test(text) ? 8 : 0)
+          + (element.querySelector(coverSelector) ? 6 : 0)
+          + (element.querySelector(titleSelector) ? 6 : 0)
           - (/(删除|提交审核|修改资料|编辑资料|授权|开通|支付|上传|私信|充值|导出|下载|保存)/.test(text) ? 60 : 0)
-          - (text.length > 700 ? 40 : 0)
-          - ((element.querySelectorAll(rowSelector).length > 2) ? 30 : 0);
-        return {
-          element,
-          score,
-          href: "",
-          x: rect.left + Math.min(rect.width * 0.28, 260),
-          y: rect.top + rect.height / 2
-        };
-      })
-      .filter((item) => item.score > 0 && visible(item.element))
-      .sort((a, b) => b.score - a.score);
+          - (text.length > 700 ? 40 : 0);
+        if (score <= 0) continue;
+        const actionChildren = Array.from(element.querySelectorAll(selector))
+          .filter((child) => {
+            const href = child.getAttribute("href") ?? "";
+            return !publicNoteHref.test(href)
+              && (positive.test(clean(`${child.getAttribute("aria-label") ?? ""} ${child.getAttribute("title") ?? ""} ${child.textContent ?? ""}`)) || stableHref.test(href));
+          });
+        for (const child of actionChildren.slice(0, 4)) addTarget(targetForElement(child, "action", score + 12));
+        for (const child of Array.from(element.querySelectorAll(titleSelector)).slice(0, 4)) addTarget(targetForElement(child, "title", score + 8));
+        for (const child of Array.from(element.querySelectorAll(coverSelector)).slice(0, 4)) addTarget(targetForElement(child, "cover", score + 6));
+        const rect = element.getBoundingClientRect();
+        addTarget({
+          x: Math.round(rect.left + Math.min(rect.width * 0.28, 260)),
+          y: Math.round(rect.top + rect.height / 2),
+          kind: "row",
+          score
+        });
+    }
 
-    const chosen = candidates[0] ?? rowCandidates[0];
-    if (!chosen) return undefined;
-    chosen.element.scrollIntoView({ block: "center", inline: "center" });
-    const rect = chosen.element.getBoundingClientRect();
-    return {
-      x: Math.round(rect.left + rect.width / 2),
-      y: Math.round(rect.top + rect.height / 2),
-      href: chosen.href || undefined
-    };
-  }) as { x: number; y: number; href?: string } | undefined;
+    return targets
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 16);
+  }).then((targets) => targets ?? []);
+}
 
-  if (!target) return { ok: false, beforeUrl, afterUrl: safePageUrl(page.url()), warning: "no_safe_clickable_detail_entry" };
-  const popupPromise = page.context().waitForEvent("page", { timeout: 5000 }).catch(() => undefined);
-  await page.mouse.click(target.x, target.y);
-  const popup = await popupPromise;
-  const activePage = popup ?? page;
-  await activePage.waitForLoadState("domcontentloaded", { timeout: 10000 }).catch(() => undefined);
-  await activePage.waitForTimeout(1200);
-  await activePage.bringToFront().catch(() => undefined);
-  const detailState = await activePage.evaluate(() => {
-    const currentUrl = window.location.href;
-    const idPattern = /(?:note\/|explore\/|discovery\.|note_id=|noteId=)([A-Za-z0-9_-]{6,})/i;
+async function resetXiaohongshuWorksPage(page: Page) {
+  if (page.isClosed()) return;
+  await page.keyboard.press("Escape").catch(() => undefined);
+  if (/\/new\/note-manager\/?$/.test(new URL(page.url()).pathname)) return;
+  await page.goto(resolveAuthedBrowserTargetUrl("xiaohongshu", "works_page"), { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
+  await page.waitForTimeout(800).catch(() => undefined);
+}
+
+async function prepareXiaohongshuContentAnalysisPage(page: Page) {
+  if (page.isClosed()) return;
+  if (!isCreatorUrl(page.url())) {
+    await page.goto(resolveAuthedBrowserTargetUrl("xiaohongshu", "works_page"), { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
+  }
+  await page.keyboard.press("Escape").catch(() => undefined);
+  await page.waitForTimeout(500).catch(() => undefined);
+  await page.getByText("数据看板", { exact: true }).first().click({ timeout: 3000 }).catch(() => undefined);
+  await page.waitForTimeout(600).catch(() => undefined);
+  await page.getByText("内容分析", { exact: true }).first().click({ timeout: 3000 }).catch(() => undefined);
+  await page.waitForLoadState("domcontentloaded", { timeout: 10000 }).catch(() => undefined);
+  await page.waitForTimeout(1600).catch(() => undefined);
+}
+
+async function recoverXiaohongshuCreatorPage(page: Page) {
+  const context = page.context();
+  const existing = context.pages().find((item) => !item.isClosed() && isCreatorUrl(item.url()));
+  if (existing) {
+    await existing.bringToFront().catch(() => undefined);
+    return existing;
+  }
+  const nextPage = await context.newPage().catch(() => undefined);
+  if (!nextPage) return undefined;
+  await nextPage.goto(resolveAuthedBrowserTargetUrl("xiaohongshu", "works_page"), { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
+  await nextPage.waitForTimeout(1200).catch(() => undefined);
+  await nextPage.bringToFront().catch(() => undefined);
+  return nextPage;
+}
+
+async function clickXiaohongshuTarget(page: Page, target: XiaohongshuDetailClickTarget) {
+  await page.mouse.click(target.x, target.y).catch(() => undefined);
+}
+
+async function revealVisibleXiaohongshuRowActions(page: Page) {
+  if (page.isClosed()) return;
+  const targets = await page.evaluate(() => {
+    const dangerous = /(发布|删除|提交|审核|修改|编辑|授权|开通|支付|上传|私信|消息|充值|导出|下载|保存|确认|确定)/;
+    const rowSelector = "tr,[role='row'],article,li,[class*='table-row'],[class*='TableRow'],[class*='note'],[class*='Note'],[class*='card'],[class*='item']";
     function clean(value: string | null | undefined) {
       return (value ?? "").replace(/\s+/g, " ").trim();
     }
@@ -468,7 +587,7 @@ async function openFirstVisibleDetail(page: Page) {
       const rect = element.getBoundingClientRect();
       const style = window.getComputedStyle(element);
       return rect.width >= 80
-        && rect.height >= 80
+        && rect.height >= 40
         && rect.bottom > 0
         && rect.right > 0
         && rect.top < window.innerHeight
@@ -476,32 +595,102 @@ async function openFirstVisibleDetail(page: Page) {
         && style.visibility !== "hidden"
         && style.display !== "none";
     }
-    const urlLooksDetail = !/\/new\/note-manager\/?$/.test(window.location.pathname)
-      && /(detail|analysis|analyse|note|data|note_id=|noteId=|explore\/)/i.test(currentUrl);
-    const rootsWithStableId = Array.from(document.querySelectorAll("[role='dialog'],[class*='drawer'],[class*='Drawer'],[class*='modal'],[class*='Modal'],[class*='detail'],[class*='Detail']"))
-      .filter(visible)
-      .filter((element) => {
-        const scopedText = clean(element.textContent);
-        const scopedLinks = Array.from(element.querySelectorAll("a[href*='xiaohongshu.com'],a[href*='note'],a[href*='note_id'],a[href*='noteId'],a[href*='explore']"));
-        const scopedAttrs = Array.from(element.querySelectorAll("[data-id],[data-note-id],[id]")).slice(0, 80);
-        return idPattern.test(scopedText)
-          || scopedLinks.some((anchor) => idPattern.test(anchor.getAttribute("href") ?? ""))
-          || scopedAttrs.some((item) => Array.from(item.attributes).some((attribute) => /(^data-(?:note-)?id$|^id$|note)/i.test(attribute.name) && idPattern.test(attribute.value)));
-      });
-    return {
-      urlLooksDetail,
-      stableUrlId: idPattern.test(currentUrl),
-      stableRootCount: rootsWithStableId.length
-    };
-  }).catch(() => ({ urlLooksDetail: false, stableUrlId: false, stableRootCount: 0 }));
-  const enteredDetail = (detailState.urlLooksDetail && detailState.stableUrlId) || detailState.stableRootCount > 0;
+    return Array.from(document.querySelectorAll(rowSelector))
+      .map((element) => {
+        const text = clean(element.textContent);
+        const rect = element.getBoundingClientRect();
+        const score = (/(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/.test(text) ? 12 : 0)
+          + (/\d/.test(text) ? 4 : 0)
+          - (dangerous.test(text) ? 80 : 0)
+          - (text.length > 700 ? 40 : 0)
+          - (element.querySelectorAll(rowSelector).length > 2 ? 20 : 0);
+        return { x: Math.round(rect.left + rect.width * 0.72), y: Math.round(rect.top + rect.height / 2), score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 6);
+  }).catch(() => []);
+  for (const target of targets) {
+    await page.mouse.move(target.x, target.y).catch(() => undefined);
+    await page.waitForTimeout(250).catch(() => undefined);
+  }
+}
+
+async function openFirstVisibleDetail(page: Page) {
+  let basePage = !page.isClosed() ? page : await recoverXiaohongshuCreatorPage(page) ?? page;
+  const beforeUrl = safePageUrl(basePage.isClosed() ? page.url() : basePage.url());
+  const attemptedKeys = new Set<string>();
+  let attemptedCount = 0;
+  let targetCount = 0;
+  let lastWarning = "click_did_not_enter_detail";
+  const targetKindCounts = { action: 0, title: 0, cover: 0, row: 0 };
+  while (attemptedCount < 20) {
+    if (basePage.isClosed()) {
+      const recovered = await recoverXiaohongshuCreatorPage(page);
+      if (!recovered) return { ok: false, beforeUrl, afterUrl: beforeUrl, warning: "click_closed_creator_page", targetCount, attemptedCount };
+      basePage = recovered;
+    }
+    await prepareXiaohongshuContentAnalysisPage(basePage);
+    await revealVisibleXiaohongshuRowActions(basePage);
+    const targets = await collectVisibleDetailClickTargets(basePage);
+    targetCount = Math.max(targetCount, targets.length);
+    for (const kind of ["action", "title", "cover", "row"] as const) {
+      targetKindCounts[kind] = Math.max(targetKindCounts[kind], targets.filter((item) => item.kind === kind).length);
+    }
+    const actionTargets = targets.filter((item) => item.kind === "action");
+    const target = actionTargets.find((item) => {
+      const key = `${item.kind}:${Math.round(item.x / 8)}:${Math.round(item.y / 8)}`;
+      return !attemptedKeys.has(key);
+    });
+    if (!target) {
+      lastWarning = actionTargets.length === 0 ? "no_backend_action_detail_entry" : "click_did_not_enter_detail";
+      break;
+    }
+    attemptedKeys.add(`${target.kind}:${Math.round(target.x / 8)}:${Math.round(target.y / 8)}`);
+    attemptedCount += 1;
+
+    const popupPromise = basePage.context().waitForEvent("page", { timeout: 3500 }).catch(() => undefined);
+    await clickXiaohongshuTarget(basePage, target);
+    const popup = await popupPromise;
+    let activePage = popup ?? basePage;
+    await activePage.waitForLoadState("domcontentloaded", { timeout: 10000 }).catch(() => undefined);
+    await activePage.waitForTimeout(1400).catch(() => undefined);
+    if (activePage.isClosed()) {
+      const recovered = await recoverXiaohongshuCreatorPage(basePage);
+      if (recovered) basePage = recovered;
+      await prepareXiaohongshuContentAnalysisPage(basePage);
+      continue;
+    }
+    await activePage.bringToFront().catch(() => undefined);
+    const detailState = await evaluateCurrentDetailState(activePage);
+    if (hasEnteredXiaohongshuDetail(detailState)) {
+      return {
+        ok: true,
+        beforeUrl,
+        afterUrl: safePageUrl(activePage.url()),
+        page: activePage,
+        warning: undefined,
+        targetCount,
+        attemptedCount,
+        targetKindCounts
+      };
+    }
+    if (basePage.isClosed()) {
+      const recovered = await recoverXiaohongshuCreatorPage(activePage);
+      if (recovered) basePage = recovered;
+    }
+    await prepareXiaohongshuContentAnalysisPage(basePage);
+  }
+
   return {
-    ok: enteredDetail,
+    ok: false,
     beforeUrl,
-    afterUrl: safePageUrl(activePage.url()),
-    page: activePage,
-    href: target.href,
-    warning: enteredDetail ? undefined : "click_did_not_enter_detail"
+    afterUrl: safePageUrl(basePage.isClosed() ? beforeUrl : basePage.url()),
+    page: basePage.isClosed() ? undefined : basePage,
+    warning: lastWarning,
+    targetCount,
+    attemptedCount,
+    targetKindCounts
   };
 }
 
@@ -592,9 +781,11 @@ export async function POST(request: Request) {
         rows: session.lastRows,
         ...summarizeRows(session.lastRows),
         message: clickResult.ok
-          ? "已用鼠标点开小红书当前页面里第一条安全的笔记数据/详情入口；请继续执行当前笔记详情页预览。"
-          : "未找到可安全点击的小红书笔记数据/详情入口；没有点击发布、删除、上传、授权或支付等按钮。",
-        warnings: clickResult.ok ? [] : [clickResult.warning ?? "no_safe_clickable_detail_entry"]
+          ? "已用鼠标点开小红书当前页面里的安全笔记数据/详情入口；请继续执行当前笔记详情页预览。"
+          : "已尝试小红书当前页面里的安全笔记标题、封面、数据/详情入口，但未进入带稳定笔记 ID 的详情页或抽屉；没有点击发布、删除、上传、授权或支付等按钮。",
+        warnings: clickResult.ok
+          ? [`safe_click_targets_${clickResult.targetCount ?? 0}`, `safe_click_action_targets_${clickResult.targetKindCounts?.action ?? 0}`, `attempted_safe_clicks_${clickResult.attemptedCount ?? 0}`]
+          : [clickResult.warning ?? "no_safe_clickable_detail_entry", `safe_click_targets_${clickResult.targetCount ?? 0}`, `safe_click_action_targets_${clickResult.targetKindCounts?.action ?? 0}`, `attempted_safe_clicks_${clickResult.attemptedCount ?? 0}`]
       }), { status: clickResult.ok ? 200 : 400 });
     }
 

@@ -79,12 +79,12 @@ function isGenericNativeId(value: string | undefined, platform: Platform) {
   const generic = /table|row|card|item|button|container|tab|panel|list|request|response|form|semi/i;
   if (generic.test(value)) return true;
   if (/^__|svg|sprite|node|icon|symbol/i.test(value)) return true;
-  if (platform === "xiaohongshu" && /manager|notes-request/i.test(value)) return true;
+  if (platform === "xiaohongshu" && /manager|notes-request|feedback|wrapper|data-analysis|statistics/i.test(value)) return true;
   return false;
 }
 
 function noisyTitle(value: string) {
-  return /投稿作品直播场次|投稿分析投稿列表|数据周期内投稿量|编辑作品设置权限|作品置顶删除作品|全部\s*\d+已发布|审核中未通过/.test(value);
+  return /投稿作品直播场次|投稿分析投稿列表|数据周期内投稿量|编辑作品设置权限|作品置顶删除作品|全部\s*\d+已发布|审核中未通过|笔记题材|账号概览|内容分析|观看数据|互动数据|涨粉数据|发布数据|数据总览|统计周期/.test(value);
 }
 
 function isNoisyContainer(candidate: CreatorCenterDomCandidate) {
@@ -119,7 +119,7 @@ function isBadTitleLine(value: string, platform: Platform) {
   if (value.length < 4 || value.length > 140) return true;
   if (isMetricText(value, platform)) return true;
   if (noisyTitle(value)) return true;
-  if (/^(抖音|抖音作品|创作者中心|内容管理|作品管理|作品数据|数据中心|变现中心|数据详情|数据概览|核心数据|内容数据|作品分析|数据表现|作品详情|小红书|小红书笔记|创作服务平台|笔记管理|笔记数据|笔记详情)$/.test(value)) return true;
+  if (/^(抖音|抖音作品|创作者中心|内容管理|作品管理|作品数据|数据中心|变现中心|数据详情|数据概览|核心数据|内容数据|作品分析|数据表现|作品详情|小红书|小红书笔记|创作服务平台|笔记管理|笔记数据|笔记详情|笔记题材|账号概览|内容分析)$/.test(value)) return true;
   if (/编辑|删除|查看|更多|置顶|发布时间|立即发布/.test(value)) return true;
   if (/^20\d{2}[-/.年]/.test(value)) return true;
   if (/^(已发布|审核中|未通过|全部|\d+)$/.test(value)) return true;
@@ -291,7 +291,7 @@ function hasDetailMetricCoverage(candidate: CreatorCenterDomCandidate, platform:
 
 function isGenericDetailTitle(value: string, platform: Platform) {
   if (platform === "douyin" && /^(抖音|抖音作品|创作者中心|内容管理|作品管理|作品数据|数据中心|变现中心|数据详情|数据概览|核心数据|内容数据|作品分析|数据表现|作品详情)$/.test(value)) return true;
-  if (platform === "xiaohongshu" && /^(小红书|小红书笔记|创作服务平台|笔记管理|笔记数据|笔记详情|数据中心|数据详情|数据概览|核心数据|数据表现|作品详情)$/.test(value)) return true;
+  if (platform === "xiaohongshu" && /^(小红书|小红书笔记|创作服务平台|笔记管理|笔记数据|笔记详情|数据中心|数据详情|数据概览|核心数据|数据表现|作品详情|笔记题材|账号概览|内容分析|观看数据|互动数据|涨粉数据|发布数据)$/.test(value)) return true;
   return false;
 }
 
@@ -370,8 +370,8 @@ export function selectXiaohongshuCreatorCenterDetailRow(candidate: CreatorCenter
   const text = clean(candidate.text);
   if (text.length < 12 || text.length > 5000) return [];
   if (!candidateHasMetricText(candidate, "xiaohongshu")) return [];
-  if (/(私信|评论正文|用户画像|粉丝画像|账号总览|粉丝总数|粉丝分析|关注用户|手机号|邮箱)/.test(text)) return [];
-  if (/(notes-request|semiTab|全部\s*\d+已发布|审核中未通过)/i.test(text)) return [];
+  if (/(私信|评论正文|用户画像|粉丝画像|账号总览|账号概览|粉丝总数|粉丝分析|关注用户|手机号|邮箱|数据总览|统计周期|近7日|近30日)/.test(text)) return [];
+  if (/(notes-request|semiTab|creator-feedback-wrapper|data-analysis|全部\s*\d+已发布|审核中未通过)/i.test(text)) return [];
   const idInfo = idOf(candidate, "xiaohongshu");
   if (idInfo.nativeIdConfidence !== "stable_platform_id") return [];
   const title = titleOf(candidate, "xiaohongshu");

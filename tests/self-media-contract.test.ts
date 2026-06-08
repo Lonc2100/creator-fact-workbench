@@ -1324,6 +1324,16 @@ test("creator-center detail selectors save only stable single-work detail rows",
     cells: ["笔记数据", "2026-06-05", "分享 2026"],
     childCandidateCount: 0
   };
+  const badXiaohongshuDataAnalysisAggregate: CreatorCenterDomCandidate = {
+    text: "笔记题材 统计周期 06-01 至 06-07 观看数据 互动数据 涨粉数据 发布数据 浏览 4 分享 2026",
+    tagName: "page",
+    role: "document",
+    titleAttr: "笔记题材",
+    hrefs: ["https://creator.xiaohongshu.com/statistics/data-analysis"],
+    dataValues: ["creator-feedback-wrapper"],
+    cells: ["笔记题材", "统计周期 06-01 至 06-07", "浏览", "4", "分享", "2026"],
+    childCandidateCount: 0
+  };
 
   const douyinRows = selectDouyinCreatorCenterDetailRow(douyinDetail, capturedAt);
   const douyinWorkDetailRows = selectDouyinCreatorCenterDetailRow(douyinWorkDetail, capturedAt);
@@ -1333,6 +1343,7 @@ test("creator-center detail selectors save only stable single-work detail rows",
   assert.equal(selectDouyinCreatorCenterDetailRow(badDouyinGenericTitleDetail, capturedAt).length, 0);
   assert.equal(selectDouyinCreatorCenterDetailRow(badDouyinMisalignedMetricDetail, capturedAt).length, 0);
   assert.equal(selectXiaohongshuCreatorCenterDetailRow(badXiaohongshuDetail, capturedAt).length, 0);
+  assert.equal(selectXiaohongshuCreatorCenterDetailRow(badXiaohongshuDataAnalysisAggregate, capturedAt).length, 0);
   assert.equal(douyinRows.length, 1);
   assert.equal(douyinRows[0].sourcePageKind, "creator_center_owned_detail");
   assert.equal(douyinRows[0].confidence, "owned_creator_center_detail");
