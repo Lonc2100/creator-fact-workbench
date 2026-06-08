@@ -121,6 +121,14 @@ function createNote(id: string, capturedAt: string): XiaohongshuMappedNote {
   };
 }
 
+function isTrustedBrowserVisibleRow(row: XiaohongshuBrowserVisibleRow) {
+  return row.sourcePageKind === "creator_center_owned_works"
+    && row.confidence === "owned_creator_center_row"
+    && (row.nativeIdConfidence === "stable_platform_id" || row.nativeIdConfidence === "visible_platform_id")
+    && Boolean(row.nativeId)
+    && row.views + row.likes + row.comments + row.saves + row.shares > 0;
+}
+
 function mergeNoteInfo(item: XiaohongshuMappedNote, noteInfo: JsonRecord) {
   item.title = textOf(noteInfo, "title", "desc") || item.title;
   item.publishedAt = toIsoDate(noteInfo.postTime ?? noteInfo.post_time ?? noteInfo.user_update_time ?? noteInfo.update_time) ?? item.publishedAt;
@@ -149,7 +157,9 @@ export class XiaohongshuPersonalProvider {
       "xiaohongshu_authed_browser_capture: 用户在本机受控浏览器中手动登录后，本地只读取小红书创作服务平台当前页面可见的本人笔记/作品行；不保存账号密码、登录材料、请求明细或原始响应。",
       "xiaohongshu_authed_browser_capture: 公开推荐页、搜索/探索页、话题推荐、非本人内容和私密互动不会写入内容指标。"
     ];
-    const validRows = rows.filter((row) => row.id && row.title);
+    const blockedRows = rows.filter((row) => row.id && row.title && !isTrustedBrowserVisibleRow(row));
+    const validRows = rows.filter((row) => row.id && row.title && isTrustedBrowserVisibleRow(row));
+    if (blockedRows.length > 0) warnings.push(`xiaohongshu_authed_browser_capture: skipped ${blockedRows.length} preview rows without creator-center ownership or stable native id.`);
     if (validRows.length === 0) warnings.push("xiaohongshu_authed_browser_capture: 当前页面未识别到可保存的本人笔记/作品级数据行。");
     const contents: ContentItem[] = validRows.map((row) => ({
       id: row.id,
@@ -164,6 +174,8 @@ export class XiaohongshuPersonalProvider {
       dataDomain: "user_work",
       notes: [
         "xiaohongshu_authed_browser_capture:visible_dom",
+        `sourcePageKind=${row.sourcePageKind}`,
+        `nativeIdConfidence=${row.nativeIdConfidence}`,
         row.noteUrl ? `url=${safeRef(row.noteUrl)}` : undefined,
         row.warnings.length > 0 ? `warnings=${row.warnings.join("|").slice(0, 160)}` : undefined
       ].filter(Boolean).join("; ")

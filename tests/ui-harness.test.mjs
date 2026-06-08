@@ -483,13 +483,19 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /douyin-login-browser-close/);
   assert.match(importPage, /douyin-login-browser-dashboard-link/);
   assert.match(importPage, /\/api\/self-media\/platform-imports\/browser-capture\/douyin/);
-  assert.match(importPage, /不包含账号总览或敏感互动内容/);
+  assert.match(importPage, /canSaveAuthedBrowserRow/);
+  assert.match(importPage, /nativeIdConfidenceLabel/);
+  assert.match(importPage, /sourcePageKindLabel/);
+  assert.match(importPage, /可保存候选/);
+  assert.match(importPage, /保存后进入数据看板/);
+  assert.match(importPage, /douyinBrowserSaveCandidateCount > 0/);
+  assert.match(importPage, /不会自动保存账号总览或敏感互动内容/);
   assert.match(importPage, /读取结果只保存内容级可信指标/);
   assert.match(importPage, /xiaohongshu-login-browser-flow/);
   assert.match(importPage, /小红书登录后读取笔记/);
   assert.match(importPage, /小红书创作服务平台/);
   assert.match(importPage, /笔记管理\/数据表现/);
-  assert.match(importPage, /公开推荐页、搜索页、话题页、非本人内容和私密互动/);
+  assert.match(importPage, /公开推荐页、非本人内容或私密互动/);
   assert.match(importPage, /xiaohongshu-login-browser-login-confirm/);
   assert.match(importPage, /xiaohongshu-login-browser-save-confirm/);
   assert.match(importPage, /xiaohongshu-login-browser-open/);
@@ -500,7 +506,8 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /xiaohongshu-login-browser-dashboard-link/);
   assert.match(importPage, /xiaohongshu-authed-browser-preview/);
   assert.match(importPage, /\/api\/self-media\/platform-imports\/browser-capture\/xiaohongshu/);
-  assert.match(importPage, /不包含公开推荐页、非本人内容或私密互动/);
+  assert.match(importPage, /xiaohongshuBrowserSaveCandidateCount > 0/);
+  assert.match(importPage, /不会自动保存公开推荐页、非本人内容或私密互动/);
   assert.match(importPage, /读取结果只保存内容级可信指标/);
   assert.match(importPage, /douyin-local-file-mvp/);
   assert.match(importPage, /抖音本地导出回收 MVP/);
@@ -778,11 +785,16 @@ test("douyin authed browser capture route keeps credential material outside the 
   assert.match(route, /body\.target \?\? "works_page"/);
   assert.match(provider, /douyin: "https:\/\/creator\.douyin\.com\/creator-micro\/content\/manage"/);
   assert.doesNotMatch(route, /browser\.newContext|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)/);
-  assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"\]/);
+  assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "authorization", "raw", "request", "response", "storage", "storageState", "screenshot", "har", "trace", "credential"\]/);
   assert.match(route, /extractVisibleRows/);
+  assert.match(route, /sourcePageKind/);
+  assert.match(route, /nativeIdConfidence/);
+  assert.match(route, /saveCandidateRows/);
+  assert.match(route, /no_creator_center_owned_save_candidates/);
   assert.match(route, /importDouyinBrowserVisibleRows/);
   assert.match(route, /loginState === "logged_in_or_accessible"/);
   assert.match(route, /accountMetricsExcluded: true/);
+  assert.doesNotMatch(route, /action:\s*"save"|userConfirmedContentMetrics:\s*true|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)|screenshot\s*\(|tracing\./);
 });
 
 test("xiaohongshu authed browser capture route keeps login material and public recommendations outside the import contract", () => {
@@ -796,14 +808,19 @@ test("xiaohongshu authed browser capture route keeps login material and public r
   assert.match(config, /startUrl: "https:\/\/creator\.xiaohongshu\.com\/new\/note-manager"/);
   assert.match(provider, /xiaohongshu: "https:\/\/creator\.xiaohongshu\.com\/new\/note-manager"/);
   assert.doesNotMatch(route, /storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)/);
-  assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"\]/);
+  assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "authorization", "raw", "request", "response", "storage", "storageState", "screenshot", "har", "trace", "credential"\]/);
   assert.match(route, /extractVisibleRows/);
+  assert.match(route, /sourcePageKind/);
+  assert.match(route, /nativeIdConfidence/);
+  assert.match(route, /saveCandidateRows/);
+  assert.match(route, /no_creator_center_owned_save_candidates/);
   assert.match(route, /creator\.xiaohongshu\.com/);
   assert.match(route, /wrong_page/);
   assert.match(route, /publicRecommendationExcluded: true/);
   assert.match(route, /publicRecommendation/);
   assert.match(route, /importXiaohongshuBrowserVisibleRows/);
   assert.match(route, /loginState === "logged_in_or_accessible"/);
+  assert.doesNotMatch(route, /action:\s*"save"|userConfirmedContentMetrics:\s*true|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)|screenshot\s*\(|tracing\./);
 });
 
 test("browser capture profile route exposes local-only session controls", () => {
@@ -814,7 +831,7 @@ test("browser capture profile route exposes local-only session controls", () => 
   assert.match(route, /POST\(request: Request\)/);
   assert.match(route, /openAuthedBrowserProfile/);
   assert.match(route, /confirmAuthedBrowserProfileLogin/);
-  assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"\]/);
+  assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "authorization", "raw", "request", "response", "storage", "storageState", "screenshot", "har", "trace", "credential"\]/);
   assert.match(provider, /\.local\/browser-profiles/);
   assert.match(provider, /noCookieTokenHeaderInBusinessDb: true/);
   assert.match(provider, /noStorageStateExport: true/);

@@ -7,7 +7,7 @@ import type { DouyinAuthedBrowserCaptureRequest, DouyinAuthedBrowserCaptureResul
 export const runtime = "nodejs";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
-const blockedInputKeys = ["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"];
+const blockedInputKeys = ["cookie", "token", "password", "header", "headers", "authorization", "raw", "request", "response", "storage", "storageState", "screenshot", "har", "trace", "credential"];
 
 type DouyinBrowserSession = {
   context: BrowserContext;
@@ -122,6 +122,11 @@ async function extractVisibleRows(page: Page): Promise<DouyinBrowserVisibleRow[]
     type Row = DouyinBrowserVisibleRow;
     const metricLabels = /(播放|浏览|点赞|评论|收藏|分享|转发|完播|互动)/;
     const accountOnly = /(粉丝画像|账号总览|账号数据|主页访问|净增粉丝|粉丝总数|私信|评论内容)/;
+    const sourcePageKind = /creator\.douyin\.com$/.test(window.location.hostname) && /creator-micro\/(?:content\/manage|data-center\/content)/.test(window.location.pathname)
+      ? "creator_center_owned_works"
+      : /douyin\.com$/.test(window.location.hostname) && /user|creator/.test(window.location.pathname)
+        ? "public_creator_home"
+        : "creator_center_unknown";
 
     function clean(value: string | null | undefined) {
       return (value ?? "").replace(/\s+/g, " ").trim();
@@ -167,13 +172,28 @@ async function extractVisibleRows(page: Page): Promise<DouyinBrowserVisibleRow[]
       }
     }
 
+    function dataIdOf(element: Element) {
+      const candidates = [element, ...Array.from(element.querySelectorAll("[data-id],[data-item-id],[data-aweme-id],[data-e2e],[id]")).slice(0, 60)];
+      for (const candidate of candidates) {
+        for (const attribute of Array.from(candidate.attributes)) {
+          if (!/(^data-(?:item-|aweme-)?id$|^id$|aweme|item)/i.test(attribute.name)) continue;
+          const value = clean(attribute.value);
+          const match = value.match(/([A-Za-z0-9_-]{6,})/);
+          if (match && !/table|row|card|item|button|container/i.test(match[1])) return match[1];
+        }
+      }
+      return "";
+    }
+
     function idOf(element: Element, text: string) {
       const href = linkOf(element);
       const fromHref = href.match(/(?:video\/|modal_id=|item_id=|aweme_id=)([A-Za-z0-9_-]{6,})/i)?.[1];
-      if (fromHref) return fromHref;
+      if (fromHref) return { id: fromHref, nativeId: fromHref, nativeIdConfidence: "stable_platform_id" as const };
+      const fromData = dataIdOf(element);
+      if (fromData) return { id: fromData, nativeId: fromData, nativeIdConfidence: "stable_platform_id" as const };
       const explicit = text.match(/(?:作品ID|视频ID|item[_\s-]?id|aweme[_\s-]?id)[:：\s]*([A-Za-z0-9_-]{4,})/i)?.[1];
-      if (explicit) return explicit;
-      return `dy-browser-${hash(text.slice(0, 260))}`;
+      if (explicit) return { id: explicit, nativeId: explicit, nativeIdConfidence: "visible_platform_id" as const };
+      return { id: `dy-browser-${hash(text.slice(0, 260))}`, nativeId: undefined, nativeIdConfidence: "fallback_text_hash" as const };
     }
 
     function titleOf(element: Element, text: string) {
@@ -203,12 +223,14 @@ async function extractVisibleRows(page: Page): Promise<DouyinBrowserVisibleRow[]
       if (!metricLabels.test(text)) continue;
       if (accountOnly.test(text) && !/作品|视频|标题/.test(text)) continue;
       const title = titleOf(element, text);
-      const id = idOf(element, text);
+      const idInfo = idOf(element, text);
+      const id = idInfo.id;
       const key = `${id}|${title}`;
       if (seen.has(key)) continue;
       seen.add(key);
       const row: Row = {
         id,
+        nativeId: idInfo.nativeId,
         title,
         publishedAt: publishedAtOf(text),
         capturedAt: now,
@@ -220,11 +242,14 @@ async function extractVisibleRows(page: Page): Promise<DouyinBrowserVisibleRow[]
         followersDelta: 0,
         itemUrl: linkOf(element) || undefined,
         extractionSource: "visible_dom",
-        confidence: /作品|视频|标题/.test(text) ? "visible_content_row" : "fallback_visible_card",
+        sourcePageKind,
+        confidence: sourcePageKind === "creator_center_owned_works" && /作品|视频|标题/.test(text) ? "owned_creator_center_row" : "fallback_visible_card",
+        nativeIdConfidence: idInfo.nativeIdConfidence,
         warnings: []
       };
       if (row.views + row.likes + row.comments + row.saves + row.shares === 0) row.warnings.push("no_metric_number_detected");
-      if (row.id.startsWith("dy-browser-")) row.warnings.push("fallback_id_from_visible_text");
+      if (row.nativeIdConfidence === "fallback_text_hash") row.warnings.push("fallback_id_from_visible_text");
+      if (row.sourcePageKind !== "creator_center_owned_works") row.warnings.push("not_creator_center_owned_works_page");
       rows.push(row);
       if (rows.length >= 20) break;
     }
@@ -235,8 +260,21 @@ async function extractVisibleRows(page: Page): Promise<DouyinBrowserVisibleRow[]
 function summarizeRows(rows: DouyinBrowserVisibleRow[]) {
   return {
     contentCount: rows.length,
-    metricCount: rows.filter((row) => row.views + row.likes + row.comments + row.saves + row.shares > 0).length
+    metricCount: rows.filter((row) => row.views + row.likes + row.comments + row.saves + row.shares > 0).length,
+    saveCandidateCount: saveCandidateRows(rows).length
   };
+}
+
+function canSaveRow(row: DouyinBrowserVisibleRow) {
+  return row.sourcePageKind === "creator_center_owned_works"
+    && row.confidence === "owned_creator_center_row"
+    && (row.nativeIdConfidence === "stable_platform_id" || row.nativeIdConfidence === "visible_platform_id")
+    && Boolean(row.nativeId)
+    && row.views + row.likes + row.comments + row.saves + row.shares > 0;
+}
+
+function saveCandidateRows(rows: DouyinBrowserVisibleRow[]) {
+  return rows.filter(canSaveRow);
 }
 
 const browserSaveProvenance: ImportProvenanceMetadata = {
@@ -308,20 +346,21 @@ export async function POST(request: Request) {
     if (!body.userConfirmedContentMetrics) {
       return Response.json(emptyResult(action, { ...base, rows, ...summary, message: "保存前需要确认这是本人抖音后台当前页面的内容级作品指标。", warnings: ["missing_user_content_metrics_confirmation"] }), { status: 400 });
     }
-    if (rows.length === 0) {
-      return Response.json(emptyResult(action, { ...base, rows, ...summary, message: "没有可保存的抖音作品级数据。", warnings: ["no_visible_content_rows"] }), { status: 400 });
+    const saveRows = saveCandidateRows(rows);
+    if (saveRows.length === 0) {
+      return Response.json(emptyResult(action, { ...base, rows, ...summary, message: "没有可保存的抖音作品级数据；请确认页面是本人创作者中心作品管理/内容数据页，并且作品 ID 来自可见链接或平台 ID。", warnings: ["no_creator_center_owned_save_candidates", ...rows.flatMap((row) => row.warnings)] }), { status: 400 });
     }
     const service = new SelfMediaService();
-    const result = service.importDouyinBrowserVisibleRows(rows, browserSaveProvenance);
+    const result = service.importDouyinBrowserVisibleRows(saveRows, browserSaveProvenance);
     return Response.json(emptyResult(action, {
       ...base,
       ok: result.run.status === "success",
       rows,
-      ...summary,
+      ...summarizeRows(saveRows),
       importRunId: result.run.id,
       dashboardUrl: "/dashboard",
       capturedAt: new Date().toISOString(),
-      message: `已保存 ${summary.contentCount} 条抖音内容级指标到可信看板；未保存登录材料或账号级指标。`,
+      message: `已保存 ${saveRows.length} 条抖音内容级指标到可信看板；未保存登录材料或账号级指标。`,
       warnings: rows.flatMap((row) => row.warnings)
     }), { status: result.run.status === "success" ? 200 : 400 });
   } catch (error) {

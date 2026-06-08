@@ -1064,11 +1064,15 @@ export interface AuthedBrowserAutoRefreshResult {
 
 export type DouyinAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "save" | "close";
 export type AuthedBrowserCaptureTarget = "default" | "works_page";
+export type AuthedBrowserSourcePageKind = "creator_center_owned_works" | "creator_center_unknown" | "public_creator_home" | "public_or_wrong_page";
+export type AuthedBrowserRowConfidence = "owned_creator_center_row" | "fallback_visible_card" | "unknown";
+export type AuthedBrowserNativeIdConfidence = "stable_platform_id" | "visible_platform_id" | "fallback_text_hash" | "missing";
 
 export type DouyinAuthedBrowserLoginState = "not_opened" | "needs_login" | "user_confirmed" | "logged_in_or_accessible" | "unknown" | "closed" | "error";
 
 export interface DouyinBrowserVisibleRow {
   id: string;
+  nativeId?: string;
   title: string;
   publishedAt?: string;
   capturedAt: string;
@@ -1080,7 +1084,9 @@ export interface DouyinBrowserVisibleRow {
   followersDelta: number;
   itemUrl?: string;
   extractionSource: "visible_dom";
-  confidence: "visible_content_row" | "fallback_visible_card";
+  sourcePageKind: AuthedBrowserSourcePageKind;
+  confidence: AuthedBrowserRowConfidence;
+  nativeIdConfidence: AuthedBrowserNativeIdConfidence;
   warnings: string[];
 }
 
@@ -1102,6 +1108,7 @@ export interface DouyinAuthedBrowserCaptureResult {
   rows: DouyinBrowserVisibleRow[];
   contentCount: number;
   metricCount: number;
+  saveCandidateCount?: number;
   importRunId?: string;
   dashboardUrl?: string;
   message: string;
@@ -1121,6 +1128,7 @@ export type XiaohongshuAuthedBrowserLoginState = "not_opened" | "needs_login" | 
 
 export interface XiaohongshuBrowserVisibleRow {
   id: string;
+  nativeId?: string;
   title: string;
   publishedAt?: string;
   capturedAt: string;
@@ -1133,7 +1141,9 @@ export interface XiaohongshuBrowserVisibleRow {
   noteUrl?: string;
   format: "image_text" | "short_video";
   extractionSource: "visible_dom";
-  confidence: "visible_creator_note_row" | "fallback_visible_creator_card";
+  sourcePageKind: AuthedBrowserSourcePageKind;
+  confidence: AuthedBrowserRowConfidence;
+  nativeIdConfidence: AuthedBrowserNativeIdConfidence;
   warnings: string[];
 }
 
@@ -1155,6 +1165,7 @@ export interface XiaohongshuAuthedBrowserCaptureResult {
   rows: XiaohongshuBrowserVisibleRow[];
   contentCount: number;
   metricCount: number;
+  saveCandidateCount?: number;
   importRunId?: string;
   dashboardUrl?: string;
   message: string;

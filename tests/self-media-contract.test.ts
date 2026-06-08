@@ -954,7 +954,8 @@ test("douyin authed browser visible rows import content metrics without saving l
     const service = new SelfMediaService(repo);
     const rows = [
       {
-        id: "dy-browser-085",
+        id: "7134567890123456789",
+        nativeId: "7134567890123456789",
         title: "抖音登录后抓取闭环",
         publishedAt: "2026-06-01T09:00:00.000Z",
         capturedAt: "2026-06-07T10:00:00.000Z",
@@ -966,7 +967,9 @@ test("douyin authed browser visible rows import content metrics without saving l
         followersDelta: 0,
         itemUrl: "https://www.douyin.com/video/dy-browser-085?token=should-not-save",
         extractionSource: "visible_dom" as const,
-        confidence: "visible_content_row" as const,
+        sourcePageKind: "creator_center_owned_works" as const,
+        confidence: "owned_creator_center_row" as const,
+        nativeIdConfidence: "stable_platform_id" as const,
         warnings: []
       }
     ];
@@ -983,16 +986,16 @@ test("douyin authed browser visible rows import content metrics without saving l
       trustedScopeEligible: true,
       dataDomain: "user_work"
     });
-    const snapshot = repo.listMetricSnapshots().find((item) => item.contentId === "dy-browser-085");
+    const snapshot = repo.listMetricSnapshots().find((item) => item.contentId === "7134567890123456789");
     const dashboard = await service.dashboard();
     assert.equal(result.run.status, "success");
     assert.equal(result.run.source, "douyin_creator_center");
     assert.equal(snapshot?.source, "douyin_creator_center");
     assert.equal(snapshot?.dataDomain, "user_work");
     assert.equal(snapshot?.views, 2300);
-    assert.equal(repo.getEntity("contents", "dy-browser-085")?.dataDomain, "user_work");
-    assert.ok(dashboard.contents.some((item) => item.id === "dy-browser-085"));
-    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "dy-browser-085" && item.source === "douyin_creator_center"));
+    assert.equal(repo.getEntity("contents", "7134567890123456789")?.dataDomain, "user_work");
+    assert.ok(dashboard.contents.some((item) => item.id === "7134567890123456789"));
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "7134567890123456789" && item.source === "douyin_creator_center"));
     assert.equal(dashboard.weeklyReview.metrics.totalViews, 2300);
     assert.doesNotMatch(JSON.stringify(repo.listMetricSnapshots()), /cookie|token|header|raw request|should-not-save/i);
   } finally {
@@ -1009,7 +1012,8 @@ test("xiaohongshu authed browser visible rows import trusted note metrics withou
     const service = new SelfMediaService(repo);
     const rows = [
       {
-        id: "xhs-browser-086",
+        id: "66abc123456789000001",
+        nativeId: "66abc123456789000001",
         title: "小红书登录后抓取闭环",
         publishedAt: "2026-06-01T09:00:00.000Z",
         capturedAt: "2026-06-07T10:00:00.000Z",
@@ -1022,7 +1026,9 @@ test("xiaohongshu authed browser visible rows import trusted note metrics withou
         noteUrl: "https://creator.xiaohongshu.com/note/xhs-browser-086?token=should-not-save",
         format: "image_text" as const,
         extractionSource: "visible_dom" as const,
-        confidence: "visible_creator_note_row" as const,
+        sourcePageKind: "creator_center_owned_works" as const,
+        confidence: "owned_creator_center_row" as const,
+        nativeIdConfidence: "stable_platform_id" as const,
         warnings: []
       }
     ];
@@ -1041,19 +1047,96 @@ test("xiaohongshu authed browser visible rows import trusted note metrics withou
       trustedScopeEligible: true,
       dataDomain: "user_work"
     });
-    const snapshot = repo.listMetricSnapshots().find((item) => item.contentId === "xhs-browser-086");
+    const snapshot = repo.listMetricSnapshots().find((item) => item.contentId === "66abc123456789000001");
     const dashboard = await service.dashboard();
     assert.equal(result.run.status, "success");
     assert.equal(result.run.source, "xiaohongshu_creator_center");
     assert.equal(snapshot?.source, "xiaohongshu_creator_center");
     assert.equal(snapshot?.dataDomain, "user_work");
     assert.equal(snapshot?.views, 1200);
-    assert.equal(repo.getEntity("contents", "xhs-browser-086")?.dataDomain, "user_work");
-    assert.ok(dashboard.contents.some((item) => item.id === "xhs-browser-086"));
-    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "xhs-browser-086" && item.source === "xiaohongshu_creator_center"));
+    assert.equal(repo.getEntity("contents", "66abc123456789000001")?.dataDomain, "user_work");
+    assert.ok(dashboard.contents.some((item) => item.id === "66abc123456789000001"));
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "66abc123456789000001" && item.source === "xiaohongshu_creator_center"));
     assert.equal(dashboard.weeklyReview.metrics.totalViews, 1200);
     assert.doesNotMatch(JSON.stringify(repo.listContents()), /cookie|token|header|raw request|should-not-save/i);
     assert.doesNotMatch(JSON.stringify(repo.listMetricSnapshots()), /cookie|token|header|raw request|should-not-save/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("authed browser fallback id preview rows do not enter trusted dashboard or calendar", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-browser-fallback-id-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const douyinRows = [
+      {
+        id: "dy-browser-fallback-low-confidence",
+        title: "抖音 fallback 预览行",
+        capturedAt: "2026-06-07T10:00:00.000Z",
+        views: 2300,
+        likes: 188,
+        comments: 26,
+        saves: 41,
+        shares: 17,
+        followersDelta: 0,
+        extractionSource: "visible_dom" as const,
+        sourcePageKind: "creator_center_owned_works" as const,
+        confidence: "owned_creator_center_row" as const,
+        nativeIdConfidence: "fallback_text_hash" as const,
+        warnings: ["fallback_id_from_visible_text"]
+      }
+    ];
+    const xiaohongshuRows = [
+      {
+        id: "xhs-browser-public-low-confidence",
+        title: "小红书公开页预览行",
+        capturedAt: "2026-06-07T10:00:00.000Z",
+        views: 1200,
+        likes: 166,
+        comments: 18,
+        saves: 90,
+        shares: 12,
+        followersDelta: 0,
+        format: "image_text" as const,
+        extractionSource: "visible_dom" as const,
+        sourcePageKind: "public_creator_home" as const,
+        confidence: "fallback_visible_card" as const,
+        nativeIdConfidence: "visible_platform_id" as const,
+        warnings: ["not_creator_center_owned_works_page"]
+      }
+    ];
+
+    const douyinPreview = service.parseDouyinBrowserVisibleRows(douyinRows);
+    const xiaohongshuPreview = service.parseXiaohongshuBrowserVisibleRows(xiaohongshuRows);
+    assert.equal(douyinPreview.contents.length, 0);
+    assert.equal(douyinPreview.metrics.length, 0);
+    assert.equal(xiaohongshuPreview.contents.length, 0);
+    assert.equal(xiaohongshuPreview.metrics.length, 0);
+    assert.ok(douyinPreview.warnings?.some((item) => /skipped 1 preview rows/.test(item)));
+    assert.ok(xiaohongshuPreview.warnings?.some((item) => /skipped 1 preview rows/.test(item)));
+
+    service.importDouyinBrowserVisibleRows(douyinRows, {
+      isTestFixture: false,
+      operationKind: "platform_save",
+      trustedScopeEligible: true,
+      dataDomain: "user_work"
+    });
+    service.importXiaohongshuBrowserVisibleRows(xiaohongshuRows, {
+      isTestFixture: false,
+      operationKind: "platform_save",
+      trustedScopeEligible: true,
+      dataDomain: "user_work"
+    });
+    const dashboard = await service.dashboard();
+    assert.equal(dashboard.contents.some((item) => item.id === "dy-browser-fallback-low-confidence"), false);
+    assert.equal(dashboard.contents.some((item) => item.id === "xhs-browser-public-low-confidence"), false);
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "dy-browser-fallback-low-confidence"), false);
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "xhs-browser-public-low-confidence"), false);
+    assert.equal(service.calendar().some((item) => item.contentId === "dy-browser-fallback-low-confidence" || item.contentId === "xhs-browser-public-low-confidence"), false);
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });

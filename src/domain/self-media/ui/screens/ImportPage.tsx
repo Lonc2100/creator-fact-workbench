@@ -44,7 +44,10 @@ const confidenceLabels: Record<RealImportPreviewRow["mappingConfidence"], string
 
 const warningLabels: Record<string, string> = {
   missing_title: "缺少标题",
-  missing_native_id_or_url: "缺少原生 ID 或链接"
+  missing_native_id_or_url: "缺少原生 ID 或链接",
+  fallback_id_from_visible_text: "ID 仅由页面文字生成，不能当作稳定平台 ID",
+  not_creator_center_owned_works_page: "当前页未证明是本人作品管理页",
+  no_metric_number_detected: "未识别到指标数字"
 };
 
 const importStatusLabels: Record<PlatformImportStatus["latestStatus"], string> = {
@@ -360,6 +363,28 @@ function summaryWarnings(summary: PlatformImportOperationResult["summaries"][num
   return summary.errorMessage ? [summary.errorMessage, ...summary.warnings] : summary.warnings;
 }
 
+function sourcePageKindLabel(value?: DouyinBrowserVisibleRow["sourcePageKind"] | XiaohongshuBrowserVisibleRow["sourcePageKind"]) {
+  if (value === "creator_center_owned_works") return "本人后台作品页";
+  if (value === "public_creator_home") return "公开主页";
+  if (value === "public_or_wrong_page") return "非后台页";
+  return "后台页待确认";
+}
+
+function nativeIdConfidenceLabel(value?: DouyinBrowserVisibleRow["nativeIdConfidence"] | XiaohongshuBrowserVisibleRow["nativeIdConfidence"]) {
+  if (value === "stable_platform_id") return "平台 ID 可靠";
+  if (value === "visible_platform_id") return "页面 ID 可见";
+  if (value === "fallback_text_hash") return "文字 fallback ID";
+  return "ID 缺失";
+}
+
+function canSaveAuthedBrowserRow(row: DouyinBrowserVisibleRow | XiaohongshuBrowserVisibleRow) {
+  return row.sourcePageKind === "creator_center_owned_works"
+    && row.confidence === "owned_creator_center_row"
+    && (row.nativeIdConfidence === "stable_platform_id" || row.nativeIdConfidence === "visible_platform_id")
+    && Boolean(row.nativeId)
+    && row.views + row.likes + row.comments + row.saves + row.shares > 0;
+}
+
 function DouyinAuthedBrowserRows({ rows }: { rows: DouyinBrowserVisibleRow[] }) {
   if (rows.length === 0) {
     return (
@@ -380,27 +405,31 @@ function DouyinAuthedBrowserRows({ rows }: { rows: DouyinBrowserVisibleRow[] }) 
             <th>评论</th>
             <th>收藏</th>
             <th>分享</th>
-            <th>可信度</th>
+            <th>确认状态</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td>
-                <strong>{row.title}</strong>
-                <small>{row.publishedAt ? formatDateTime(row.publishedAt) : "发布时间未识别"} · {row.id}</small>
-              </td>
-              <td>{formatNumber(row.views)}</td>
-              <td>{formatNumber(row.likes)}</td>
-              <td>{formatNumber(row.comments)}</td>
-              <td>{formatNumber(row.saves)}</td>
-              <td>{formatNumber(row.shares)}</td>
-              <td>
-                <Badge tone={row.confidence === "visible_content_row" ? "success" : "warning"}>{row.confidence === "visible_content_row" ? "作品行" : "页面卡片"}</Badge>
-                {row.warnings.length > 0 && <small>{operatorWarnings(row.warnings).join(" / ")}</small>}
-              </td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const canSave = canSaveAuthedBrowserRow(row);
+            return (
+              <tr key={row.id}>
+                <td>
+                  <strong>{row.title}</strong>
+                  <small>{row.publishedAt ? formatDateTime(row.publishedAt) : "发布时间未识别"} · {row.nativeId ?? row.id}</small>
+                </td>
+                <td>{formatNumber(row.views)}</td>
+                <td>{formatNumber(row.likes)}</td>
+                <td>{formatNumber(row.comments)}</td>
+                <td>{formatNumber(row.saves)}</td>
+                <td>{formatNumber(row.shares)}</td>
+                <td>
+                  <Badge tone={canSave ? "success" : "warning"}>{canSave ? "可保存候选" : "需人工核对"}</Badge>
+                  <small>{sourcePageKindLabel(row.sourcePageKind)} · {nativeIdConfidenceLabel(row.nativeIdConfidence)}</small>
+                  {row.warnings.length > 0 && <small>{operatorWarnings(row.warnings).join(" / ")}</small>}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -427,27 +456,31 @@ function XiaohongshuAuthedBrowserRows({ rows }: { rows: XiaohongshuBrowserVisibl
             <th>评论</th>
             <th>收藏</th>
             <th>分享</th>
-            <th>可信度</th>
+            <th>确认状态</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td>
-                <strong>{row.title}</strong>
-                <small>{row.publishedAt ? formatDateTime(row.publishedAt) : "发布时间未识别"} · {row.id}</small>
-              </td>
-              <td>{formatNumber(row.views)}</td>
-              <td>{formatNumber(row.likes)}</td>
-              <td>{formatNumber(row.comments)}</td>
-              <td>{formatNumber(row.saves)}</td>
-              <td>{formatNumber(row.shares)}</td>
-              <td>
-                <Badge tone={row.confidence === "visible_creator_note_row" ? "success" : "warning"}>{row.confidence === "visible_creator_note_row" ? "本人笔记行" : "后台卡片"}</Badge>
-                {row.warnings.length > 0 && <small>{operatorWarnings(row.warnings).join(" / ")}</small>}
-              </td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const canSave = canSaveAuthedBrowserRow(row);
+            return (
+              <tr key={row.id}>
+                <td>
+                  <strong>{row.title}</strong>
+                  <small>{row.publishedAt ? formatDateTime(row.publishedAt) : "发布时间未识别"} · {row.nativeId ?? row.id}</small>
+                </td>
+                <td>{formatNumber(row.views)}</td>
+                <td>{formatNumber(row.likes)}</td>
+                <td>{formatNumber(row.comments)}</td>
+                <td>{formatNumber(row.saves)}</td>
+                <td>{formatNumber(row.shares)}</td>
+                <td>
+                  <Badge tone={canSave ? "success" : "warning"}>{canSave ? "可保存候选" : "需人工核对"}</Badge>
+                  <small>{sourcePageKindLabel(row.sourcePageKind)} · {nativeIdConfidenceLabel(row.nativeIdConfidence)}</small>
+                  {row.warnings.length > 0 && <small>{operatorWarnings(row.warnings).join(" / ")}</small>}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -1652,9 +1685,11 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const canSaveXiaohongshuLocalFile = xiaohongshuStats.confirmable > 0 && xiaohongshuConfirmed;
   const canSaveBilibiliLocalFile = bilibiliStats.confirmable > 0 && bilibiliConfirmed;
   const douyinBrowserRows = douyinBrowserResult?.rows ?? [];
-  const canSaveDouyinBrowserCapture = douyinBrowserRows.length > 0 && douyinBrowserLoginConfirmed && douyinBrowserMetricsConfirmed;
+  const douyinBrowserSaveCandidateCount = douyinBrowserRows.filter(canSaveAuthedBrowserRow).length;
+  const canSaveDouyinBrowserCapture = douyinBrowserSaveCandidateCount > 0 && douyinBrowserLoginConfirmed && douyinBrowserMetricsConfirmed;
   const xiaohongshuBrowserRows = xiaohongshuBrowserResult?.rows ?? [];
-  const canSaveXiaohongshuBrowserCapture = xiaohongshuBrowserRows.length > 0 && xiaohongshuBrowserLoginConfirmed && xiaohongshuBrowserMetricsConfirmed;
+  const xiaohongshuBrowserSaveCandidateCount = xiaohongshuBrowserRows.filter(canSaveAuthedBrowserRow).length;
+  const canSaveXiaohongshuBrowserCapture = xiaohongshuBrowserSaveCandidateCount > 0 && xiaohongshuBrowserLoginConfirmed && xiaohongshuBrowserMetricsConfirmed;
   const browserProfileStartupSummary = useMemo(() => {
     const profiles = browserProfileStatus?.profiles ?? [];
     if (profiles.length === 0) return autoRefreshMessage;
@@ -2132,7 +2167,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </article>
             <article>
               <strong>3. 预览后保存</strong>
-              <p>只保存你确认过的作品数据；账号总览、粉丝画像、私信和评论正文不进入内容指标。</p>
+              <p>只保存你手动确认的可保存候选；保存后进入数据看板，系统不会自动保存。</p>
             </article>
           </div>
           <div className="login-safety-box" data-testid="douyin-login-browser-safety">
@@ -2153,11 +2188,11 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <input
                 checked={douyinBrowserMetricsConfirmed}
                 data-testid="douyin-login-browser-save-confirm"
-                disabled={douyinBrowserRows.length === 0 || isDouyinBrowserLoading}
+                disabled={douyinBrowserSaveCandidateCount === 0 || isDouyinBrowserLoading}
                 onChange={(event) => setDouyinBrowserMetricsConfirmed(event.target.checked)}
                 type="checkbox"
               />
-              <span>我确认下方预览是本人抖音后台当前页的作品级指标；不包含账号总览或敏感互动内容。</span>
+              <span>我确认下方可保存候选是本人抖音后台当前页的作品级指标；ID 可靠，保存后进入数据看板，不会自动保存账号总览或敏感互动内容。</span>
             </label>
             <div className="import-preview-actions">
               <Button data-testid="douyin-login-browser-open" onClick={() => runDouyinAuthedBrowserCapture("open", "works_page")} variant="secondary" disabled={isDouyinBrowserLoading}>{isDouyinBrowserLoading ? "处理中" : "打开抖音作品管理页"}</Button>
@@ -2172,6 +2207,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           <div className="real-preview-summary">
             <span><b>{douyinBrowserLoginStateLabel(douyinBrowserResult?.loginState)}</b> 登录状态</span>
             <span><b>{formatNumber(douyinBrowserRows.length)}</b> 可见作品</span>
+            <span><b>{formatNumber(douyinBrowserSaveCandidateCount)}</b> 可保存候选</span>
             <span><b>{formatNumber(douyinBrowserResult?.metricCount ?? 0)}</b> 内容指标</span>
             <span><b>{douyinBrowserResult?.ok && douyinBrowserResult.action === "save" ? "已保存" : "未保存"}</b> 保存状态</span>
           </div>
@@ -2196,7 +2232,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </article>
             <article>
               <strong>3. 预览后保存</strong>
-              <p>只保存你确认过的内容级数据；公开推荐页、搜索页、话题页、非本人内容和私密互动不进入内容指标。</p>
+              <p>只保存你手动确认的可保存候选；保存后进入数据看板，系统不会自动保存。</p>
             </article>
           </div>
           <div className="login-safety-box" data-testid="xiaohongshu-login-browser-safety">
@@ -2217,11 +2253,11 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <input
                 checked={xiaohongshuBrowserMetricsConfirmed}
                 data-testid="xiaohongshu-login-browser-save-confirm"
-                disabled={xiaohongshuBrowserRows.length === 0 || isXiaohongshuBrowserLoading}
+                disabled={xiaohongshuBrowserSaveCandidateCount === 0 || isXiaohongshuBrowserLoading}
                 onChange={(event) => setXiaohongshuBrowserMetricsConfirmed(event.target.checked)}
                 type="checkbox"
               />
-              <span>我确认下方预览是本人小红书后台当前页的笔记/作品级指标；不包含公开推荐页、非本人内容或私密互动。</span>
+              <span>我确认下方可保存候选是本人小红书后台当前页的笔记/作品级指标；ID 可靠，保存后进入数据看板，不会自动保存公开推荐页、非本人内容或私密互动。</span>
             </label>
             <div className="import-preview-actions">
               <Button data-testid="xiaohongshu-login-browser-open" onClick={() => runXiaohongshuAuthedBrowserCapture("open", "works_page")} variant="secondary" disabled={isXiaohongshuBrowserLoading}>{isXiaohongshuBrowserLoading ? "处理中" : "打开小红书笔记管理页"}</Button>
@@ -2236,6 +2272,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           <div className="real-preview-summary">
             <span><b>{xiaohongshuBrowserLoginStateLabel(xiaohongshuBrowserResult?.loginState)}</b> 登录状态</span>
             <span><b>{formatNumber(xiaohongshuBrowserRows.length)}</b> 可见笔记</span>
+            <span><b>{formatNumber(xiaohongshuBrowserSaveCandidateCount)}</b> 可保存候选</span>
             <span><b>{formatNumber(xiaohongshuBrowserResult?.metricCount ?? 0)}</b> 内容指标</span>
             <span><b>{xiaohongshuBrowserResult?.ok && xiaohongshuBrowserResult.action === "save" ? "已保存" : "未保存"}</b> 保存状态</span>
           </div>

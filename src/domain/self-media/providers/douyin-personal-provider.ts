@@ -103,13 +103,23 @@ function safeRef(value: string) {
   }
 }
 
+function isTrustedBrowserVisibleRow(row: DouyinBrowserVisibleRow) {
+  return row.sourcePageKind === "creator_center_owned_works"
+    && row.confidence === "owned_creator_center_row"
+    && (row.nativeIdConfidence === "stable_platform_id" || row.nativeIdConfidence === "visible_platform_id")
+    && Boolean(row.nativeId)
+    && row.views + row.likes + row.comments + row.saves + row.shares > 0;
+}
+
 export class DouyinPersonalProvider {
   fromBrowserVisibleRows(rows: DouyinBrowserVisibleRow[]): ProviderImportPayload {
     const warnings = [
       "douyin_authed_browser_capture: 用户在临时受控浏览器中手动登录后，本地只读取当前页面可见作品行；不保存密码、cookie、token、header 或 raw request。",
       "douyin_authed_browser_capture: 账号总览、粉丝画像、私信、评论正文等账号级或敏感内容不会写入内容指标。"
     ];
-    const validRows = rows.filter((row) => row.id && row.title);
+    const blockedRows = rows.filter((row) => row.id && row.title && !isTrustedBrowserVisibleRow(row));
+    const validRows = rows.filter((row) => row.id && row.title && isTrustedBrowserVisibleRow(row));
+    if (blockedRows.length > 0) warnings.push(`douyin_authed_browser_capture: skipped ${blockedRows.length} preview rows without creator-center ownership or stable native id.`);
     if (validRows.length === 0) warnings.push("douyin_authed_browser_capture: 当前页面未识别到可保存的作品级数据行。");
     const contents: ContentItem[] = validRows.map((row) => ({
       id: row.id,
@@ -124,6 +134,8 @@ export class DouyinPersonalProvider {
       dataDomain: "user_work",
       notes: [
         "douyin_authed_browser_capture:visible_dom",
+        `sourcePageKind=${row.sourcePageKind}`,
+        `nativeIdConfidence=${row.nativeIdConfidence}`,
         row.itemUrl ? `url=${safeRef(row.itemUrl)}` : undefined,
         row.warnings.length > 0 ? `warnings=${row.warnings.join("|").slice(0, 160)}` : undefined
       ].filter(Boolean).join("; ")

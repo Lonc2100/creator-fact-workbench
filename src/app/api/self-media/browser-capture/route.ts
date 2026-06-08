@@ -8,7 +8,7 @@ import type { AuthedBrowserProfileRequest } from "@/domain/self-media/types";
 export const runtime = "nodejs";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
-const blockedInputKeys = ["cookie", "token", "password", "header", "headers", "raw", "request", "storage", "credential"];
+const blockedInputKeys = ["cookie", "token", "password", "header", "headers", "authorization", "raw", "request", "response", "storage", "storageState", "screenshot", "har", "trace", "credential"];
 
 function isLocalRequest(request: Request) {
   const url = new URL(request.url);
