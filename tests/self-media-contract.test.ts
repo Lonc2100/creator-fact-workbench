@@ -10,7 +10,7 @@ import { SqliteSelfMediaRepo } from "../src/domain/self-media/repo";
 import { getSaveEnabledPlatformImportOperationPlatforms, runSelfMediaPlatformImportOperation } from "../src/domain/self-media/runtime";
 import { SelfMediaService, buildDataCaptureScheduleReliability, buildTrustedAutoCaptureScheduler, generateReview, readDailyPlatformOpsGateView, readDailySelfMediaOpsView, readPlatformDataHealthView, readTrustedDashboardAuditView } from "../src/domain/self-media/service";
 import { authedBrowserProfileConfigs, platformImportOperationCapabilities, resolveSelfMediaSeedMode, resolveWorkbenchDbPath } from "../src/domain/self-media/config";
-import { selectDouyinCreatorCenterDetailRow, selectDouyinCreatorCenterRows, selectXiaohongshuCreatorCenterDetailRow, selectXiaohongshuCreatorCenterRows, type CreatorCenterDomCandidate } from "../src/domain/self-media/providers/creator-center-row-selector";
+import { selectDouyinCreatorCenterDetailRow, selectDouyinCreatorCenterRows, selectXiaohongshuCreatorCenterDataAnalysisTableRows, selectXiaohongshuCreatorCenterDetailRow, selectXiaohongshuCreatorCenterRows, type CreatorCenterDomCandidate } from "../src/domain/self-media/providers/creator-center-row-selector";
 import type { AccountMetricSnapshot, DashboardSnapshot, PlatformDataHealthView, TrustedWeeklySafeReportResponse } from "../src/domain/self-media/types";
 
 const projectRoot = process.cwd();
@@ -1024,11 +1024,14 @@ test("xiaohongshu authed browser visible rows import trusted note metrics withou
         saves: 90,
         shares: 12,
         followersDelta: 0,
+        exposures: 2200,
+        coverClickRate: 18.6,
+        metricColumns: ["笔记基础信息", "曝光", "观看", "封面点击率", "点赞", "评论", "收藏", "涨粉", "分享"],
         noteUrl: "https://creator.xiaohongshu.com/note/xhs-browser-086?token=should-not-save",
         format: "image_text" as const,
         extractionSource: "visible_dom" as const,
-        sourcePageKind: "creator_center_owned_works" as const,
-        confidence: "owned_creator_center_row" as const,
+        sourcePageKind: "creator_center_data_analysis_table" as const,
+        confidence: "owned_creator_center_data_analysis_table" as const,
         nativeIdConfidence: "stable_platform_id" as const,
         warnings: []
       }
@@ -1250,6 +1253,132 @@ test("creator-center row selectors accept only stable owned row candidates with 
   assert.equal(xiaohongshuRows.some((row) => row.nativeId === "notes-request"), false);
 });
 
+test("xiaohongshu content-analysis table selector maps one note per row and requires stable id for save", async () => {
+  const capturedAt = "2026-06-08T10:00:00.000Z";
+  const tableCandidates: CreatorCenterDomCandidate[] = [
+    {
+      text: "脱敏小红书表格笔记标题 2026-06-05 19:55 3万 2.4万 24.3% 260 110 80 12 34",
+      tagName: "div",
+      role: "row",
+      titleAttr: "脱敏小红书表格笔记标题",
+      publishedAtAttr: "2026-06-05 19:55",
+      hrefs: ["https://www.xiaohongshu.com/explore/6a22b92d000000001503ebb5"],
+      dataValues: ["6a22b92d000000001503ebb5"],
+      cells: ["脱敏小红书表格笔记标题 2026-06-05 19:55", "3万", "2.4万", "24.3%", "260", "110", "80", "12", "34"],
+      childCandidateCount: 0,
+      sourceHint: "xiaohongshu_data_analysis_table",
+      metricValues: { exposures: 30000, views: 24000, coverClickRate: 24.3, likes: 260, comments: 110, saves: 80, followersDelta: 12, shares: 34 },
+      columnNames: ["笔记基础信息", "曝光", "观看", "封面点击率", "点赞", "评论", "收藏", "涨粉", "分享"]
+    },
+    {
+      text: "无稳定 ID 的表格笔记 2026-06-06 10:00 2026 0 - 1 0 0 -",
+      tagName: "div",
+      role: "row",
+      titleAttr: "无稳定 ID 的表格笔记",
+      publishedAtAttr: "2026-06-06 10:00",
+      hrefs: [],
+      dataValues: [],
+      cells: ["无稳定 ID 的表格笔记 2026-06-06 10:00", "2026", "0", "-", "1", "0", "0", "-", "-"],
+      childCandidateCount: 0,
+      sourceHint: "xiaohongshu_data_analysis_table",
+      metricValues: { exposures: 2026, views: 0, likes: 1, comments: 0, saves: 0 },
+      missingMetricColumns: ["coverClickRate", "followersDelta", "shares"],
+      columnNames: ["笔记基础信息", "曝光", "观看", "封面点击率", "点赞", "评论", "收藏", "涨粉", "分享"]
+    },
+    {
+      text: "笔记题材 统计周期 06-01 至 06-07 观看数据 互动数据 分享 2026",
+      tagName: "div",
+      role: "row",
+      titleAttr: "笔记题材",
+      hrefs: ["https://creator.xiaohongshu.com/statistics/data-analysis"],
+      dataValues: ["creator-feedback-wrapper"],
+      cells: ["笔记题材", "统计周期 06-01 至 06-07", "分享", "2026"],
+      childCandidateCount: 0,
+      sourceHint: "xiaohongshu_data_analysis_table",
+      metricValues: { shares: 2026 },
+      columnNames: ["笔记基础信息", "分享"]
+    }
+  ];
+
+  const rows = selectXiaohongshuCreatorCenterDataAnalysisTableRows(tableCandidates, capturedAt);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].sourcePageKind, "creator_center_data_analysis_table");
+  assert.equal(rows[0].confidence, "owned_creator_center_data_analysis_table");
+  assert.equal(rows[0].nativeId, "6a22b92d000000001503ebb5");
+  assert.equal(rows[0].publishedAt, "2026-06-05T11:55:00.000Z");
+  assert.equal(rows[0].exposures, 30000);
+  assert.equal(rows[0].views, 24000);
+  assert.equal(rows[0].coverClickRate, 24.3);
+  assert.equal(rows[0].likes, 260);
+  assert.equal(rows[0].comments, 110);
+  assert.equal(rows[0].saves, 80);
+  assert.equal(rows[0].followersDelta, 12);
+  assert.equal(rows[0].shares, 34);
+  assert.equal(rows[1].nativeIdConfidence, "fallback_text_hash");
+  assert.ok(rows[1].warnings.includes("fallback_id_from_visible_text"));
+  assert.ok(rows[1].warnings.includes("missing_metric_column_shares"));
+  assert.equal(rows.some((row) => row.nativeId === "creator-feedback-wrapper"), false);
+
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-xhs-table-capture-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    service.importXiaohongshuBrowserVisibleRows(rows, {
+      isTestFixture: false,
+      operationKind: "platform_save",
+      trustedScopeEligible: true,
+      dataDomain: "user_work"
+    });
+    const dashboard = await service.dashboard();
+    assert.equal(dashboard.contents.some((item) => item.id === "6a22b92d000000001503ebb5"), true);
+    assert.equal(dashboard.contents.some((item) => item.id === rows[1].id), false);
+    assert.equal(dashboard.metricSnapshots.find((item) => item.contentId === "6a22b92d000000001503ebb5")?.views, 24000);
+    assert.equal(dashboard.metricSnapshots.find((item) => item.contentId === "6a22b92d000000001503ebb5")?.shares, 34);
+    assert.equal(service.calendar().some((item) => item.contentId === "6a22b92d000000001503ebb5"), false);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("xiaohongshu content-analysis table rejects conflicting duplicate native ids", () => {
+  const capturedAt = "2026-06-08T10:30:00.000Z";
+  const duplicateId = "6a1d7004000000003601d378";
+  const rows = selectXiaohongshuCreatorCenterDataAnalysisTableRows([
+    {
+      text: "脱敏笔记 A 2026-06-01 100 80 12% 5 1 2 0 1",
+      tagName: "div",
+      role: "row",
+      titleAttr: "脱敏笔记 A",
+      publishedAtAttr: "2026-06-01 11:41",
+      hrefs: [`https://www.xiaohongshu.com/explore/${duplicateId}`],
+      dataValues: [duplicateId],
+      cells: ["脱敏笔记 A 2026-06-01 11:41", "100", "80", "12%", "5", "1", "2", "0", "1"],
+      childCandidateCount: 0,
+      sourceHint: "xiaohongshu_data_analysis_table",
+      metricValues: { exposures: 100, views: 80, coverClickRate: 12, likes: 5, comments: 1, saves: 2, followersDelta: 0, shares: 1 },
+      columnNames: ["笔记基础信息", "曝光", "观看", "封面点击率", "点赞", "评论", "收藏", "涨粉", "分享"]
+    },
+    {
+      text: "脱敏笔记 B 2026-05-17 50 30 5% 0 0 0 0 0",
+      tagName: "div",
+      role: "row",
+      titleAttr: "脱敏笔记 B",
+      publishedAtAttr: "2026-05-17 08:22",
+      hrefs: [`https://www.xiaohongshu.com/explore/${duplicateId}`],
+      dataValues: [duplicateId],
+      cells: ["脱敏笔记 B 2026-05-17 08:22", "50", "30", "5%", "0", "0", "0", "0", "0"],
+      childCandidateCount: 0,
+      sourceHint: "xiaohongshu_data_analysis_table",
+      metricValues: { exposures: 50, views: 30, coverClickRate: 5, likes: 0, comments: 0, saves: 0, followersDelta: 0, shares: 0 },
+      columnNames: ["笔记基础信息", "曝光", "观看", "封面点击率", "点赞", "评论", "收藏", "涨粉", "分享"]
+    }
+  ], capturedAt);
+
+  assert.equal(rows.length, 0);
+});
+
 test("creator-center detail selectors save only stable single-work detail rows", async () => {
   const capturedAt = "2026-06-08T09:00:00.000Z";
   const douyinDetail: CreatorCenterDomCandidate = {
@@ -1383,9 +1512,9 @@ test("creator-center detail selectors save only stable single-work detail rows",
     });
     const dashboard = await service.dashboard();
     assert.equal(dashboard.contents.some((item) => item.id === "7134567890123456798"), true);
-    assert.equal(dashboard.contents.some((item) => item.id === "66abc123456789000002"), true);
+    assert.equal(dashboard.contents.some((item) => item.id === "66abc123456789000002"), false);
     assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "7134567890123456798"), true);
-    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "66abc123456789000002"), true);
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === "66abc123456789000002"), false);
     assert.equal(service.calendar().some((item) => item.contentId === "7134567890123456798" || item.contentId === "66abc123456789000002"), false);
     assert.doesNotMatch(JSON.stringify(repo.listContents()), /cookie|token|header|raw request|notes-request|semiTab/i);
     assert.doesNotMatch(JSON.stringify(repo.listMetricSnapshots()), /cookie|token|header|raw request|notes-request|semiTab/i);

@@ -366,6 +366,7 @@ function summaryWarnings(summary: PlatformImportOperationResult["summaries"][num
 function sourcePageKindLabel(value?: DouyinBrowserVisibleRow["sourcePageKind"] | XiaohongshuBrowserVisibleRow["sourcePageKind"]) {
   if (value === "creator_center_owned_works") return "本人后台作品页";
   if (value === "creator_center_owned_detail") return "本人后台详情页";
+  if (value === "creator_center_data_analysis_table") return "内容分析表格";
   if (value === "public_creator_home") return "公开主页";
   if (value === "public_or_wrong_page") return "非后台页";
   return "后台页待确认";
@@ -379,8 +380,11 @@ function nativeIdConfidenceLabel(value?: DouyinBrowserVisibleRow["nativeIdConfid
 }
 
 function canSaveAuthedBrowserRow(row: DouyinBrowserVisibleRow | XiaohongshuBrowserVisibleRow) {
-  const trustedContext = (row.sourcePageKind === "creator_center_owned_works" && row.confidence === "owned_creator_center_row")
-    || (row.sourcePageKind === "creator_center_owned_detail" && row.confidence === "owned_creator_center_detail");
+  const isXiaohongshuRow = "format" in row || "noteUrl" in row;
+  const trustedContext = isXiaohongshuRow
+    ? row.sourcePageKind === "creator_center_data_analysis_table" && row.confidence === "owned_creator_center_data_analysis_table"
+    : (row.sourcePageKind === "creator_center_owned_works" && row.confidence === "owned_creator_center_row")
+      || (row.sourcePageKind === "creator_center_owned_detail" && row.confidence === "owned_creator_center_detail");
   return trustedContext
     && (row.nativeIdConfidence === "stable_platform_id" || row.nativeIdConfidence === "visible_platform_id")
     && Boolean(row.nativeId)
@@ -443,7 +447,7 @@ function XiaohongshuAuthedBrowserRows({ rows }: { rows: XiaohongshuBrowserVisibl
     return (
       <div className="real-preview-empty" data-testid="xiaohongshu-authed-browser-preview">
         <strong>暂无小红书页面抓取预览</strong>
-        <span>打开小红书创作服务平台并登录后，进入笔记管理列表，或点开单个笔记的数据/详情页，再点击预览。</span>
+        <span>打开小红书创作服务平台并登录后，读取数据看板 / 内容分析 / 笔记数据表格；详情页只作为兜底预览。</span>
       </div>
     );
   }
@@ -453,10 +457,13 @@ function XiaohongshuAuthedBrowserRows({ rows }: { rows: XiaohongshuBrowserVisibl
         <thead>
           <tr>
             <th>笔记/作品</th>
+            <th>曝光</th>
             <th>浏览</th>
+            <th>封面点击率</th>
             <th>点赞</th>
             <th>评论</th>
             <th>收藏</th>
+            <th>涨粉</th>
             <th>分享</th>
             <th>确认状态</th>
           </tr>
@@ -470,10 +477,13 @@ function XiaohongshuAuthedBrowserRows({ rows }: { rows: XiaohongshuBrowserVisibl
                   <strong>{row.title}</strong>
                   <small>{row.publishedAt ? formatDateTime(row.publishedAt) : "发布时间未识别"} · {row.nativeId ?? row.id}</small>
                 </td>
+                <td>{row.exposures === undefined ? "缺失" : formatNumber(row.exposures)}</td>
                 <td>{formatNumber(row.views)}</td>
+                <td>{row.coverClickRate === undefined ? "缺失" : `${formatNumber(row.coverClickRate)}%`}</td>
                 <td>{formatNumber(row.likes)}</td>
                 <td>{formatNumber(row.comments)}</td>
                 <td>{formatNumber(row.saves)}</td>
+                <td>{formatNumber(row.followersDelta)}</td>
                 <td>{formatNumber(row.shares)}</td>
                 <td>
                   <Badge tone={canSave ? "success" : "warning"}>{canSave ? "可保存候选" : "需人工核对"}</Badge>
@@ -1913,9 +1923,10 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     const labels: Record<XiaohongshuAuthedBrowserCaptureResult["action"], string> = {
       open: "正在打开小红书后台",
       status: "正在检查登录状态",
-      capture_preview: "正在抓取当前页笔记",
+      capture_preview: "正在读取内容分析表格",
       open_first_visible_detail: "正在点开小红书首条笔记详情",
       capture_current_detail_preview: "正在抓取当前笔记详情页",
+      diagnose_data_analysis_table: "正在检查内容分析表格结构",
       save: "正在保存小红书内容级指标",
       close: "正在关闭浏览器窗口"
     };
@@ -2235,8 +2246,8 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <p>系统会打开小红书专用的本机受控浏览器会话；你自己完成登录、验证码或风控确认。</p>
             </article>
             <article>
-              <strong>2. 预览列表或详情页</strong>
-              <p>列表抓不到时，系统可先点开首条安全的笔记数据/详情入口，再从当前笔记详情页预览。</p>
+              <strong>2. 读取内容分析表格</strong>
+              <p>系统进入数据看板 / 内容分析 / 笔记数据，从表格中按每行一条笔记读取标题、发布时间和指标。</p>
             </article>
             <article>
               <strong>3. 预览后保存</strong>
@@ -2255,7 +2266,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                 onChange={(event) => setXiaohongshuBrowserLoginConfirmed(event.target.checked)}
                 type="checkbox"
               />
-              <span>我已在弹出的小红书创作服务平台完成登录，并切到笔记管理/数据表现列表，或已点开单个笔记的数据/详情页。</span>
+              <span>我已在弹出的小红书创作服务平台完成登录；系统将进入数据看板 / 内容分析 / 笔记数据表格读取。</span>
             </label>
             <label className="import-confirm-check">
               <input
@@ -2265,12 +2276,12 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                 onChange={(event) => setXiaohongshuBrowserMetricsConfirmed(event.target.checked)}
                 type="checkbox"
               />
-              <span>我确认下方可保存候选是本人小红书后台当前页的笔记/作品级指标；ID 可靠，保存后进入数据看板，不会自动保存公开推荐页、非本人内容或私密互动。</span>
+              <span>我确认下方可保存候选来自小红书创作者后台内容分析表格；每行一条笔记，ID 可靠，保存后进入数据看板，不会自动保存公开推荐页、非本人内容或私密互动。</span>
             </label>
             <div className="import-preview-actions">
               <Button data-testid="xiaohongshu-login-browser-open" onClick={() => runXiaohongshuAuthedBrowserCapture("open", "works_page")} variant="secondary" disabled={isXiaohongshuBrowserLoading}>{isXiaohongshuBrowserLoading ? "处理中" : "打开小红书笔记管理页"}</Button>
               <Button data-testid="xiaohongshu-login-browser-status" onClick={() => runXiaohongshuAuthedBrowserCapture("status")} variant="ghost" disabled={isXiaohongshuBrowserLoading}>确认已登录</Button>
-              <Button data-testid="xiaohongshu-login-browser-read" onClick={() => runXiaohongshuAuthedBrowserCapture("capture_preview")} variant="secondary" disabled={isXiaohongshuBrowserLoading || !xiaohongshuBrowserLoginConfirmed}>读取当前页笔记</Button>
+              <Button data-testid="xiaohongshu-login-browser-read" onClick={() => runXiaohongshuAuthedBrowserCapture("capture_preview")} variant="secondary" disabled={isXiaohongshuBrowserLoading || !xiaohongshuBrowserLoginConfirmed}>读取内容分析表格</Button>
               <Button data-testid="xiaohongshu-login-browser-open-detail" onClick={() => runXiaohongshuAuthedBrowserCapture("open_first_visible_detail")} variant="secondary" disabled={isXiaohongshuBrowserLoading || !xiaohongshuBrowserLoginConfirmed}>AI 点开首条笔记详情</Button>
               <Button data-testid="xiaohongshu-login-browser-detail-read" onClick={() => runXiaohongshuAuthedBrowserCapture("capture_current_detail_preview")} variant="secondary" disabled={isXiaohongshuBrowserLoading || !xiaohongshuBrowserLoginConfirmed}>从当前笔记详情页预览</Button>
               <Button data-testid="xiaohongshu-login-browser-save" onClick={() => runXiaohongshuAuthedBrowserCapture("save")} variant="primary" disabled={isXiaohongshuBrowserLoading || !canSaveXiaohongshuBrowserCapture}>保存到可信看板</Button>
@@ -2280,6 +2291,9 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </div>
           </div>
           <div className="real-preview-summary">
+            <span><b>来自小红书创作者后台内容分析表格</b> 数据来源</span>
+            <span><b>每行一条笔记</b> 表格粒度</span>
+            <span><b>保存前人工确认</b> 保存规则</span>
             <span><b>{xiaohongshuBrowserLoginStateLabel(xiaohongshuBrowserResult?.loginState)}</b> 登录状态</span>
             <span><b>{formatNumber(xiaohongshuBrowserRows.length)}</b> 可见笔记</span>
             <span><b>{formatNumber(xiaohongshuBrowserSaveCandidateCount)}</b> 可保存候选</span>

@@ -9,10 +9,15 @@ export type CreatorCenterDomCandidate = {
   className?: string;
   idAttr?: string;
   titleAttr?: string;
+  publishedAtAttr?: string;
   hrefs: string[];
   dataValues: string[];
   cells: string[];
   childCandidateCount: number;
+  sourceHint?: "xiaohongshu_data_analysis_table";
+  metricValues?: Partial<Record<"exposures" | "views" | "coverClickRate" | "likes" | "comments" | "saves" | "followersDelta" | "shares", number>>;
+  missingMetricColumns?: string[];
+  columnNames?: string[];
 };
 
 type Platform = "douyin" | "xiaohongshu";
@@ -115,6 +120,14 @@ function isMetricText(value: string, platform: Platform) {
   return pattern.test(value);
 }
 
+function isMetricTitleLine(value: string, platform: Platform) {
+  const metricWords = platform === "douyin"
+    ? "(播放量?|浏览量?|点赞数?|评论数?|收藏数?|分享数?|转发数?|完播率?|互动)"
+    : "(浏览量?|阅读量?|观看量?|播放量?|点赞数?|评论数?|收藏数?|分享数?|曝光量?|互动)";
+  return new RegExp(`^${metricWords}$`).test(value)
+    || new RegExp(`^${metricWords}\\s*[:：]?\\s*-?\\d`).test(value);
+}
+
 function isBadTitleLine(value: string, platform: Platform) {
   if (value.length < 4 || value.length > 140) return true;
   if (isMetricText(value, platform)) return true;
@@ -126,10 +139,31 @@ function isBadTitleLine(value: string, platform: Platform) {
   return false;
 }
 
+function isBadTableTitleLine(value: string, platform: Platform) {
+  if (value.length < 4 || value.length > 140) return true;
+  if (isMetricTitleLine(value, platform)) return true;
+  if (noisyTitle(value)) return true;
+  if (/^(小红书|小红书笔记|创作服务平台|笔记管理|笔记数据|笔记详情|笔记题材|账号概览|内容分析)$/.test(value)) return true;
+  if (/编辑|删除|查看|更多|置顶|发布时间|立即发布/.test(value)) return true;
+  if (/^20\d{2}[-/.年]/.test(value)) return true;
+  if (/^(已发布|审核中|未通过|全部|\d+)$/.test(value)) return true;
+  return false;
+}
+
+function tableTitleOf(candidate: CreatorCenterDomCandidate, platform: Platform) {
+  const first = clean(candidate.titleAttr);
+  if (first && !isBadTableTitleLine(first, platform)) return first.slice(0, 140);
+  return titleOf(candidate, platform);
+}
+
 function titleOf(candidate: CreatorCenterDomCandidate, platform: Platform) {
   const title = lineCandidates(candidate).find((line) => !isBadTitleLine(line, platform));
   if (title) return title.slice(0, 140);
   return platform === "douyin" ? "抖音作品" : "小红书笔记";
+}
+
+function tablePublishedAtOf(candidate: CreatorCenterDomCandidate) {
+  return publishedAtOf(clean(candidate.publishedAtAttr)) ?? publishedAtOf(candidate.text);
 }
 
 function idOf(candidate: CreatorCenterDomCandidate, platform: Platform): { id: string; nativeId?: string; nativeIdConfidence: ExtractedNativeIdConfidence } {
@@ -437,6 +471,74 @@ export function selectXiaohongshuCreatorCenterRows(candidates: CreatorCenterDomC
     if (rows.length >= 20) break;
   }
   return rows;
+}
+
+export function selectXiaohongshuCreatorCenterDataAnalysisTableRows(candidates: CreatorCenterDomCandidate[], capturedAt: string): XiaohongshuBrowserVisibleRow[] {
+  const rows: XiaohongshuBrowserVisibleRow[] = [];
+  const seen = new Set<string>();
+  const nativeIdTitles = new Map<string, string>();
+  const conflictingNativeIds = new Set<string>();
+  for (const candidate of candidates) {
+    if (candidate.sourceHint !== "xiaohongshu_data_analysis_table") continue;
+    const text = clean(candidate.text);
+    if (text.length < 8 || text.length > 1800) continue;
+    if (/(私信|评论正文|用户画像|粉丝画像|账号总览|粉丝总数|粉丝分析|关注用户|手机号|邮箱|数据总览|统计周期|近7日|近30日)/.test(text)) continue;
+    if (/(notes-request|semiTab|creator-feedback-wrapper|data-analysis-wrapper|statistics-overview)/i.test(`${candidate.idAttr ?? ""} ${candidate.className ?? ""}`)) continue;
+    if (isNoisyContainer(candidate)) continue;
+
+    const idInfo = idOf(candidate, "xiaohongshu");
+    const title = tableTitleOf(candidate, "xiaohongshu");
+    const publishedAt = tablePublishedAtOf(candidate);
+    const values = candidate.metricValues ?? {};
+    const fallback = metricsOf(candidate, title, "xiaohongshu");
+    const views = values.views ?? values.exposures ?? fallback.views;
+    const row: XiaohongshuBrowserVisibleRow = {
+      id: idInfo.id,
+      nativeId: idInfo.nativeId,
+      title,
+      publishedAt,
+      capturedAt,
+      views,
+      likes: values.likes ?? fallback.likes,
+      comments: values.comments ?? fallback.comments,
+      saves: values.saves ?? fallback.saves,
+      shares: values.shares ?? fallback.shares,
+      followersDelta: values.followersDelta ?? 0,
+      exposures: values.exposures,
+      coverClickRate: values.coverClickRate,
+      metricColumns: candidate.columnNames,
+      missingMetricColumns: candidate.missingMetricColumns,
+      noteUrl: candidate.hrefs[0],
+      format: /视频|播放/.test(text) ? "short_video" : "image_text",
+      extractionSource: "visible_dom",
+      sourcePageKind: "creator_center_data_analysis_table",
+      confidence: "owned_creator_center_data_analysis_table",
+      nativeIdConfidence: idInfo.nativeIdConfidence,
+      warnings: []
+    };
+    const key = `${row.id}|${row.title}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    row.warnings = commonWarnings(row, "xiaohongshu");
+    if (row.nativeId) {
+      const previousTitle = nativeIdTitles.get(row.nativeId);
+      if (previousTitle && previousTitle !== row.title) {
+        conflictingNativeIds.add(row.nativeId);
+        row.warnings.push("duplicate_native_id_conflicting_title");
+      } else {
+        nativeIdTitles.set(row.nativeId, row.title);
+      }
+    }
+    if (!publishedAt) row.warnings.push("missing_publish_time");
+    if (values.views === undefined && values.exposures !== undefined) row.warnings.push("views_from_exposure_column");
+    for (const missing of candidate.missingMetricColumns ?? []) row.warnings.push(`missing_metric_column_${missing}`);
+    const majorMetricTotal = (values.views ?? 0) + (values.exposures ?? 0) + (values.likes ?? 0) + (values.saves ?? 0);
+    if (majorMetricTotal <= 0) row.warnings.push("missing_major_table_metrics");
+    if (isGenericDetailTitle(row.title, "xiaohongshu")) row.warnings.push("generic_table_row_title");
+    rows.push(row);
+    if (rows.length >= 30) break;
+  }
+  return rows.filter((row) => !row.nativeId || !conflictingNativeIds.has(row.nativeId));
 }
 
 export function hasTrustedCreatorCenterRowShape(row: { nativeId?: string; nativeIdConfidence: AuthedBrowserNativeIdConfidence; title: string; views: number; likes: number; comments: number; saves: number; shares: number }, platform: Platform) {

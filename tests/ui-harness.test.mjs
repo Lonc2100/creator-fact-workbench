@@ -500,7 +500,11 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /xiaohongshu-login-browser-flow/);
   assert.match(importPage, /小红书登录后读取笔记/);
   assert.match(importPage, /小红书创作服务平台/);
-  assert.match(importPage, /笔记管理\/数据表现/);
+  assert.match(importPage, /数据看板 \/ 内容分析 \/ 笔记数据/);
+  assert.match(importPage, /读取内容分析表格/);
+  assert.match(importPage, /来自小红书创作者后台内容分析表格/);
+  assert.match(importPage, /每行一条笔记/);
+  assert.match(importPage, /保存前人工确认/);
   assert.match(importPage, /公开推荐页、非本人内容或私密互动/);
   assert.match(importPage, /xiaohongshu-login-browser-login-confirm/);
   assert.match(importPage, /xiaohongshu-login-browser-save-confirm/);

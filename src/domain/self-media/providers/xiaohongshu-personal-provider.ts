@@ -123,9 +123,13 @@ function createNote(id: string, capturedAt: string): XiaohongshuMappedNote {
 }
 
 function isTrustedBrowserVisibleRow(row: XiaohongshuBrowserVisibleRow) {
-  const trustedContext = (row.sourcePageKind === "creator_center_owned_works" && row.confidence === "owned_creator_center_row")
-    || (row.sourcePageKind === "creator_center_owned_detail" && row.confidence === "owned_creator_center_detail");
+  const trustedContext = row.sourcePageKind === "creator_center_data_analysis_table"
+    && row.confidence === "owned_creator_center_data_analysis_table";
+  const hasRequiredTableFacts = Boolean(row.publishedAt)
+    && ((row.views ?? 0) + (row.exposures ?? 0) + row.likes + row.saves > 0)
+    && !row.warnings.some((warning) => /missing_publish_time|missing_major_table_metrics|generic_table_row_title/.test(warning));
   return trustedContext
+    && hasRequiredTableFacts
     && hasTrustedCreatorCenterRowShape(row, "xiaohongshu");
 }
 
@@ -155,7 +159,8 @@ export class XiaohongshuPersonalProvider {
   fromBrowserVisibleRows(rows: XiaohongshuBrowserVisibleRow[]): ProviderImportPayload {
     const warnings = [
       "xiaohongshu_authed_browser_capture: 用户在本机受控浏览器中手动登录后，本地只读取小红书创作服务平台当前页面可见的本人笔记/作品行；不保存账号密码、登录材料、请求明细或原始响应。",
-      "xiaohongshu_authed_browser_capture: 公开推荐页、搜索/探索页、话题推荐、非本人内容和私密互动不会写入内容指标。"
+      "xiaohongshu_authed_browser_capture: 公开推荐页、搜索/探索页、话题推荐、非本人内容和私密互动不会写入内容指标。",
+      "xiaohongshu_authed_browser_capture: 可信保存仅接受创作者后台内容分析页的笔记数据表格行；详情页和聚合块只作为预览诊断。"
     ];
     const blockedRows = rows.filter((row) => row.id && row.title && !isTrustedBrowserVisibleRow(row));
     const validRows = rows.filter((row) => row.id && row.title && isTrustedBrowserVisibleRow(row));
@@ -176,6 +181,9 @@ export class XiaohongshuPersonalProvider {
         "xiaohongshu_authed_browser_capture:visible_dom",
         `sourcePageKind=${row.sourcePageKind}`,
         `nativeIdConfidence=${row.nativeIdConfidence}`,
+        row.exposures !== undefined ? `exposure=${row.exposures}` : undefined,
+        row.coverClickRate !== undefined ? `coverClickRate=${row.coverClickRate}` : undefined,
+        row.metricColumns && row.metricColumns.length > 0 ? `columns=${row.metricColumns.join("|").slice(0, 120)}` : undefined,
         row.noteUrl ? `url=${safeRef(row.noteUrl)}` : undefined,
         row.warnings.length > 0 ? `warnings=${row.warnings.join("|").slice(0, 160)}` : undefined
       ].filter(Boolean).join("; ")

@@ -1064,8 +1064,8 @@ export interface AuthedBrowserAutoRefreshResult {
 
 export type DouyinAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "open_first_visible_detail" | "capture_current_detail_preview" | "save" | "close";
 export type AuthedBrowserCaptureTarget = "default" | "works_page";
-export type AuthedBrowserSourcePageKind = "creator_center_owned_works" | "creator_center_owned_detail" | "creator_center_unknown" | "public_creator_home" | "public_or_wrong_page";
-export type AuthedBrowserRowConfidence = "owned_creator_center_row" | "owned_creator_center_detail" | "fallback_visible_card" | "unknown";
+export type AuthedBrowserSourcePageKind = "creator_center_owned_works" | "creator_center_owned_detail" | "creator_center_data_analysis_table" | "creator_center_unknown" | "public_creator_home" | "public_or_wrong_page";
+export type AuthedBrowserRowConfidence = "owned_creator_center_row" | "owned_creator_center_detail" | "owned_creator_center_data_analysis_table" | "fallback_visible_card" | "unknown";
 export type AuthedBrowserNativeIdConfidence = "stable_platform_id" | "visible_platform_id" | "fallback_text_hash" | "missing";
 
 export type DouyinAuthedBrowserLoginState = "not_opened" | "needs_login" | "user_confirmed" | "logged_in_or_accessible" | "unknown" | "closed" | "error";
@@ -1122,7 +1122,7 @@ export interface DouyinAuthedBrowserCaptureResult {
   };
 }
 
-export type XiaohongshuAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "open_first_visible_detail" | "capture_current_detail_preview" | "save" | "close";
+export type XiaohongshuAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "open_first_visible_detail" | "capture_current_detail_preview" | "diagnose_data_analysis_table" | "save" | "close";
 
 export type XiaohongshuAuthedBrowserLoginState = "not_opened" | "needs_login" | "user_confirmed" | "logged_in_or_accessible" | "wrong_page" | "unknown" | "closed" | "error";
 
@@ -1138,6 +1138,10 @@ export interface XiaohongshuBrowserVisibleRow {
   saves: number;
   shares: number;
   followersDelta: number;
+  exposures?: number;
+  coverClickRate?: number;
+  metricColumns?: string[];
+  missingMetricColumns?: string[];
   noteUrl?: string;
   format: "image_text" | "short_video";
   extractionSource: "visible_dom";
@@ -1152,6 +1156,7 @@ export interface XiaohongshuAuthedBrowserCaptureRequest {
   target?: AuthedBrowserCaptureTarget;
   userConfirmedLogin?: boolean;
   userConfirmedContentMetrics?: boolean;
+  selectedNativeIds?: string[];
 }
 
 export interface XiaohongshuAuthedBrowserCaptureResult {
