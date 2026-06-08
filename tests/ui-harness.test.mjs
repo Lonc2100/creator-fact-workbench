@@ -479,6 +479,9 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /douyin-login-browser-open/);
   assert.match(importPage, /douyin-login-browser-status/);
   assert.match(importPage, /douyin-login-browser-read/);
+  assert.match(importPage, /douyin-login-browser-open-detail/);
+  assert.match(importPage, /AI 点开首条作品详情/);
+  assert.match(importPage, /open_first_visible_detail/);
   assert.match(importPage, /douyin-login-browser-detail-read/);
   assert.match(importPage, /从当前作品详情页预览/);
   assert.match(importPage, /capture_current_detail_preview/);
@@ -504,6 +507,9 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /xiaohongshu-login-browser-open/);
   assert.match(importPage, /xiaohongshu-login-browser-status/);
   assert.match(importPage, /xiaohongshu-login-browser-read/);
+  assert.match(importPage, /xiaohongshu-login-browser-open-detail/);
+  assert.match(importPage, /AI 点开首条笔记详情/);
+  assert.match(importPage, /open_first_visible_detail/);
   assert.match(importPage, /xiaohongshu-login-browser-detail-read/);
   assert.match(importPage, /从当前笔记详情页预览/);
   assert.match(importPage, /xiaohongshu-login-browser-save/);
@@ -796,6 +802,10 @@ test("douyin authed browser capture route keeps credential material outside the 
   assert.match(route, /selectDouyinCreatorCenterRows/);
   assert.match(route, /extractCurrentDetailRow/);
   assert.match(route, /selectDouyinCreatorCenterDetailRow/);
+  assert.match(route, /openFirstVisibleDetail/);
+  assert.match(route, /open_first_visible_detail/);
+  assert.match(route, /page\.mouse\.click/);
+  assert.match(route, /发布\|删除\|提交\|审核\|修改\|编辑\|授权\|开通\|支付\|上传\|私信/);
   assert.match(route, /capture_current_detail_preview/);
   assert.match(route, /CreatorCenterDomCandidate/);
   assert.match(route, /childCandidateCount/);
@@ -832,6 +842,10 @@ test("xiaohongshu authed browser capture route keeps login material and public r
   assert.match(route, /selectXiaohongshuCreatorCenterRows/);
   assert.match(route, /extractCurrentDetailRow/);
   assert.match(route, /selectXiaohongshuCreatorCenterDetailRow/);
+  assert.match(route, /openFirstVisibleDetail/);
+  assert.match(route, /open_first_visible_detail/);
+  assert.match(route, /page\.mouse\.click/);
+  assert.match(route, /发布\|删除\|提交\|审核\|修改\|编辑\|授权\|开通\|支付\|上传\|私信/);
   assert.match(route, /capture_current_detail_preview/);
   assert.match(route, /CreatorCenterDomCandidate/);
   assert.match(route, /childCandidateCount/);

@@ -1262,6 +1262,16 @@ test("creator-center detail selectors save only stable single-work detail rows",
     cells: ["脱敏抖音详情作品标题", "播放量 2300", "点赞 188", "评论 26", "收藏 41", "分享 17"],
     childCandidateCount: 0
   };
+  const douyinWorkDetail: CreatorCenterDomCandidate = {
+    text: "脱敏抖音 work detail 标题 播放量 2328 点赞 58 评论 1 收藏 21 分享 2",
+    tagName: "page",
+    role: "document",
+    titleAttr: "脱敏抖音 work detail 标题",
+    hrefs: ["https://creator.douyin.com/creator-micro/work-management/work-detail/7647877299265735955"],
+    dataValues: [],
+    cells: ["脱敏抖音 work detail 标题", "播放量", "2328", "点赞", "58", "评论", "1", "收藏", "21", "分享", "2"],
+    childCandidateCount: 0
+  };
   const xiaohongshuDetail: CreatorCenterDomCandidate = {
     text: "脱敏小红书详情笔记标题 2026-06-01 浏览量 1200 点赞 166 评论 18 收藏 90 分享 12",
     tagName: "page",
@@ -1288,6 +1298,24 @@ test("creator-center detail selectors save only stable single-work detail rows",
     cells: ["内容管理", "播放量 2325", "点赞 58", "评论 1", "收藏 20", "分享 2"],
     childCandidateCount: 0
   };
+  const badDouyinGenericTitleDetail: CreatorCenterDomCandidate = {
+    text: "数据中心 播放量 2328 点赞 58 评论 1 收藏 21 分享 2",
+    tagName: "page",
+    titleAttr: "数据中心",
+    hrefs: ["https://creator.douyin.com/creator-micro/work-management/work-detail/7647877299265735955"],
+    dataValues: [],
+    cells: ["数据中心", "播放量", "2328", "点赞", "58", "评论", "1", "收藏", "21", "分享", "2"],
+    childCandidateCount: 0
+  };
+  const badDouyinMisalignedMetricDetail: CreatorCenterDomCandidate = {
+    text: "脱敏抖音错位详情标题 播放量 2328 点赞 58 评论 2328 收藏 21 分享 2",
+    tagName: "page",
+    titleAttr: "脱敏抖音错位详情标题",
+    hrefs: ["https://creator.douyin.com/creator-micro/work-management/work-detail/7647877299265735955"],
+    dataValues: [],
+    cells: ["脱敏抖音错位详情标题", "播放量", "2328", "点赞", "58", "评论", "2328", "收藏", "21", "分享", "2"],
+    childCandidateCount: 0
+  };
   const badXiaohongshuDetail: CreatorCenterDomCandidate = {
     text: "notes-request 全部 6已发布 2026-06-05 分享 2026",
     titleAttr: "笔记数据",
@@ -1298,9 +1326,12 @@ test("creator-center detail selectors save only stable single-work detail rows",
   };
 
   const douyinRows = selectDouyinCreatorCenterDetailRow(douyinDetail, capturedAt);
+  const douyinWorkDetailRows = selectDouyinCreatorCenterDetailRow(douyinWorkDetail, capturedAt);
   const xiaohongshuRows = selectXiaohongshuCreatorCenterDetailRow(xiaohongshuDetail, capturedAt);
   assert.equal(selectDouyinCreatorCenterDetailRow(badDouyinDetail, capturedAt).length, 0);
   assert.equal(selectDouyinCreatorCenterDetailRow(badDouyinSpriteDetail, capturedAt).length, 0);
+  assert.equal(selectDouyinCreatorCenterDetailRow(badDouyinGenericTitleDetail, capturedAt).length, 0);
+  assert.equal(selectDouyinCreatorCenterDetailRow(badDouyinMisalignedMetricDetail, capturedAt).length, 0);
   assert.equal(selectXiaohongshuCreatorCenterDetailRow(badXiaohongshuDetail, capturedAt).length, 0);
   assert.equal(douyinRows.length, 1);
   assert.equal(douyinRows[0].sourcePageKind, "creator_center_owned_detail");
@@ -1308,6 +1339,13 @@ test("creator-center detail selectors save only stable single-work detail rows",
   assert.equal(douyinRows[0].nativeId, "7134567890123456798");
   assert.equal(douyinRows[0].views, 2300);
   assert.equal(douyinRows[0].likes, 188);
+  assert.equal(douyinWorkDetailRows.length, 1);
+  assert.equal(douyinWorkDetailRows[0].nativeId, "7647877299265735955");
+  assert.equal(douyinWorkDetailRows[0].views, 2328);
+  assert.equal(douyinWorkDetailRows[0].likes, 58);
+  assert.equal(douyinWorkDetailRows[0].comments, 1);
+  assert.equal(douyinWorkDetailRows[0].saves, 21);
+  assert.equal(douyinWorkDetailRows[0].shares, 2);
   assert.equal(xiaohongshuRows.length, 1);
   assert.equal(xiaohongshuRows[0].sourcePageKind, "creator_center_owned_detail");
   assert.equal(xiaohongshuRows[0].confidence, "owned_creator_center_detail");

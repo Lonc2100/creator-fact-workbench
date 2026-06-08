@@ -203,8 +203,8 @@ async function extractCurrentDetailRow(page: Page): Promise<XiaohongshuBrowserVi
   const capturedAt = new Date().toISOString();
   const candidate = await page.evaluate(() => {
     if (!window.location.hostname.endsWith("creator.xiaohongshu.com")) return undefined;
-    if (/\/new\/note-manager\/?$/.test(window.location.pathname)) return undefined;
-    if (!/(detail|analysis|analyse|note|data|note_id=|noteId=|explore\/)/i.test(window.location.href)) return undefined;
+    const isNoteManager = /\/new\/note-manager\/?$/.test(window.location.pathname);
+    if (!isNoteManager && !/(detail|analysis|analyse|note|data|note_id=|noteId=|explore\/)/i.test(window.location.href)) return undefined;
 
     function clean(value: string | null | undefined) {
       return (value ?? "").replace(/\s+/g, " ").trim();
@@ -221,25 +221,57 @@ async function extractCurrentDetailRow(page: Page): Promise<XiaohongshuBrowserVi
       }
     }
 
+    function visible(element: Element) {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return rect.width >= 80
+        && rect.height >= 80
+        && rect.bottom > 0
+        && rect.right > 0
+        && rect.top < window.innerHeight
+        && rect.left < window.innerWidth
+        && style.visibility !== "hidden"
+        && style.display !== "none";
+    }
+
     const currentUrl = window.location.href;
     const idPattern = /(?:note\/|explore\/|discovery\.|note_id=|noteId=)([A-Za-z0-9_-]{6,})/i;
+    const root: ParentNode = isNoteManager
+      ? (Array.from(document.querySelectorAll("[role='dialog'],[class*='drawer'],[class*='Drawer'],[class*='modal'],[class*='Modal'],[class*='detail'],[class*='Detail']"))
+        .filter(visible)
+        .find((element) => {
+          const scopedText = clean(element.textContent);
+          const scopedLinks = Array.from(element.querySelectorAll("a[href*='xiaohongshu.com'],a[href*='note'],a[href*='note_id'],a[href*='noteId'],a[href*='explore']"));
+          const scopedAttrs = Array.from(element.querySelectorAll("[data-id],[data-note-id],[id]")).slice(0, 80);
+          return idPattern.test(scopedText)
+            || scopedLinks.some((anchor) => idPattern.test(anchor.getAttribute("href") ?? ""))
+            || scopedAttrs.some((item) => Array.from(item.attributes).some((attribute) => /(^data-(?:note-)?id$|^id$|note)/i.test(attribute.name) && idPattern.test(attribute.value)));
+        }) ?? document)
+      : document;
+    if (isNoteManager && root === document) return undefined;
+
     const dataValues = [currentUrl.match(idPattern)?.[1] ?? ""].filter(Boolean);
-    const anchors = Array.from(document.querySelectorAll("a[href*='xiaohongshu.com'],a[href*='note'],a[href*='note_id'],a[href*='noteId'],a[href*='explore']"));
+    const anchors = Array.from(root.querySelectorAll("a[href*='xiaohongshu.com'],a[href*='note'],a[href*='note_id'],a[href*='noteId'],a[href*='explore']"));
     dataValues.push(...anchors.map((anchor) => anchor.getAttribute("href")?.match(idPattern)?.[1] ?? "").filter(Boolean));
-    const scoped = Array.from(document.querySelectorAll("[data-id],[data-note-id],[id]")).slice(0, 120);
+    const scoped = Array.from(root.querySelectorAll("[data-id],[data-note-id],[id]")).slice(0, 120);
     dataValues.push(...scoped.flatMap((item) => Array.from(item.attributes)
       .filter((attribute) => /(^data-(?:note-)?id$|^id$|note)/i.test(attribute.name))
       .map((attribute) => clean(attribute.value))));
-    const titleCandidates = Array.from(document.querySelectorAll("h1,h2,h3,[class*='title'],[class*='Title'],[data-testid*='title'],[class*='note-name'],[class*='NoteName']"))
+    const titleCandidates = Array.from(root.querySelectorAll("h1,h2,h3,[class*='title'],[class*='Title'],[data-testid*='title'],[class*='note-name'],[class*='NoteName']"))
+      .filter((element) => !element.closest("nav,header,aside,[role='navigation'],[class*='side'],[class*='Side'],[class*='menu'],[class*='Menu']"))
       .map((element) => clean(element.getAttribute("title")) || clean(element.textContent))
       .filter((text) => text.length >= 4 && text.length <= 140 && !/(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动|数据详情|笔记数据)/.test(text))
       .slice(0, 12);
-    const metricCandidates = Array.from(document.querySelectorAll("section,article,div,li,span,p,td,[role='cell'],[class*='metric'],[class*='Metric'],[class*='data'],[class*='Data']"))
+    const compactMetricCells = Array.from(root.querySelectorAll("section,article,div,li,span,p,td,[role='cell'],[class*='label'],[class*='Label'],[class*='value'],[class*='Value'],[class*='count'],[class*='Count'],[class*='num'],[class*='Num']"))
+      .map((element) => clean(element.textContent))
+      .filter((text) => text.length >= 1 && text.length <= 60 && (/(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/.test(text) || /^-?\d[\d,.]*(?:\.\d+)?\s*(?:万|亿|k|K)?$/.test(text)))
+      .slice(0, 160);
+    const metricCandidates = Array.from(root.querySelectorAll("section,article,div,li,span,p,td,[role='cell'],[class*='metric'],[class*='Metric'],[class*='data'],[class*='Data']"))
       .map((element) => clean(element.textContent))
       .filter((text) => text.length >= 2 && text.length <= 180 && /\d/.test(text) && /(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/.test(text))
       .slice(0, 80);
     const hrefs = [sanitizedUrl(currentUrl), ...anchors.map((anchor) => sanitizedUrl(anchor.getAttribute("href") ?? "")).filter(Boolean)];
-    const cells = [...titleCandidates, ...metricCandidates];
+    const cells = [...titleCandidates, ...compactMetricCells, ...metricCandidates];
     return {
       text: cells.join(" "),
       tagName: "page",
@@ -254,6 +286,223 @@ async function extractCurrentDetailRow(page: Page): Promise<XiaohongshuBrowserVi
     };
   }) as CreatorCenterDomCandidate | undefined;
   return selectXiaohongshuCreatorCenterDetailRow(candidate, capturedAt);
+}
+
+async function diagnoseCurrentDetailPage(page: Page) {
+  return page.evaluate(() => {
+    const currentUrl = window.location.href;
+    const idPattern = /(?:note\/|explore\/|discovery\.|note_id=|noteId=)([A-Za-z0-9_-]{6,})/i;
+    function clean(value: string | null | undefined) {
+      return (value ?? "").replace(/\s+/g, " ").trim();
+    }
+    function visible(element: Element) {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return rect.width >= 80
+        && rect.height >= 80
+        && rect.bottom > 0
+        && rect.right > 0
+        && rect.top < window.innerHeight
+        && rect.left < window.innerWidth
+        && style.visibility !== "hidden"
+        && style.display !== "none";
+    }
+    const roots = Array.from(document.querySelectorAll("[role='dialog'],[class*='drawer'],[class*='Drawer'],[class*='modal'],[class*='Modal'],[class*='detail'],[class*='Detail']"))
+      .filter(visible);
+    const rootsWithStableId = roots.filter((element) => {
+      const scopedText = clean(element.textContent);
+      const scopedLinks = Array.from(element.querySelectorAll("a[href*='xiaohongshu.com'],a[href*='note'],a[href*='note_id'],a[href*='noteId'],a[href*='explore']"));
+      const scopedAttrs = Array.from(element.querySelectorAll("[data-id],[data-note-id],[id]")).slice(0, 80);
+      return idPattern.test(scopedText)
+        || scopedLinks.some((anchor) => idPattern.test(anchor.getAttribute("href") ?? ""))
+        || scopedAttrs.some((item) => Array.from(item.attributes).some((attribute) => /(^data-(?:note-)?id$|^id$|note)/i.test(attribute.name) && idPattern.test(attribute.value)));
+    });
+    const root = rootsWithStableId[0] ?? document;
+    const titleCandidateCount = Array.from(root.querySelectorAll("h1,h2,h3,[class*='title'],[class*='Title'],[data-testid*='title'],[class*='note-name'],[class*='NoteName']"))
+      .filter((element) => !element.closest("nav,header,aside,[role='navigation'],[class*='side'],[class*='Side'],[class*='menu'],[class*='Menu']"))
+      .map((element) => clean(element.getAttribute("title")) || clean(element.textContent))
+      .filter((text) => text.length >= 4 && text.length <= 140 && !/(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动|数据详情|笔记数据)/.test(text))
+      .length;
+    const compactMetricCellCount = Array.from(root.querySelectorAll("section,article,div,li,span,p,td,[role='cell'],[class*='label'],[class*='Label'],[class*='value'],[class*='Value'],[class*='count'],[class*='Count'],[class*='num'],[class*='Num']"))
+      .map((element) => clean(element.textContent))
+      .filter((text) => text.length >= 1 && text.length <= 60 && (/(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/.test(text) || /^-?\d[\d,.]*(?:\.\d+)?\s*(?:万|亿|k|K)?$/.test(text)))
+      .length;
+    const labeledMetricBlockCount = Array.from(root.querySelectorAll("section,article,div,li,span,p,td,[role='cell'],[class*='metric'],[class*='Metric'],[class*='data'],[class*='Data']"))
+      .map((element) => clean(element.textContent))
+      .filter((text) => text.length >= 2 && text.length <= 180 && /\d/.test(text) && /(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/.test(text))
+      .length;
+    const urlLooksDetail = !/\/new\/note-manager\/?$/.test(window.location.pathname)
+      && /(detail|analysis|analyse|note|data|note_id=|noteId=|explore\/)/i.test(currentUrl);
+    return {
+      urlLooksDetail,
+      urlStableIdFound: idPattern.test(currentUrl),
+      samePageDetailRootCount: roots.length,
+      samePageStableIdRootCount: rootsWithStableId.length,
+      titleCandidateCount,
+      compactMetricCellCount,
+      labeledMetricBlockCount
+    };
+  }).catch(() => ({
+    urlLooksDetail: false,
+    urlStableIdFound: false,
+    samePageDetailRootCount: 0,
+    samePageStableIdRootCount: 0,
+    titleCandidateCount: 0,
+    compactMetricCellCount: 0,
+    labeledMetricBlockCount: 0
+  }));
+}
+
+async function openFirstVisibleDetail(page: Page) {
+  const beforeUrl = safePageUrl(page.url());
+  const target = await page.evaluate(() => {
+    if (!window.location.hostname.endsWith("creator.xiaohongshu.com")) return undefined;
+
+    const positive = /(笔记数据|数据详情|数据表现|详情|查看数据|查看详情|分析)/;
+    const stableHref = /(note_id=|noteId=|\/note\/|explore\/|detail|analysis|analyse|data)/i;
+    const dangerous = /(发布|删除|提交|审核|修改|编辑|授权|开通|支付|上传|私信|消息|充值|导出|下载|复制|关闭|取消|保存|确认|确定)/;
+    const selector = "a[href],button,[role='button'],[tabindex]";
+    const rowSelector = "tr,[role='row'],article,li,[class*='table-row'],[class*='TableRow'],[class*='note'],[class*='Note'],[class*='card'],[class*='item']";
+
+    function clean(value: string | null | undefined) {
+      return (value ?? "").replace(/\s+/g, " ").trim();
+    }
+
+    function visible(element: Element) {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return rect.width >= 8
+        && rect.height >= 8
+        && rect.bottom > 0
+        && rect.right > 0
+        && rect.top < window.innerHeight
+        && rect.left < window.innerWidth
+        && style.visibility !== "hidden"
+        && style.display !== "none"
+        && style.pointerEvents !== "none";
+    }
+
+    function safeHref(value: string) {
+      try {
+        const url = new URL(value, window.location.href);
+        url.search = "";
+        url.hash = "";
+        return url.toString();
+      } catch {
+        return value.split("?")[0];
+      }
+    }
+
+    const elements = Array.from(document.querySelectorAll(selector));
+    const candidates = elements
+      .map((element) => {
+        const text = clean(`${element.getAttribute("aria-label") ?? ""} ${element.getAttribute("title") ?? ""} ${element.textContent ?? ""}`);
+        const href = element.getAttribute("href") ?? "";
+        const rect = element.getBoundingClientRect();
+        const hasStableHref = stableHref.test(href);
+        const hasActionText = positive.test(text);
+        const score = (hasStableHref ? 20 : 0)
+          + (hasActionText ? 10 : 0)
+          + (/详情|数据|分析/.test(text) ? 4 : 0)
+          + (/(note_id=|noteId=|\/note\/|explore\/)/i.test(href) ? 6 : 0)
+          - (!hasStableHref && !hasActionText ? 100 : 0)
+          - (dangerous.test(`${text} ${href}`) ? 100 : 0)
+          - (text.length > 120 ? 12 : 0);
+        return {
+          element,
+          score,
+          href: safeHref(href),
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        };
+      })
+      .filter((item) => item.score > 0 && visible(item.element))
+      .sort((a, b) => b.score - a.score);
+
+    const rowCandidates = Array.from(document.querySelectorAll(rowSelector))
+      .map((element) => {
+        const text = clean(element.textContent);
+        const rect = element.getBoundingClientRect();
+        const score = (/(浏览|阅读|观看|播放|点赞|评论|收藏|分享|曝光|互动)/.test(text) ? 18 : 0)
+          + (/\d/.test(text) ? 8 : 0)
+          - (/(删除|提交审核|修改资料|编辑资料|授权|开通|支付|上传|私信|充值|导出|下载|保存)/.test(text) ? 60 : 0)
+          - (text.length > 700 ? 40 : 0)
+          - ((element.querySelectorAll(rowSelector).length > 2) ? 30 : 0);
+        return {
+          element,
+          score,
+          href: "",
+          x: rect.left + Math.min(rect.width * 0.28, 260),
+          y: rect.top + rect.height / 2
+        };
+      })
+      .filter((item) => item.score > 0 && visible(item.element))
+      .sort((a, b) => b.score - a.score);
+
+    const chosen = candidates[0] ?? rowCandidates[0];
+    if (!chosen) return undefined;
+    chosen.element.scrollIntoView({ block: "center", inline: "center" });
+    const rect = chosen.element.getBoundingClientRect();
+    return {
+      x: Math.round(rect.left + rect.width / 2),
+      y: Math.round(rect.top + rect.height / 2),
+      href: chosen.href || undefined
+    };
+  }) as { x: number; y: number; href?: string } | undefined;
+
+  if (!target) return { ok: false, beforeUrl, afterUrl: safePageUrl(page.url()), warning: "no_safe_clickable_detail_entry" };
+  const popupPromise = page.context().waitForEvent("page", { timeout: 5000 }).catch(() => undefined);
+  await page.mouse.click(target.x, target.y);
+  const popup = await popupPromise;
+  const activePage = popup ?? page;
+  await activePage.waitForLoadState("domcontentloaded", { timeout: 10000 }).catch(() => undefined);
+  await activePage.waitForTimeout(1200);
+  await activePage.bringToFront().catch(() => undefined);
+  const detailState = await activePage.evaluate(() => {
+    const currentUrl = window.location.href;
+    const idPattern = /(?:note\/|explore\/|discovery\.|note_id=|noteId=)([A-Za-z0-9_-]{6,})/i;
+    function clean(value: string | null | undefined) {
+      return (value ?? "").replace(/\s+/g, " ").trim();
+    }
+    function visible(element: Element) {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return rect.width >= 80
+        && rect.height >= 80
+        && rect.bottom > 0
+        && rect.right > 0
+        && rect.top < window.innerHeight
+        && rect.left < window.innerWidth
+        && style.visibility !== "hidden"
+        && style.display !== "none";
+    }
+    const urlLooksDetail = !/\/new\/note-manager\/?$/.test(window.location.pathname)
+      && /(detail|analysis|analyse|note|data|note_id=|noteId=|explore\/)/i.test(currentUrl);
+    const rootsWithStableId = Array.from(document.querySelectorAll("[role='dialog'],[class*='drawer'],[class*='Drawer'],[class*='modal'],[class*='Modal'],[class*='detail'],[class*='Detail']"))
+      .filter(visible)
+      .filter((element) => {
+        const scopedText = clean(element.textContent);
+        const scopedLinks = Array.from(element.querySelectorAll("a[href*='xiaohongshu.com'],a[href*='note'],a[href*='note_id'],a[href*='noteId'],a[href*='explore']"));
+        const scopedAttrs = Array.from(element.querySelectorAll("[data-id],[data-note-id],[id]")).slice(0, 80);
+        return idPattern.test(scopedText)
+          || scopedLinks.some((anchor) => idPattern.test(anchor.getAttribute("href") ?? ""))
+          || scopedAttrs.some((item) => Array.from(item.attributes).some((attribute) => /(^data-(?:note-)?id$|^id$|note)/i.test(attribute.name) && idPattern.test(attribute.value)));
+      });
+    return {
+      urlLooksDetail,
+      stableUrlId: idPattern.test(currentUrl),
+      stableRootCount: rootsWithStableId.length
+    };
+  }).catch(() => ({ urlLooksDetail: false, stableUrlId: false, stableRootCount: 0 }));
+  const enteredDetail = (detailState.urlLooksDetail && detailState.stableUrlId) || detailState.stableRootCount > 0;
+  return {
+    ok: enteredDetail,
+    beforeUrl,
+    afterUrl: safePageUrl(activePage.url()),
+    page: activePage,
+    href: target.href,
+    warning: enteredDetail ? undefined : "click_did_not_enter_detail"
+  };
 }
 
 function summarizeRows(rows: XiaohongshuBrowserVisibleRow[]) {
@@ -288,7 +537,7 @@ export async function POST(request: Request) {
     const body = await request.json() as XiaohongshuAuthedBrowserCaptureRequest;
     if (hasBlockedKey(body)) return Response.json(emptyResult(body.action ?? "status", { message: "浏览器辅助接口不接收 cookie/token/password/header/raw request/storage。", warnings: ["blocked_sensitive_input_key"] }), { status: 400 });
     const action = body.action;
-    if (!["open", "status", "capture_preview", "capture_current_detail_preview", "save", "close"].includes(action)) {
+    if (!["open", "status", "capture_preview", "open_first_visible_detail", "capture_current_detail_preview", "save", "close"].includes(action)) {
       return Response.json(emptyResult("status", { loginState: "error", message: "不支持的小红书浏览器辅助操作。", warnings: ["unsupported_action"] }), { status: 400 });
     }
 
@@ -333,6 +582,22 @@ export async function POST(request: Request) {
       return Response.json(emptyResult(action, { ...base, message: "页面仍像登录页；请先完成登录并勾选确认已登录。", warnings: ["needs_login"] }), { status: 400 });
     }
 
+    if (action === "open_first_visible_detail") {
+      const clickResult = await openFirstVisibleDetail(session.page);
+      if (clickResult.page) session.page = clickResult.page;
+      return Response.json(emptyResult(action, {
+        ...base,
+        ok: clickResult.ok,
+        pageUrl: clickResult.afterUrl,
+        rows: session.lastRows,
+        ...summarizeRows(session.lastRows),
+        message: clickResult.ok
+          ? "已用鼠标点开小红书当前页面里第一条安全的笔记数据/详情入口；请继续执行当前笔记详情页预览。"
+          : "未找到可安全点击的小红书笔记数据/详情入口；没有点击发布、删除、上传、授权或支付等按钮。",
+        warnings: clickResult.ok ? [] : [clickResult.warning ?? "no_safe_clickable_detail_entry"]
+      }), { status: clickResult.ok ? 200 : 400 });
+    }
+
     const rows = action === "save"
       ? session.lastRows
       : action === "capture_current_detail_preview"
@@ -342,6 +607,16 @@ export async function POST(request: Request) {
     const summary = summarizeRows(rows);
     if (action === "capture_preview" || action === "capture_current_detail_preview") {
       const isDetail = action === "capture_current_detail_preview";
+      const detailDiagnostics = isDetail && rows.length === 0 ? await diagnoseCurrentDetailPage(session.page) : undefined;
+      const detailWarnings = detailDiagnostics ? [
+        detailDiagnostics.urlLooksDetail ? "detail_url_gate_passed" : "detail_url_gate_failed",
+        detailDiagnostics.urlStableIdFound ? "detail_url_stable_id_found" : "detail_url_stable_id_missing",
+        `same_page_detail_roots_${detailDiagnostics.samePageDetailRootCount}`,
+        `same_page_stable_id_roots_${detailDiagnostics.samePageStableIdRootCount}`,
+        `detail_title_candidates_${detailDiagnostics.titleCandidateCount}`,
+        `detail_metric_cells_${detailDiagnostics.compactMetricCellCount}`,
+        `detail_labeled_metric_blocks_${detailDiagnostics.labeledMetricBlockCount}`
+      ] : [];
       return Response.json(emptyResult(action, {
         ...base,
         ok: rows.length > 0,
@@ -353,7 +628,7 @@ export async function POST(request: Request) {
           : isDetail
             ? "当前详情页未识别到可靠笔记 ID、单条笔记标题和同一笔记上下文的指标；请在小红书后台点开具体笔记的数据/详情页后重试。"
             : "当前页面未识别到本人笔记/作品级指标行；请进入小红书创作服务平台的笔记管理，确认列表里有单条笔记标题和浏览/点赞/评论/收藏等指标后重试。",
-        warnings: rows.length > 0 ? rows.flatMap((row) => row.warnings) : [isDetail ? "no_visible_detail_note_row" : "no_visible_creator_note_rows"]
+        warnings: rows.length > 0 ? rows.flatMap((row) => row.warnings) : [isDetail ? "no_visible_detail_note_row" : "no_visible_creator_note_rows", ...detailWarnings]
       }), { status: rows.length > 0 ? 200 : 400 });
     }
 

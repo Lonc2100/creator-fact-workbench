@@ -119,6 +119,7 @@ function isBadTitleLine(value: string, platform: Platform) {
   if (value.length < 4 || value.length > 140) return true;
   if (isMetricText(value, platform)) return true;
   if (noisyTitle(value)) return true;
+  if (/^(抖音|抖音作品|创作者中心|内容管理|作品管理|作品数据|数据中心|变现中心|数据详情|数据概览|核心数据|内容数据|作品分析|数据表现|作品详情|小红书|小红书笔记|创作服务平台|笔记管理|笔记数据|笔记详情)$/.test(value)) return true;
   if (/编辑|删除|查看|更多|置顶|发布时间|立即发布/.test(value)) return true;
   if (/^20\d{2}[-/.年]/.test(value)) return true;
   if (/^(已发布|审核中|未通过|全部|\d+)$/.test(value)) return true;
@@ -133,7 +134,7 @@ function titleOf(candidate: CreatorCenterDomCandidate, platform: Platform) {
 
 function idOf(candidate: CreatorCenterDomCandidate, platform: Platform): { id: string; nativeId?: string; nativeIdConfidence: ExtractedNativeIdConfidence } {
   const hrefPattern = platform === "douyin"
-    ? /(?:video\/|modal_id=|item_id=|aweme_id=)([A-Za-z0-9_-]{6,})/i
+    ? /(?:video\/|work-detail\/|modal_id=|item_id=|aweme_id=)([A-Za-z0-9_-]{6,})/i
     : /(?:note\/|explore\/|discovery\.|note_id=|noteId=)([A-Za-z0-9_-]{6,})/i;
   for (const href of candidate.hrefs) {
     const match = href.match(hrefPattern)?.[1];
@@ -210,7 +211,52 @@ function positionalMetrics(candidate: CreatorCenterDomCandidate, title: string, 
   };
 }
 
+function adjacentCellMetrics(candidate: CreatorCenterDomCandidate, platform: Platform): MetricSet {
+  const cells = nonEmptyCells(candidate)
+    .filter((cell) => !/(管理|设置|回复|私信|导出|下载|趋势图|排行榜)/.test(cell));
+  const labels = metricLabels(platform);
+  const result: MetricSet = { views: 0, likes: 0, comments: 0, saves: 0, shares: 0 };
+  const entries: Array<[keyof MetricSet, string[]]> = [
+    ["views", labels.views],
+    ["likes", labels.likes],
+    ["comments", labels.comments],
+    ["saves", labels.saves],
+    ["shares", labels.shares]
+  ];
+
+  function hasAnyMetricLabel(value: string) {
+    return entries.some(([, entryLabels]) => entryLabels.some((label) => new RegExp(label).test(value)));
+  }
+
+  for (const [field, entryLabels] of entries) {
+    for (let index = 0; index < cells.length; index += 1) {
+      const cell = cells[index];
+      if (!entryLabels.some((label) => new RegExp(label).test(cell))) continue;
+      const sameCellValue = metricValue(cell, entryLabels);
+      if (sameCellValue > 0) {
+        result[field] = sameCellValue;
+        break;
+      }
+      for (let offset = 1; offset <= 3; offset += 1) {
+        const next = cells[index + offset];
+        if (!next || hasAnyMetricLabel(next)) break;
+        const numeric = numericCellValue(next);
+        if (numeric !== undefined) {
+          result[field] = numeric;
+          break;
+        }
+      }
+      if (result[field] > 0) break;
+    }
+  }
+  return result;
+}
+
 function metricsOf(candidate: CreatorCenterDomCandidate, title: string, platform: Platform): MetricSet {
+  if (candidate.tagName === "page") {
+    const adjacent = adjacentCellMetrics(candidate, platform);
+    if (adjacent.views + adjacent.likes + adjacent.comments + adjacent.saves + adjacent.shares > 0) return adjacent;
+  }
   const labeled = labeledMetrics(candidate.text, platform);
   if (labeled.views + labeled.likes + labeled.comments + labeled.saves + labeled.shares > 0) return labeled;
   return positionalMetrics(candidate, title, platform);
@@ -222,6 +268,7 @@ function commonWarnings(row: { title: string; nativeId?: string; nativeIdConfide
   if (row.nativeIdConfidence === "fallback_text_hash") warnings.push("fallback_id_from_visible_text");
   if (noisyTitle(row.title)) warnings.push("noisy_visible_dom_title");
   if (isGenericNativeId(row.nativeId, platform)) warnings.push("unstable_native_id");
+  if (row.views > 99 && (row.likes === row.views || row.comments === row.views || row.saves === row.views || row.shares === row.views)) warnings.push("suspicious_detail_metric_alignment");
   return warnings;
 }
 
@@ -243,8 +290,8 @@ function hasDetailMetricCoverage(candidate: CreatorCenterDomCandidate, platform:
 }
 
 function isGenericDetailTitle(value: string, platform: Platform) {
-  if (platform === "douyin" && /^(抖音|创作者中心|内容管理|作品管理|作品数据|数据详情|内容数据|作品分析|数据表现|作品详情)$/.test(value)) return true;
-  if (platform === "xiaohongshu" && /^(小红书|创作服务平台|笔记管理|笔记数据|笔记详情|数据详情|数据表现|作品详情)$/.test(value)) return true;
+  if (platform === "douyin" && /^(抖音|抖音作品|创作者中心|内容管理|作品管理|作品数据|数据中心|变现中心|数据详情|数据概览|核心数据|内容数据|作品分析|数据表现|作品详情)$/.test(value)) return true;
+  if (platform === "xiaohongshu" && /^(小红书|小红书笔记|创作服务平台|笔记管理|笔记数据|笔记详情|数据中心|数据详情|数据概览|核心数据|数据表现|作品详情)$/.test(value)) return true;
   return false;
 }
 
@@ -276,7 +323,7 @@ export function selectDouyinCreatorCenterDetailRow(candidate: CreatorCenterDomCa
   row.warnings = commonWarnings(row, "douyin");
   if (isGenericDetailTitle(row.title, "douyin")) row.warnings.push("generic_detail_page_title");
   if (!hasDetailMetricCoverage(candidate, "douyin", metrics)) row.warnings.push("incomplete_detail_metric_context");
-  if (!hasTrustedCreatorCenterRowShape(row, "douyin") || row.warnings.includes("generic_detail_page_title") || row.warnings.includes("incomplete_detail_metric_context")) return [];
+  if (!hasTrustedCreatorCenterRowShape(row, "douyin") || row.warnings.includes("generic_detail_page_title") || row.warnings.includes("incomplete_detail_metric_context") || row.warnings.includes("suspicious_detail_metric_alignment")) return [];
   return [row];
 }
 
@@ -348,7 +395,7 @@ export function selectXiaohongshuCreatorCenterDetailRow(candidate: CreatorCenter
   row.warnings = commonWarnings(row, "xiaohongshu");
   if (isGenericDetailTitle(row.title, "xiaohongshu")) row.warnings.push("generic_detail_page_title");
   if (!hasDetailMetricCoverage(candidate, "xiaohongshu", metrics)) row.warnings.push("incomplete_detail_metric_context");
-  if (!hasTrustedCreatorCenterRowShape(row, "xiaohongshu") || row.warnings.includes("generic_detail_page_title") || row.warnings.includes("incomplete_detail_metric_context")) return [];
+  if (!hasTrustedCreatorCenterRowShape(row, "xiaohongshu") || row.warnings.includes("generic_detail_page_title") || row.warnings.includes("incomplete_detail_metric_context") || row.warnings.includes("suspicious_detail_metric_alignment")) return [];
   return [row];
 }
 

@@ -144,8 +144,8 @@ async function extractVisibleRows(page: Page): Promise<DouyinBrowserVisibleRow[]
       const dataValues = scoped.flatMap((item) => Array.from(item.attributes)
         .filter((attribute) => /(^data-(?:item-|aweme-)?id$|^id$|aweme|item)/i.test(attribute.name))
         .map((attribute) => clean(attribute.value)));
-      const anchors = Array.from(element.querySelectorAll("a[href*='douyin.com'],a[href*='/video/'],a[href*='modal_id'],a[href*='item_id'],a[href*='aweme_id']"));
-      dataValues.push(...anchors.map((anchor) => anchor.getAttribute("href")?.match(/(?:video\/|modal_id=|item_id=|aweme_id=)([A-Za-z0-9_-]{6,})/i)?.[1] ?? "").filter(Boolean));
+      const anchors = Array.from(element.querySelectorAll("a[href*='douyin.com'],a[href*='/video/'],a[href*='work-detail'],a[href*='modal_id'],a[href*='item_id'],a[href*='aweme_id']"));
+      dataValues.push(...anchors.map((anchor) => anchor.getAttribute("href")?.match(/(?:video\/|work-detail\/|modal_id=|item_id=|aweme_id=)([A-Za-z0-9_-]{6,})/i)?.[1] ?? "").filter(Boolean));
       const hrefs = anchors.map((anchor) => {
         const href = anchor.getAttribute("href") ?? "";
           try {
@@ -179,7 +179,7 @@ async function extractCurrentDetailRow(page: Page): Promise<DouyinBrowserVisible
   const capturedAt = new Date().toISOString();
   const candidate = await page.evaluate(() => {
     if (!window.location.hostname.endsWith("creator.douyin.com")) return undefined;
-    if (!/(detail|analysis|analyse|data-center\/content|modal_id=|item_id=|aweme_id=|video\/)/i.test(window.location.href)) return undefined;
+    if (!/(detail|work-detail\/|analysis|analyse|data-center\/content|modal_id=|item_id=|aweme_id=|video\/)/i.test(window.location.href)) return undefined;
 
     function clean(value: string | null | undefined) {
       return (value ?? "").replace(/\s+/g, " ").trim();
@@ -197,24 +197,29 @@ async function extractCurrentDetailRow(page: Page): Promise<DouyinBrowserVisible
     }
 
     const currentUrl = window.location.href;
-    const idPattern = /(?:video\/|modal_id=|item_id=|aweme_id=)([A-Za-z0-9_-]{6,})/i;
+    const idPattern = /(?:video\/|work-detail\/|modal_id=|item_id=|aweme_id=)([A-Za-z0-9_-]{6,})/i;
     const dataValues = [currentUrl.match(idPattern)?.[1] ?? ""].filter(Boolean);
-    const anchors = Array.from(document.querySelectorAll("a[href*='douyin.com'],a[href*='/video/'],a[href*='modal_id'],a[href*='item_id'],a[href*='aweme_id']"));
+    const anchors = Array.from(document.querySelectorAll("a[href*='douyin.com'],a[href*='/video/'],a[href*='work-detail'],a[href*='modal_id'],a[href*='item_id'],a[href*='aweme_id']"));
     dataValues.push(...anchors.map((anchor) => anchor.getAttribute("href")?.match(idPattern)?.[1] ?? "").filter(Boolean));
     const scoped = Array.from(document.querySelectorAll("[data-id],[data-item-id],[data-aweme-id],[data-e2e],[id]")).slice(0, 120);
     dataValues.push(...scoped.flatMap((item) => Array.from(item.attributes)
       .filter((attribute) => /(^data-(?:item-|aweme-)?id$|^id$|aweme|item)/i.test(attribute.name))
       .map((attribute) => clean(attribute.value))));
     const titleCandidates = Array.from(document.querySelectorAll("h1,h2,h3,[class*='title'],[class*='Title'],[data-e2e*='title'],[data-testid*='title']"))
+      .filter((element) => !element.closest("nav,header,aside,[role='navigation'],[class*='side'],[class*='Side'],[class*='menu'],[class*='Menu']"))
       .map((element) => clean(element.getAttribute("title")) || clean(element.textContent))
       .filter((text) => text.length >= 4 && text.length <= 140 && !/(播放|浏览|点赞|评论|收藏|分享|转发|数据详情|作品数据)/.test(text))
       .slice(0, 12);
+    const compactMetricCells = Array.from(document.querySelectorAll("section,article,div,li,span,p,td,[role='cell'],[class*='label'],[class*='Label'],[class*='value'],[class*='Value'],[class*='count'],[class*='Count'],[class*='num'],[class*='Num']"))
+      .map((element) => clean(element.textContent))
+      .filter((text) => text.length >= 1 && text.length <= 60 && (/(播放|浏览|点赞|评论|收藏|分享|转发|完播|互动)/.test(text) || /^-?\d[\d,.]*(?:\.\d+)?\s*(?:万|亿|k|K)?$/.test(text)))
+      .slice(0, 160);
     const metricCandidates = Array.from(document.querySelectorAll("section,article,div,li,span,p,td,[role='cell'],[class*='metric'],[class*='Metric'],[class*='data'],[class*='Data']"))
       .map((element) => clean(element.textContent))
       .filter((text) => text.length >= 2 && text.length <= 180 && /\d/.test(text) && /(播放|浏览|点赞|评论|收藏|分享|转发|完播|互动)/.test(text))
       .slice(0, 80);
     const hrefs = [sanitizedUrl(currentUrl), ...anchors.map((anchor) => sanitizedUrl(anchor.getAttribute("href") ?? "")).filter(Boolean)];
-    const cells = [...titleCandidates, ...metricCandidates];
+    const cells = [...titleCandidates, ...compactMetricCells, ...metricCandidates];
     return {
       text: cells.join(" "),
       tagName: "page",
@@ -229,6 +234,167 @@ async function extractCurrentDetailRow(page: Page): Promise<DouyinBrowserVisible
     };
   }) as CreatorCenterDomCandidate | undefined;
   return selectDouyinCreatorCenterDetailRow(candidate, capturedAt);
+}
+
+async function diagnoseCurrentDetailPage(page: Page) {
+  return page.evaluate(() => {
+    const currentUrl = window.location.href;
+    const idPattern = /(?:video\/|work-detail\/|modal_id=|item_id=|aweme_id=)([A-Za-z0-9_-]{6,})/i;
+    function clean(value: string | null | undefined) {
+      return (value ?? "").replace(/\s+/g, " ").trim();
+    }
+    const titleCandidateCount = Array.from(document.querySelectorAll("h1,h2,h3,[class*='title'],[class*='Title'],[data-e2e*='title'],[data-testid*='title']"))
+      .filter((element) => !element.closest("nav,header,aside,[role='navigation'],[class*='side'],[class*='Side'],[class*='menu'],[class*='Menu']"))
+      .map((element) => clean(element.getAttribute("title")) || clean(element.textContent))
+      .filter((text) => text.length >= 4 && text.length <= 140 && !/(播放|浏览|点赞|评论|收藏|分享|转发|数据详情|作品数据)/.test(text))
+      .length;
+    const compactMetricCellCount = Array.from(document.querySelectorAll("section,article,div,li,span,p,td,[role='cell'],[class*='label'],[class*='Label'],[class*='value'],[class*='Value'],[class*='count'],[class*='Count'],[class*='num'],[class*='Num']"))
+      .map((element) => clean(element.textContent))
+      .filter((text) => text.length >= 1 && text.length <= 60 && (/(播放|浏览|点赞|评论|收藏|分享|转发|完播|互动)/.test(text) || /^-?\d[\d,.]*(?:\.\d+)?\s*(?:万|亿|k|K)?$/.test(text)))
+      .length;
+    const labeledMetricBlockCount = Array.from(document.querySelectorAll("section,article,div,li,span,p,td,[role='cell'],[class*='metric'],[class*='Metric'],[class*='data'],[class*='Data']"))
+      .map((element) => clean(element.textContent))
+      .filter((text) => text.length >= 2 && text.length <= 180 && /\d/.test(text) && /(播放|浏览|点赞|评论|收藏|分享|转发|完播|互动)/.test(text))
+      .length;
+    return {
+      urlLooksDetail: /(detail|work-detail\/|analysis|analyse|data-center\/content|modal_id=|item_id=|aweme_id=|video\/)/i.test(currentUrl),
+      urlStableIdFound: idPattern.test(currentUrl),
+      titleCandidateCount,
+      compactMetricCellCount,
+      labeledMetricBlockCount
+    };
+  }).catch(() => ({
+    urlLooksDetail: false,
+    urlStableIdFound: false,
+    titleCandidateCount: 0,
+    compactMetricCellCount: 0,
+    labeledMetricBlockCount: 0
+  }));
+}
+
+async function openFirstVisibleDetail(page: Page) {
+  const beforeUrl = page.url();
+  const target = await page.evaluate(() => {
+    if (!window.location.hostname.endsWith("creator.douyin.com")) return undefined;
+
+    const positive = /(作品数据|数据详情|数据表现|详情|查看数据|查看详情|分析|播放分析)/;
+    const stableHref = /(modal_id=|item_id=|aweme_id=|\/video\/|work-detail\/|detail|analysis|analyse|data-center\/content)/i;
+    const dangerous = /(发布|删除|提交|审核|修改|编辑|授权|开通|支付|上传|私信|消息|充值|导出|下载|复制|关闭|取消|保存|确认|确定)/;
+    const selector = "a[href],button,[role='button'],[tabindex]";
+    const rowSelector = "tr,[role='row'],article,li,[class*='table-row'],[class*='TableRow'],[class*='card'],[class*='item']";
+
+    function clean(value: string | null | undefined) {
+      return (value ?? "").replace(/\s+/g, " ").trim();
+    }
+
+    function visible(element: Element) {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return rect.width >= 8
+        && rect.height >= 8
+        && rect.bottom > 0
+        && rect.right > 0
+        && rect.top < window.innerHeight
+        && rect.left < window.innerWidth
+        && style.visibility !== "hidden"
+        && style.display !== "none"
+        && style.pointerEvents !== "none";
+    }
+
+    function safeHref(value: string) {
+      try {
+        const url = new URL(value, window.location.href);
+        url.search = "";
+        url.hash = "";
+        return url.toString();
+      } catch {
+        return value.split("?")[0];
+      }
+    }
+
+    const elements = Array.from(document.querySelectorAll(selector));
+    const candidates = elements
+      .map((element) => {
+        const text = clean(`${element.getAttribute("aria-label") ?? ""} ${element.getAttribute("title") ?? ""} ${element.textContent ?? ""}`);
+        const href = element.getAttribute("href") ?? "";
+        const rect = element.getBoundingClientRect();
+        const hasStableHref = stableHref.test(href);
+        const hasActionText = positive.test(text);
+        const score = (hasStableHref ? 20 : 0)
+          + (hasActionText ? 10 : 0)
+          + (/详情|数据|分析/.test(text) ? 4 : 0)
+          + (/(modal_id=|item_id=|aweme_id=|\/video\/|work-detail\/)/i.test(href) ? 6 : 0)
+          - (!hasStableHref && !hasActionText ? 100 : 0)
+          - (/collection\/manage|合集/.test(`${text} ${href}`) ? 80 : 0)
+          - (dangerous.test(`${text} ${href}`) ? 100 : 0)
+          - (text.length > 120 ? 12 : 0);
+        return {
+          element,
+          score,
+          href: safeHref(href),
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2
+        };
+      })
+      .filter((item) => item.score > 0 && visible(item.element))
+      .sort((a, b) => b.score - a.score);
+
+    const rowCandidates = Array.from(document.querySelectorAll(rowSelector))
+      .map((element) => {
+        const text = clean(element.textContent);
+        const rect = element.getBoundingClientRect();
+        const score = (/(播放|浏览|点赞|评论|收藏|分享|转发|完播|互动)/.test(text) ? 18 : 0)
+          + (/\d/.test(text) ? 8 : 0)
+          - (/(删除|提交审核|修改资料|编辑资料|授权|开通|支付|上传|私信|充值|导出|下载|保存)/.test(text) ? 60 : 0)
+          - (text.length > 700 ? 40 : 0)
+          - ((element.querySelectorAll(rowSelector).length > 2) ? 30 : 0);
+        return {
+          element,
+          score,
+          href: "",
+          x: rect.left + Math.min(rect.width * 0.28, 260),
+          y: rect.top + rect.height / 2
+        };
+      })
+      .filter((item) => item.score > 0 && visible(item.element))
+      .sort((a, b) => b.score - a.score);
+
+    const chosen = candidates[0] ?? rowCandidates[0];
+    if (!chosen) return undefined;
+    chosen.element.scrollIntoView({ block: "center", inline: "center" });
+    const rect = chosen.element.getBoundingClientRect();
+    return {
+      x: Math.round(rect.left + rect.width / 2),
+      y: Math.round(rect.top + rect.height / 2),
+      href: chosen.href || undefined
+    };
+  }) as { x: number; y: number; href?: string } | undefined;
+
+  if (!target) return { ok: false, beforeUrl, afterUrl: page.url(), warning: "no_safe_clickable_detail_entry" };
+  const popupPromise = page.context().waitForEvent("page", { timeout: 5000 }).catch(() => undefined);
+  await page.mouse.click(target.x, target.y);
+  const popup = await popupPromise;
+  const activePage = popup ?? page;
+  await activePage.waitForLoadState("domcontentloaded", { timeout: 10000 }).catch(() => undefined);
+  await activePage.waitForTimeout(1200);
+  await activePage.bringToFront().catch(() => undefined);
+  const detailState = await activePage.evaluate(() => {
+    const currentUrl = window.location.href;
+    const idPattern = /(?:video\/|work-detail\/|modal_id=|item_id=|aweme_id=)([A-Za-z0-9_-]{6,})/i;
+    return {
+      urlLooksDetail: /(detail|work-detail\/|analysis|analyse|data-center\/content|modal_id=|item_id=|aweme_id=|video\/)/i.test(currentUrl),
+      stableUrlId: idPattern.test(currentUrl)
+    };
+  }).catch(() => ({ urlLooksDetail: false, stableUrlId: false }));
+  const enteredDetail = detailState.urlLooksDetail && detailState.stableUrlId;
+  return {
+    ok: enteredDetail,
+    beforeUrl,
+    afterUrl: activePage.url(),
+    page: activePage,
+    href: target.href,
+    warning: enteredDetail ? undefined : "click_did_not_enter_detail"
+  };
 }
 
 function summarizeRows(rows: DouyinBrowserVisibleRow[]) {
@@ -263,7 +429,7 @@ export async function POST(request: Request) {
     const body = await request.json() as DouyinAuthedBrowserCaptureRequest;
     if (hasBlockedKey(body)) return Response.json(emptyResult(body.action ?? "status", { message: "浏览器辅助接口不接收 cookie/token/password/header/raw request/storage。", warnings: ["blocked_sensitive_input_key"] }), { status: 400 });
     const action = body.action;
-    if (!["open", "status", "capture_preview", "capture_current_detail_preview", "save", "close"].includes(action)) {
+    if (!["open", "status", "capture_preview", "open_first_visible_detail", "capture_current_detail_preview", "save", "close"].includes(action)) {
       return Response.json(emptyResult("status", { loginState: "error", message: "不支持的抖音浏览器辅助操作。", warnings: ["unsupported_action"] }), { status: 400 });
     }
 
@@ -301,6 +467,22 @@ export async function POST(request: Request) {
       return Response.json(emptyResult(action, { ...base, message: "页面仍像登录页；请先完成登录并勾选确认已登录。", warnings: ["needs_login"] }), { status: 400 });
     }
 
+    if (action === "open_first_visible_detail") {
+      const clickResult = await openFirstVisibleDetail(session.page);
+      if (clickResult.page) session.page = clickResult.page;
+      return Response.json(emptyResult(action, {
+        ...base,
+        ok: clickResult.ok,
+        pageUrl: clickResult.afterUrl,
+        rows: session.lastRows,
+        ...summarizeRows(session.lastRows),
+        message: clickResult.ok
+          ? "已用鼠标点开抖音当前页面里第一条安全的作品数据/详情入口；请继续执行当前作品详情页预览。"
+          : "未找到可安全点击的抖音作品数据/详情入口；没有点击发布、删除、上传、授权或支付等按钮。",
+        warnings: clickResult.ok ? [] : [clickResult.warning ?? "no_safe_clickable_detail_entry"]
+      }), { status: clickResult.ok ? 200 : 400 });
+    }
+
     const rows = action === "save"
       ? session.lastRows
       : action === "capture_current_detail_preview"
@@ -310,6 +492,14 @@ export async function POST(request: Request) {
     const summary = summarizeRows(rows);
     if (action === "capture_preview" || action === "capture_current_detail_preview") {
       const isDetail = action === "capture_current_detail_preview";
+      const detailDiagnostics = isDetail && rows.length === 0 ? await diagnoseCurrentDetailPage(session.page) : undefined;
+      const detailWarnings = detailDiagnostics ? [
+        detailDiagnostics.urlLooksDetail ? "detail_url_gate_passed" : "detail_url_gate_failed",
+        detailDiagnostics.urlStableIdFound ? "detail_url_stable_id_found" : "detail_url_stable_id_missing",
+        `detail_title_candidates_${detailDiagnostics.titleCandidateCount}`,
+        `detail_metric_cells_${detailDiagnostics.compactMetricCellCount}`,
+        `detail_labeled_metric_blocks_${detailDiagnostics.labeledMetricBlockCount}`
+      ] : [];
       return Response.json(emptyResult(action, {
         ...base,
         ok: rows.length > 0,
@@ -321,7 +511,7 @@ export async function POST(request: Request) {
           : isDetail
             ? "当前详情页未识别到可靠作品 ID、单条作品标题和同一作品上下文的指标；请在抖音后台点开具体作品的数据/详情页后重试。"
             : "当前页面未识别到作品级指标行；请进入抖音创作者中心左侧的作品管理，确认列表里有单条作品标题和播放/点赞/评论等指标后重试。",
-        warnings: rows.length > 0 ? rows.flatMap((row) => row.warnings) : [isDetail ? "no_visible_detail_content_row" : "no_visible_content_rows"]
+        warnings: rows.length > 0 ? rows.flatMap((row) => row.warnings) : [isDetail ? "no_visible_detail_content_row" : "no_visible_content_rows", ...detailWarnings]
       }), { status: rows.length > 0 ? 200 : 400 });
     }
 

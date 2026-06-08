@@ -1062,7 +1062,7 @@ export interface AuthedBrowserAutoRefreshResult {
   };
 }
 
-export type DouyinAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "capture_current_detail_preview" | "save" | "close";
+export type DouyinAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "open_first_visible_detail" | "capture_current_detail_preview" | "save" | "close";
 export type AuthedBrowserCaptureTarget = "default" | "works_page";
 export type AuthedBrowserSourcePageKind = "creator_center_owned_works" | "creator_center_owned_detail" | "creator_center_unknown" | "public_creator_home" | "public_or_wrong_page";
 export type AuthedBrowserRowConfidence = "owned_creator_center_row" | "owned_creator_center_detail" | "fallback_visible_card" | "unknown";
@@ -1122,7 +1122,7 @@ export interface DouyinAuthedBrowserCaptureResult {
   };
 }
 
-export type XiaohongshuAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "capture_current_detail_preview" | "save" | "close";
+export type XiaohongshuAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "open_first_visible_detail" | "capture_current_detail_preview" | "save" | "close";
 
 export type XiaohongshuAuthedBrowserLoginState = "not_opened" | "needs_login" | "user_confirmed" | "logged_in_or_accessible" | "wrong_page" | "unknown" | "closed" | "error";
 

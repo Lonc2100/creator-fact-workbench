@@ -1869,6 +1869,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       open: "正在打开抖音后台",
       status: "正在检查登录状态",
       capture_preview: "正在抓取当前页作品",
+      open_first_visible_detail: "正在点开抖音首条作品详情",
       capture_current_detail_preview: "正在抓取当前作品详情页",
       save: "正在保存抖音内容级指标",
       close: "正在关闭浏览器窗口"
@@ -1913,6 +1914,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       open: "正在打开小红书后台",
       status: "正在检查登录状态",
       capture_preview: "正在抓取当前页笔记",
+      open_first_visible_detail: "正在点开小红书首条笔记详情",
       capture_current_detail_preview: "正在抓取当前笔记详情页",
       save: "正在保存小红书内容级指标",
       close: "正在关闭浏览器窗口"
@@ -2167,7 +2169,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </article>
             <article>
               <strong>2. 预览列表或详情页</strong>
-              <p>列表抓不到时，先在平台窗口点开具体作品的数据/详情页，再回到这里从当前作品详情页预览。</p>
+              <p>列表抓不到时，系统可先点开首条安全的作品数据/详情入口，再从当前作品详情页预览。</p>
             </article>
             <article>
               <strong>3. 预览后保存</strong>
@@ -2202,6 +2204,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <Button data-testid="douyin-login-browser-open" onClick={() => runDouyinAuthedBrowserCapture("open", "works_page")} variant="secondary" disabled={isDouyinBrowserLoading}>{isDouyinBrowserLoading ? "处理中" : "打开抖音作品管理页"}</Button>
               <Button data-testid="douyin-login-browser-status" onClick={() => runDouyinAuthedBrowserCapture("status")} variant="ghost" disabled={isDouyinBrowserLoading}>确认已登录</Button>
               <Button data-testid="douyin-login-browser-read" onClick={() => runDouyinAuthedBrowserCapture("capture_preview")} variant="secondary" disabled={isDouyinBrowserLoading || !douyinBrowserLoginConfirmed}>读取当前页作品</Button>
+              <Button data-testid="douyin-login-browser-open-detail" onClick={() => runDouyinAuthedBrowserCapture("open_first_visible_detail")} variant="secondary" disabled={isDouyinBrowserLoading || !douyinBrowserLoginConfirmed}>AI 点开首条作品详情</Button>
               <Button data-testid="douyin-login-browser-detail-read" onClick={() => runDouyinAuthedBrowserCapture("capture_current_detail_preview")} variant="secondary" disabled={isDouyinBrowserLoading || !douyinBrowserLoginConfirmed}>从当前作品详情页预览</Button>
               <Button data-testid="douyin-login-browser-save" onClick={() => runDouyinAuthedBrowserCapture("save")} variant="primary" disabled={isDouyinBrowserLoading || !canSaveDouyinBrowserCapture}>保存到可信看板</Button>
               <Button data-testid="douyin-login-browser-close" onClick={() => runDouyinAuthedBrowserCapture("close")} variant="ghost" disabled={isDouyinBrowserLoading}>关闭浏览器窗口</Button>
@@ -2233,7 +2236,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </article>
             <article>
               <strong>2. 预览列表或详情页</strong>
-              <p>列表抓不到时，先在平台窗口点开具体笔记的数据/详情页，再回到这里从当前笔记详情页预览。</p>
+              <p>列表抓不到时，系统可先点开首条安全的笔记数据/详情入口，再从当前笔记详情页预览。</p>
             </article>
             <article>
               <strong>3. 预览后保存</strong>
@@ -2268,6 +2271,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               <Button data-testid="xiaohongshu-login-browser-open" onClick={() => runXiaohongshuAuthedBrowserCapture("open", "works_page")} variant="secondary" disabled={isXiaohongshuBrowserLoading}>{isXiaohongshuBrowserLoading ? "处理中" : "打开小红书笔记管理页"}</Button>
               <Button data-testid="xiaohongshu-login-browser-status" onClick={() => runXiaohongshuAuthedBrowserCapture("status")} variant="ghost" disabled={isXiaohongshuBrowserLoading}>确认已登录</Button>
               <Button data-testid="xiaohongshu-login-browser-read" onClick={() => runXiaohongshuAuthedBrowserCapture("capture_preview")} variant="secondary" disabled={isXiaohongshuBrowserLoading || !xiaohongshuBrowserLoginConfirmed}>读取当前页笔记</Button>
+              <Button data-testid="xiaohongshu-login-browser-open-detail" onClick={() => runXiaohongshuAuthedBrowserCapture("open_first_visible_detail")} variant="secondary" disabled={isXiaohongshuBrowserLoading || !xiaohongshuBrowserLoginConfirmed}>AI 点开首条笔记详情</Button>
               <Button data-testid="xiaohongshu-login-browser-detail-read" onClick={() => runXiaohongshuAuthedBrowserCapture("capture_current_detail_preview")} variant="secondary" disabled={isXiaohongshuBrowserLoading || !xiaohongshuBrowserLoginConfirmed}>从当前笔记详情页预览</Button>
               <Button data-testid="xiaohongshu-login-browser-save" onClick={() => runXiaohongshuAuthedBrowserCapture("save")} variant="primary" disabled={isXiaohongshuBrowserLoading || !canSaveXiaohongshuBrowserCapture}>保存到可信看板</Button>
               <Button data-testid="xiaohongshu-login-browser-close" onClick={() => runXiaohongshuAuthedBrowserCapture("close")} variant="ghost" disabled={isXiaohongshuBrowserLoading}>关闭浏览器窗口</Button>
