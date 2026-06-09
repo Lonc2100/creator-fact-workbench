@@ -213,6 +213,7 @@ test("content workbench exposes filters sorting pagination and trusted-scope cop
 
 test("calendar publish confirmation stays manual and explicit", () => {
   const calendarPattern = read("src/domain/self-media/ui/patterns/PublishCalendar.tsx");
+  const calendarSchedulingPanels = read("src/domain/self-media/ui/patterns/CalendarSchedulingPanels.tsx");
   const calendarScreen = read("src/domain/self-media/ui/screens/CalendarPage.tsx");
   const calendarRoute = read("src/app/calendar/page.tsx");
   const formatHelpers = read("src/domain/self-media/ui/foundations/format.ts");
@@ -273,7 +274,7 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /CalendarDraftPoolPanel/);
   assert.match(calendarScreen, /calendar-draft-pool/);
   assert.match(calendarScreen, /素材池 \/ 待排草稿/);
-  assert.match(calendarScreen, /pendingItems=\{\[\]\}/);
+  assert.match(calendarSchedulingPanels, /pendingItems=\{\[\]\}/);
   assert.match(calendarScreen, /isAcceptanceOrTestCalendarText/);
   assert.match(calendarScreen, /隔离数据/);
   assert.match(calendarScreen, /calendar-acceptance-data-pool/);
@@ -303,10 +304,26 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /onSelect=\{\(id\) => \{\s+setCreateSlotAt\(undefined\);\s+setSelectedId\(id\);\s+setInspectorOpen\(true\);/);
   assert.match(calendarPattern, /calendar-card-drag-handle/);
   assert.match(calendarPattern, /onClick=\{openDetail\}/);
-  assert.match(calendarScreen, /showEmptySlots=\{scope === "operating"\}/);
+  assert.match(calendarSchedulingPanels, /showEmptySlots/);
   assert.match(calendarScreen, /历史发布记录/);
   assert.match(calendarScreen, /人工发布台账默认收起，不占用作品排期主屏/);
   assert.match(calendarScreen, /publishRecords/);
+  assert.match(calendarSchedulingPanels, /CalendarScheduleGrid/);
+  assert.match(calendarSchedulingPanels, /data-testid="calendar-primary-schedule"/);
+  assert.match(calendarSchedulingPanels, /CalendarSecondarySections/);
+  assert.match(calendarSchedulingPanels, /data-testid="calendar-secondary-sections"/);
+  assert.match(calendarSchedulingPanels, /搜索未来排期标题/);
+  assert.match(calendarSchedulingPanels, /showEmptySlots/);
+  assert.match(calendarScreen, /isFutureSchedule/);
+  assert.match(calendarScreen, /isFutureSchedule\(item\.scheduledAt\)/);
+  assert.match(calendarScreen, /const platformFilters = operatingPlatformFilters/);
+  assert.match(calendarScreen, /const statusFilters = operatingStatusFilters/);
+  assert.match(calendarScreen, /CalendarScheduleGrid/);
+  assert.match(calendarScreen, /CalendarSecondarySections/);
+  assert.match(calendarScreen, /同一内容多平台合并显示/);
+  assert.match(calendarScreen, /素材池、历史台账和更多记录默认收起/);
+  assert.match(calendarScreen, /全部本地记录/);
+  assert.doesNotMatch(calendarScreen, /data-testid="calendar-scope-filter"/);
   assert.doesNotMatch(calendarScreen, /providerRunId:|platformUrl:|platformPostId:/);
 });
 
@@ -400,6 +417,7 @@ test("content and calendar default views hide internal labels and require explic
   const contentPattern = read("src/domain/self-media/ui/patterns/ContentManagement.tsx");
   const calendarScreen = read("src/domain/self-media/ui/screens/CalendarPage.tsx");
   const calendarPattern = read("src/domain/self-media/ui/patterns/PublishCalendar.tsx");
+  const calendarSchedulingPanels = read("src/domain/self-media/ui/patterns/CalendarSchedulingPanels.tsx");
 
   assert.match(contentScreen, /sourceFilter, setSourceFilter.*operating_default/s);
   assert.match(contentScreen, /isOperatingContentRow/);
@@ -411,13 +429,20 @@ test("content and calendar default views hide internal labels and require explic
 
   assert.match(calendarScreen, /CalendarScope/);
   assert.match(calendarScreen, /isOperatingCalendarItem/);
-  assert.match(calendarScreen, /默认运营排期/);
-  assert.match(calendarScreen, /全部本地\/诊断/);
+  assert.match(calendarScreen, /isFutureSchedule/);
+  assert.match(calendarScreen, /未来作品什么时候发布/);
+  assert.match(calendarScreen, /全部本地记录/);
+  assert.match(calendarSchedulingPanels, /CalendarScheduleGrid/);
+  assert.match(calendarSchedulingPanels, /CalendarSecondarySections/);
+  assert.match(calendarSchedulingPanels, /data-testid="calendar-primary-schedule"/);
+  assert.match(calendarSchedulingPanels, /data-testid="calendar-secondary-sections"/);
+  assert.match(calendarSchedulingPanels, /计划新视频 \/ 新增排期/);
   assert.match(calendarPattern, /暂无可行动排期/);
   assert.match(calendarPattern, /items\.length === 0 && pendingItems\.length === 0 && !showEmptySlots/);
   assert.match(calendarPattern, /calendarCardGroupKey/);
   assert.match(calendarPattern, /calendar-content-schedule-inspector/);
   assert.match(calendarPattern, /versions\?: ContentPlatformVersion\[\]/);
+  assert.doesNotMatch(calendarScreen, /calendar-scope-filter|默认运营排期|全部本地\/诊断/);
   assert.doesNotMatch(calendarScreen, /Best times|Autolists|<button disabled type="button">List<\/button>|Publish ledger|rawDir|evidenceFile|pageReady|apiReady/);
   assert.doesNotMatch(calendarPattern, /showEmptySlots=\{true\}|demo\/fake|fixture/);
 });

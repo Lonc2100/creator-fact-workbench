@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Search, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ConfirmPlatformVersionPublishRequest, ContentWorkbenchSnapshot, DashboardSnapshot, Platform, PlatformVersionPatchRequest, PlatformVersionStatus, PublishQueueItem } from "../../types";
 import { AppShell } from "../components/AppShell";
@@ -9,16 +9,16 @@ import { PlatformBadge } from "../components/PlatformBadge";
 import { cx } from "../foundations/cx";
 import { formatDateTime, localDateTimeInputValue } from "../foundations/format";
 import { platformVersionStatusLabels } from "../foundations/labels";
-import { PublishCalendar, PlatformVersionInspector, type PendingScheduleDraftItem } from "../patterns/PublishCalendar";
+import { CalendarScheduleGrid, CalendarSecondarySections, type CalendarScheduleView } from "../patterns/CalendarSchedulingPanels";
+import { PlatformVersionInspector, type PendingScheduleDraftItem } from "../patterns/PublishCalendar";
 import { Button } from "../primitives/Button";
 import { Panel } from "../primitives/Panel";
-import { Tabs } from "../primitives/Tabs";
 
 type CalendarScope = "operating" | "all_local";
 
 const operatingPlatformFilters: Array<Platform | "all"> = ["all", "douyin", "xiaohongshu", "video_account", "bilibili"];
 const diagnosticPlatformFilters: Array<Platform | "all"> = ["all", "douyin", "xiaohongshu", "wechat", "video_account", "bilibili"];
-const operatingStatusFilters: Array<PlatformVersionStatus | "all"> = ["all", "needs_review", "scheduled", "published", "blocked", "failed"];
+const operatingStatusFilters: Array<PlatformVersionStatus | "all"> = ["all", "draft", "needs_review", "scheduled"];
 const diagnosticStatusFilters: Array<PlatformVersionStatus | "all"> = ["all", "draft", "needs_review", "scheduled", "published", "blocked", "failed"];
 const ledgerStatusFilters: Array<DashboardSnapshot["publishRecords"][number]["status"] | "all"> = ["all", "submitted_review", "published", "failed", "blocked", "confirmed"];
 const pendingVersionStatuses = new Set<PlatformVersionStatus>(["draft", "needs_review"]);
@@ -173,6 +173,15 @@ function isOperatingCalendarItem(
   return item.status === "draft" || item.status === "needs_review" || item.status === "scheduled";
 }
 
+function isFutureSchedule(value?: string) {
+  if (!value) return false;
+  const scheduledAt = new Date(value);
+  if (Number.isNaN(scheduledAt.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return scheduledAt.getTime() >= today.getTime();
+}
+
 function itemMatchesQuery(title: string | undefined, query: string) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return true;
@@ -251,7 +260,7 @@ function PublishLedgerPanel({
           <span>台账范围</span>
           <select className="sm-input calendar-status-select" data-testid="publish-ledger-scope-filter" value={scope} onChange={(event) => onScope(event.target.value as CalendarScope)}>
             <option value="operating">默认运营台账</option>
-            <option value="all_local">全部记录/诊断</option>
+            <option value="all_local">全部本地记录</option>
           </select>
         </label>
         <div className="calendar-platform-filter-group" aria-label="发布记录平台筛选">
@@ -295,7 +304,7 @@ function PublishLedgerPanel({
                   <small>{publishRecordStatusLabels[row.record.status]}</small>
                 </td>
                 <td>
-                  <strong>{row.content?.title ?? "诊断记录"}</strong>
+                  <strong>{row.content?.title ?? "未归档记录"}</strong>
                   <small>{row.content ? "运营内容" : "未进入默认运营视图"}</small>
                 </td>
                 <td><PlatformBadge compact platform={row.record.platform} /></td>
@@ -423,7 +432,7 @@ function CalendarAcceptanceDataPanel({
             })}
           </div>
         )}
-        {items.length > 12 && <p className="muted">已显示前 12 条；切换到“全部本地/诊断”可继续排查。</p>}
+        {items.length > 12 && <p className="muted">已显示前 12 条；更多记录留在本地记录区核对。</p>}
       </div>
     </details>
   );
@@ -434,8 +443,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
   const [current, setCurrent] = useState(snapshot);
   const [currentWorkbench, setCurrentWorkbench] = useState(workbench);
   const [selectedId, setSelectedId] = useState(() => workbench.platformVersions.find((item) => item.id === requestedVersionId)?.id);
-  const [view, setView] = useState<"week" | "month">("week");
-  const [scope, setScope] = useState<CalendarScope>("operating");
+  const [view, setView] = useState<CalendarScheduleView>("week");
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState<Platform | "all">("all");
   const [status, setStatus] = useState<PlatformVersionStatus | "all">("all");
@@ -455,8 +463,8 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
         const version = versionById.get(item.platformVersionId);
         const content = contentById.get(item.contentId) ?? (version ? contentById.get(version.contentId) : undefined);
         const row = rowByContentId.get(item.contentId) ?? (version ? rowByContentId.get(version.contentId) : undefined);
-        if (scope === "operating" && isAcceptanceOrTestCalendarItem(item, version, content, row)) return false;
-        return scope === "all_local" || isOperatingCalendarItem(item, version, content, row);
+        if (isAcceptanceOrTestCalendarItem(item, version, content, row)) return false;
+        return isOperatingCalendarItem(item, version, content, row) && isFutureSchedule(item.scheduledAt);
       })
       .filter((item) => (platform === "all" || item.platform === platform) && (status === "all" || item.status === status))
       .filter((item) => {
@@ -468,7 +476,7 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
         const content = contentById.get(item.contentId);
         return content ? { ...item, title: content.title } : item;
       }),
-    [contentById, current.calendarItems, platform, query, rowByContentId, scope, status, versionById]
+    [contentById, current.calendarItems, platform, query, rowByContentId, status, versionById]
   );
   const acceptanceCalendarItems = useMemo(
     () => current.calendarItems.filter((item) => {
@@ -519,12 +527,12 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
   const selectedContentVersions = selected
     ? currentWorkbench.platformVersions
       .filter((item) => item.contentId === selected.contentId)
-      .filter((item) => scope === "all_local" || isOperatingPlatform(item.platform))
+      .filter((item) => isOperatingPlatform(item.platform))
     : [];
   const selectedAnchorDate = selected?.scheduledAt ? new Date(selected.scheduledAt) : undefined;
   const calendarAnchorDate = selectedAnchorDate && !Number.isNaN(selectedAnchorDate.getTime()) ? selectedAnchorDate : undefined;
-  const platformFilters = scope === "all_local" ? diagnosticPlatformFilters : operatingPlatformFilters;
-  const statusFilters = scope === "all_local" ? diagnosticStatusFilters : operatingStatusFilters;
+  const platformFilters = operatingPlatformFilters;
+  const statusFilters = operatingStatusFilters;
 
   useEffect(() => {
     const requested = requestedVersionIdFromUrl();
@@ -639,65 +647,42 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
       <PageHeader
         eyebrow="发布管理"
         title="发布日历"
-        description="默认只看作品什么时候发布；素材池、历史台账和诊断记录默认收起。"
+        description="默认只看未来作品什么时候发布；素材池、历史台账和更多记录默认收起。"
+        actions={(
+          <>
+            <span className="sm-badge sm-badge-success">{visibleItems.length} 个未来排期</span>
+            <span className="sm-badge sm-badge-info">同一内容多平台合并显示</span>
+          </>
+        )}
       />
       <span className="sr-only">平台版本详情</span>
-      <div className="calendar-toolbar">
-        <label className="calendar-search">
-          <Search aria-hidden="true" size={17} />
-          <input onChange={(event) => setQuery(event.target.value)} placeholder="搜索排期标题" type="search" value={query} />
-        </label>
-        <Tabs className="calendar-view-tabs" activeId={view} items={[{ id: "week", label: "本周" }, { id: "month", label: "本月" }]} onSelect={(id) => setView(id === "month" ? "month" : "week")} />
-        <div className="calendar-range-control" aria-label="当前日期范围">
-          <button disabled type="button" aria-label="上一个周期"><ChevronLeft aria-hidden="true" size={16} /></button>
-          <span><CalendarDays aria-hidden="true" size={15} />{rangeLabel(visibleItems, view, calendarAnchorDate)}</span>
-          <button disabled type="button" aria-label="下一个周期"><ChevronRight aria-hidden="true" size={16} /></button>
-        </div>
-        <label className="calendar-status-filter">
-          <span>显示范围</span>
-          <select className="sm-input calendar-status-select" data-testid="calendar-scope-filter" value={scope} onChange={(event) => { setScope(event.target.value as CalendarScope); setPlatform("all"); setStatus("all"); }}>
-            <option value="operating">默认运营排期</option>
-            <option value="all_local">全部本地/诊断</option>
-          </select>
-        </label>
-        <div className="calendar-platform-filter-group" aria-label="平台筛选">
-          {platformFilters.map((item) => (
-            <button className={platformChipClass(platform === item)} key={item} onClick={() => setPlatform(item)} type="button">
-              {item === "all" ? "全部" : <PlatformBadge platform={item} compact />}
-            </button>
-          ))}
-        </div>
-        <label className="calendar-status-filter">
-          <span>状态</span>
-          <select className="sm-input calendar-status-select" value={status} onChange={(event) => setStatus(event.target.value as PlatformVersionStatus | "all")}>
-            {statusFilters.map((item) => <option key={item} value={item}>{item === "all" ? "全部状态" : platformVersionStatusLabels[item]}</option>)}
-          </select>
-        </label>
-        <a className="sm-button sm-button-primary calendar-new-button" href="/content#new-video">
-          <Plus aria-hidden="true" size={15} />计划新视频 / 新增排期
-        </a>
-      </div>
+      <CalendarScheduleGrid
+        anchorDate={calendarAnchorDate}
+        items={visibleItems}
+        onCreateAt={(scheduledAt) => {
+          setCreateSlotAt(scheduledAt);
+          setInspectorOpen(false);
+        }}
+        onPlatform={setPlatform}
+        onQuery={setQuery}
+        onReschedule={scheduleVersion}
+        onSelect={(id) => {
+          setCreateSlotAt(undefined);
+          setSelectedId(id);
+          setInspectorOpen(true);
+        }}
+        onStatus={setStatus}
+        onView={setView}
+        platform={platform}
+        platformFilters={platformFilters}
+        query={query}
+        rangeText={rangeLabel(visibleItems, view, calendarAnchorDate)}
+        status={status}
+        statusFilters={statusFilters}
+        view={view}
+      />
       {message && <p className="operation-message calendar-operation-message" data-testid="calendar-operation-message">{message}</p>}
-      <div className="calendar-layout">
-        <PublishCalendar
-          anchorDate={calendarAnchorDate}
-          items={visibleItems}
-          onReschedule={scheduleVersion}
-          onSelect={(id) => {
-            setCreateSlotAt(undefined);
-            setSelectedId(id);
-            setInspectorOpen(true);
-          }}
-          onCreateAt={(scheduledAt) => {
-            setCreateSlotAt(scheduledAt);
-            setInspectorOpen(false);
-          }}
-          pendingItems={[]}
-          showEmptySlots={scope === "operating"}
-          view={view}
-        />
-      </div>
-      {scope === "operating" && (
+      <CalendarSecondarySections>
         <CalendarDraftPoolPanel
           items={pendingSchedulingItems}
           onSelect={(id) => {
@@ -706,37 +691,35 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
             setInspectorOpen(true);
           }}
         />
-      )}
-      {scope === "operating" && (
         <CalendarAcceptanceDataPanel
           contentById={contentById}
           items={acceptanceCalendarItems}
           versionById={versionById}
         />
-      )}
-      <details className="calendar-history-ledger" data-testid="calendar-history-ledger" id="publish-ledger">
-        <summary>
-          <span>
-            <strong>历史发布记录</strong>
-            <small>人工发布台账默认收起，不占用作品排期主屏。</small>
-          </span>
-          <i>展开</i>
-        </summary>
-        <PublishLedgerPanel
-          date={ledgerDate}
-          scope={ledgerScope}
-          onDate={setLedgerDate}
-          onPlatform={setLedgerPlatform}
-          onScope={(nextScope) => { setLedgerScope(nextScope); setLedgerPlatform("all"); }}
-          onStatus={setLedgerStatus}
-          platform={ledgerPlatform}
-          snapshot={current}
-          status={ledgerStatus}
-        />
-        <Button data-testid="calendar-clear-future-schedules" onClick={clearFutureSchedules} variant="danger">
-          <Trash2 aria-hidden="true" size={15} />清空未来排期
-        </Button>
-      </details>
+        <details className="calendar-history-ledger" data-testid="calendar-history-ledger" id="publish-ledger">
+          <summary>
+            <span>
+              <strong>历史发布记录</strong>
+              <small>人工发布台账默认收起，不占用作品排期主屏。</small>
+            </span>
+            <i>展开</i>
+          </summary>
+          <PublishLedgerPanel
+            date={ledgerDate}
+            scope={ledgerScope}
+            onDate={setLedgerDate}
+            onPlatform={setLedgerPlatform}
+            onScope={(nextScope) => { setLedgerScope(nextScope); setLedgerPlatform("all"); }}
+            onStatus={setLedgerStatus}
+            platform={ledgerPlatform}
+            snapshot={current}
+            status={ledgerStatus}
+          />
+          <Button data-testid="calendar-clear-future-schedules" onClick={clearFutureSchedules} variant="danger">
+            <Trash2 aria-hidden="true" size={15} />清空未来排期
+          </Button>
+        </details>
+      </CalendarSecondarySections>
       {inspectorOpen && (
         <div className="calendar-inspector-shell" role="dialog" aria-label="平台版本详情">
           <button className="calendar-inspector-close" onClick={() => setInspectorOpen(false)} type="button" aria-label="关闭平台版本详情">
