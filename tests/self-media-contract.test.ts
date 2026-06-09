@@ -6808,6 +6808,7 @@ test("creator video idea creates four platform drafts and optional schedule", as
   try {
     repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
     const service = new SelfMediaService(repo);
+    const metricSnapshotCountBefore = repo.listMetricSnapshots().length;
     const result = service.createCreatorVideoDraft({
       title: "六月内容计划怎么做",
       topic: "六月内容计划",
@@ -6830,6 +6831,9 @@ test("creator video idea creates four platform drafts and optional schedule", as
     assert.ok(workbench.contentRows.some((row) => row.content.id === result.content.id && row.originKind === "local_draft"));
     const calendarItems = service.calendar().filter((item) => item.contentId === result.content.id && item.scheduledAt === "2026-06-08T12:00:00.000Z");
     assert.equal(calendarItems.length, 4);
+    assert.equal(repo.listMetricSnapshots().length, metricSnapshotCountBefore);
+    const dashboard = await service.dashboard();
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === result.content.id), false);
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });

@@ -133,7 +133,15 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /生成并保存四平台版本/);
   assert.match(contentScreen, /requestedScheduledAtFromUrl/);
   assert.match(contentScreen, /useRef/);
-  assert.match(contentScreen, /scheduleInputRef\.current\?\.value \|\| scheduledAt/);
+  assert.match(contentScreen, /scheduleInputRef\.current\?\.value \?\? scheduledAt/);
+  assert.match(contentScreen, /onInput=\{\(event\) => syncScheduledAt\(event\.currentTarget\.value\)\}/);
+  assert.match(contentScreen, /creator-video-schedule-preview/);
+  assert.match(contentScreen, /将排期到/);
+  assert.match(contentScreen, /requestedScheduleIso/);
+  assert.match(contentScreen, /snapshot\.queue\.filter\(\(item\) => item\.contentId === body\.content\.id\)/);
+  assert.match(contentScreen, /已填写未来发布时间，但发布日历没有完整生成四个平台排期/);
+  assert.match(contentScreen, /四平台版本已保存，并已加入发布日历/);
+  assert.match(contentScreen, /新视频已保存并加入发布日历/);
   assert.match(contentScreen, /new URLSearchParams\(window\.location\.search\)\.get\("scheduledAt"\)/);
   assert.match(contentScreen, /localDateTimeInputValue/);
   assert.match(contentScreen, /保存后校验失败/);

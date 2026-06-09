@@ -179,8 +179,21 @@ function CreatorVideoPanel({
   const [busy, setBusy] = useState<"discuss" | "save" | null>(null);
   const [message, setMessage] = useState("输入一个大概想法，先和本地创作助手讨论，再保存四平台版本。");
 
+  function scheduleInputValue() {
+    return scheduleInputRef.current?.value ?? scheduledAt;
+  }
+
+  function syncScheduledAt(value: string) {
+    setScheduledAt(value);
+  }
+
+  const schedulePreviewIso = isoFromLocalDateTime(scheduledAt);
+  const schedulePreviewTime = schedulePreviewIso ? new Date(schedulePreviewIso).getTime() : undefined;
+  const hasScheduleInput = scheduledAt.trim().length > 0;
+  const schedulePreviewIsFuture = schedulePreviewTime !== undefined && schedulePreviewTime > Date.now();
+
   function creatorDraftPayload(extra?: { action?: "discuss" }) {
-    const currentScheduledAt = scheduleInputRef.current?.value || scheduledAt;
+    const currentScheduledAt = scheduleInputValue();
     return {
       action: extra?.action,
       title: title || discussion?.idea.title,
@@ -222,10 +235,19 @@ function CreatorVideoPanel({
     setBusy("save");
     setMessage("正在保存四平台草稿...");
     try {
+      const payload = creatorDraftPayload();
+      const requestedScheduleInput = scheduleInputValue().trim();
+      const requestedScheduleIso = payload.scheduledAt;
+      if (requestedScheduleInput && !requestedScheduleIso) {
+        throw new Error("未来发布时间没有识别成功，请重新选择日期和时间。");
+      }
+      if (requestedScheduleIso && new Date(requestedScheduleIso).getTime() <= Date.now()) {
+        throw new Error("请选择未来发布时间；过去时间不会加入发布日历。");
+      }
       const response = await fetch("/api/self-media/creator-drafts", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(creatorDraftPayload())
+        body: JSON.stringify(payload)
       });
       const body = await response.json() as CreatorVideoDraftResult & { errorMessage?: string };
       if (!response.ok) throw new Error(body.errorMessage ?? "新视频生成失败");
@@ -236,12 +258,23 @@ function CreatorVideoPanel({
       if (!snapshot.contents.some((content) => content.id === body.content.id) || persistedVersions.length !== body.platformVersions.length) {
         throw new Error("保存后未在系统中查到完整内容和四平台版本，请重试。");
       }
-      if (body.content.scheduledAt && persistedVersions.some((version) => version.scheduledAt !== body.content.scheduledAt)) {
-        throw new Error("保存后排期时间未完整写入四个平台版本，请重试。");
+      const persistedContent = snapshot.contents.find((content) => content.id === body.content.id);
+      const persistedQueue = snapshot.queue.filter((item) => item.contentId === body.content.id);
+      if (requestedScheduleIso) {
+        if (body.content.scheduledAt !== requestedScheduleIso || persistedContent?.scheduledAt !== requestedScheduleIso) {
+          throw new Error("已填写未来发布时间，但内容没有加入发布日历，请重试。");
+        }
+        const versionsScheduled = body.platformVersions.every((version) => version.scheduledAt === requestedScheduleIso && version.status === "scheduled")
+          && persistedVersions.every((version) => version.scheduledAt === requestedScheduleIso && version.status === "scheduled");
+        const queuesScheduled = persistedQueue.length === body.platformVersions.length
+          && persistedQueue.every((item) => item.scheduledAt === requestedScheduleIso && item.status === "scheduled");
+        if (!versionsScheduled || !queuesScheduled) {
+          throw new Error("已填写未来发布时间，但发布日历没有完整生成四个平台排期，请重试。");
+        }
       }
       await onCreated(body);
       setResult(body);
-      setMessage(body.content.scheduledAt ? "四平台版本已保存，并已进入日历排期。" : "四平台版本已保存，等待人工确认发布时间。");
+      setMessage(requestedScheduleIso ? `四平台版本已保存，并已加入发布日历：${formatDateTime(requestedScheduleIso)}。` : "四平台版本已保存，等待人工确认发布时间。");
     } catch (error) {
       setResult(null);
       setMessage(error instanceof Error ? error.message : "新视频生成失败");
@@ -267,8 +300,10 @@ function CreatorVideoPanel({
         </label>
         <label>
           <span>未来发布时间</span>
-          <input className="sm-input" data-testid="creator-video-scheduled-at" ref={scheduleInputRef} type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />
+          <input className="sm-input" data-testid="creator-video-scheduled-at" ref={scheduleInputRef} type="datetime-local" value={scheduledAt} onChange={(event) => syncScheduledAt(event.target.value)} onInput={(event) => syncScheduledAt(event.currentTarget.value)} />
         </label>
+        {schedulePreviewIsFuture && <p className="muted" data-testid="creator-video-schedule-preview">将排期到 {formatDateTime(schedulePreviewIso)}；保存后会进入发布日历。</p>}
+        {hasScheduleInput && !schedulePreviewIsFuture && <p className="muted" data-testid="creator-video-schedule-preview">请选择未来发布时间；过去时间不会进入发布日历。</p>}
         <label>
           <span>大致内容</span>
           <textarea className="sm-input" data-testid="creator-video-brief" value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="写几句话就行：想表达什么、给谁看、希望观众做什么。" />
@@ -792,7 +827,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
     setSelectedContentId(result.content.id);
     setSelectedVersionId(persistedRow.platformVersions[0]?.id ?? result.platformVersions[0]?.id);
     setMode("library");
-    setMessage(result.content.scheduledAt ? "新视频已保存并选中；四个平台版本已进入日历排期，可继续发布交接。" : "新视频已保存并选中；可继续编辑四个平台版本。");
+    setMessage(result.content.scheduledAt ? "新视频已保存并加入发布日历；已选中内容库，可继续发布交接。" : "新视频已保存并选中；可继续编辑四个平台版本。");
   }
 
   async function patchTrustedScope(contentId: string, excluded: boolean) {
