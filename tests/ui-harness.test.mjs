@@ -162,7 +162,7 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /requestedAcceptanceRunIdFromUrl/);
   assert.match(contentScreen, /acceptanceRunId/);
   assert.match(contentScreen, /不进运营看板/);
-  assert.match(contentScreen, /行动项草稿仍可在诊断筛选里查看/);
+  assert.match(contentScreen, /行动项草稿仍可在本地内容筛选里查看/);
   assert.match(contentScreen, /publishRecords/);
   const composerRender = contentScreen.slice(
     contentScreen.indexOf('mode === "composer"'),
@@ -194,14 +194,14 @@ test("content workbench exposes filters sorting pagination and trusted-scope cop
   assert.match(contentScreen, /operating_default/);
   assert.match(contentScreen, /真实作品/);
   assert.match(contentScreen, /运营优先/);
-  assert.match(contentScreen, /全部本地\/诊断/);
+  assert.match(contentScreen, /全部本地内容/);
   assert.match(contentScreen, /更新时间最近/);
   assert.match(contentScreen, /发布时间最近/);
   assert.match(contentScreen, /先看进入运营看板/);
   assert.match(contentScreen, /先看不进运营看板/);
   assert.match(contentScreen, /每页/);
   assert.match(contentScreen, /密度/);
-  assert.match(contentScreen, /手动补录、外部导入、验收内容和行动项草稿/);
+  assert.match(contentScreen, /手动补录、外部导入、历史样例和行动项草稿/);
   assert.match(contentScreen, /filterRows/);
   assert.match(contentScreen, /pageSize/);
   assert.match(contentPattern, /content-table-compact/);
@@ -386,7 +386,7 @@ test("operator UX polish keeps default copy Chinese and quiet", () => {
   assert.match(contentScreen, /copy-tags/);
   assert.match(contentScreen, /open-official-backend/);
   assert.match(contentScreen, /record-submitted-review/);
-  assert.match(selfMediaService, /未来可接官方 API/);
+  assert.match(selfMediaService, /手动发布为主/);
   assert.match(selfMediaService, /默认人工后台发布/);
   assert.match(dashboardScreen, /B站稿件内容/);
   assert.match(importPage, /创作者中心内容级真实数据/);
@@ -427,7 +427,7 @@ test("content and calendar default views hide internal labels and require explic
 
   assert.match(contentScreen, /sourceFilter, setSourceFilter.*operating_default/s);
   assert.match(contentScreen, /isOperatingContentRow/);
-  assert.match(contentScreen, /全部本地\/诊断/);
+  assert.match(contentScreen, /全部本地内容/);
   assert.match(contentPattern, /operatorText/);
   assert.match(contentPattern, /来源细节已隐藏/);
   assert.doesNotMatch(contentPattern, /sourceKinds\.join|trustedMetricSnapshotCount\} trusted|localMetricSnapshotCount\} local|<small>\{version\.id\}<\/small>|trusted metric evidence|Publish history|Platform Versions|Content Workbench/);
@@ -619,7 +619,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /读取结果只保存内容级可信指标/);
   assert.match(importPage, /douyin-local-file-mvp/);
   assert.match(importPage, /抖音本地导出回收 MVP/);
-  assert.match(importPage, /官方 API 需要授权和权限开通/);
+  assert.match(importPage, /官方能力需要授权和权限开通/);
   assert.match(importPage, /网页登录刷新不会自动抓取系统数据/);
   assert.match(importPage, /douyin-local-file-upload/);
   assert.match(importPage, /douyin-local-file-confirm/);
@@ -691,7 +691,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /import-advanced-diagnostics/);
   assert.match(importPage, /AuthedBrowserProfileManager/);
   assert.ok(importPage.indexOf("import-advanced-diagnostics") < importPage.indexOf("<AuthedBrowserProfileManager"));
-  assert.match(importPage, /高级诊断与手动导入/);
+  assert.match(importPage, /更多设置与手动导入/);
   assert.match(importPage, /OperationHistoryTable history=\{history\}/);
   assert.match(importPage, /OperationHistoryTable history=\{currentSnapshot\.operationHistory\} showDiagnostics testId="platform-operation-history-diagnostics-table"/);
   assert.match(importPage, /showDiagnostics && <th>来源<\/th>/);

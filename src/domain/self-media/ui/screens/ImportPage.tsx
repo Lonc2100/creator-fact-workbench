@@ -122,7 +122,7 @@ const realCaptureStatusLabels: Record<DashboardSnapshot["platformDataHealth"]["p
 const captureModeLabels: Record<DashboardSnapshot["trustedAutoCaptureScheduler"]["statuses"][number]["captureMode"], string> = {
   manual: "手动",
   browser_assisted: "浏览器辅助",
-  official_api: "官方 API"
+  official_api: "官方授权能力"
 };
 
 const captureConnectionStatusLabels: Record<DashboardSnapshot["trustedAutoCaptureScheduler"]["statuses"][number]["captureConnectionStatus"], string> = {
@@ -155,7 +155,7 @@ const captureRealityCapabilities: CaptureRealityCapability[] = [
     key: "douyin",
     platform: "douyin",
     label: "抖音",
-    officialApi: "未来可接官方 API",
+    officialApi: "未来可接官方能力",
     appReview: "需要应用审核",
     oauth: "需要 OAuth、访问令牌和 scope",
     contentData: "官方文档有视频数据能力，接入前不能抓",
@@ -332,8 +332,8 @@ function operatorWarningLabel(value: string) {
   if (/merged.*(hot_video|hot_topic|note_detail_new|interaction post|bullet-chat|feed)/i.test(normalized)) return "已合并同一作品的补充互动数据。";
   if (/no personal .* mapped|未识别/i.test(normalized)) return "未识别到本人作品记录。";
   if (/smoke|demo|test|fixture|platform_save_smoke/i.test(normalized)) return "保存验证使用隔离数据，不影响运营库。";
-  if (/creator_center|source=|provider|provider source id|runId/i.test(normalized)) return "真实平台来源已识别，细节已收进诊断。";
-  if (normalized.length > 72) return "导入提示已收起，详情见高级诊断。";
+  if (/creator_center|source=|provider|provider source id|runId/i.test(normalized)) return "真实平台来源已识别，细节已收进更多信息。";
+  if (normalized.length > 72) return "导入提示已收起，详情见更多信息。";
   return normalized;
 }
 
@@ -1356,7 +1356,7 @@ function CaptureRealityMatrix({ snapshot }: { snapshot: DashboardSnapshot }) {
               <div><dt>最近抓取</dt><dd>{latestImportLabel}</dd></div>
               <div><dt>下一次抓取</dt><dd>{nextScheduledLabel}</dd></div>
               <div><dt>人工操作</dt><dd>{scheduler?.needsManualAction ? "需要人工操作" : "无需人工介入"}</dd></div>
-              <div><dt>官方 API</dt><dd>{capability.officialApi}</dd></div>
+              <div><dt>官方能力</dt><dd>{capability.officialApi}</dd></div>
               <div><dt>应用审核</dt><dd>{capability.appReview}</dd></div>
               <div><dt>授权要求</dt><dd>{capability.oauth}</dd></div>
               <div><dt>内容级数据</dt><dd>{capability.contentData}</dd></div>
@@ -2418,7 +2418,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           <div className="import-guide-steps">
             <article>
               <strong>1. 从抖音后台导出或复制</strong>
-              <p>当前最现实路径是用户主动拿到内容级表格；官方 API 需要授权和权限开通。</p>
+              <p>当前最现实路径是用户主动拿到内容级表格；官方能力需要授权和权限开通。</p>
             </article>
             <article>
               <strong>2. 本地预览字段</strong>
@@ -2749,8 +2749,8 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         <details className="analytics-data-section import-advanced-diagnostics" data-testid="import-advanced-diagnostics">
           <summary>
             <span>
-              <strong>高级诊断与手动导入</strong>
-              <small>内部检查和原始字段默认收起</small>
+              <strong>更多设置与手动导入</strong>
+              <small>本地检查和字段细节默认收起</small>
             </span>
             <i>展开</i>
           </summary>

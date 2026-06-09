@@ -1569,7 +1569,7 @@ function captureConnectionStatusFor(input: {
 }
 
 function captureModeLabel(mode: CaptureMode) {
-  if (mode === "official_api") return "官方 API";
+  if (mode === "official_api") return "官方授权能力";
   if (mode === "browser_assisted") return "浏览器辅助";
   return "手动";
 }
@@ -1615,7 +1615,7 @@ export function buildTrustedAutoCaptureScheduler(input: {
     let missedCaptureReason: string | null = null;
     if (!allowScheduledCapture) {
       missedCaptureReason = captureMode === "official_api"
-        ? "官方 API 未授权，不能定时抓取。"
+        ? "官方授权能力未开通，不能定时抓取。"
         : captureMode === "browser_assisted"
           ? "浏览器辅助会话不可用，需要先打开平台后台并连接本地浏览器助手。"
           : "未授权平台只能手动导入，不能自动抓取。";
@@ -2226,10 +2226,10 @@ const publishHandoffBackendMeta: Record<ClosedLoopContentPlatform, Pick<PublishH
     defaultMode: "manual_backend",
     capability: {
       status: "future_official_api_candidate",
-      label: "未来可接官方 API",
-      note: "官方开放平台存在视频创建能力，但需应用、OAuth 与权限资质；默认不自动发布。"
+      label: "手动发布为主",
+      note: "请在官方后台人工提交；未来如接入官方能力也需要单独授权，本系统不会自动发布。"
     },
-    complianceNote: "当前只生成发布包并打开官方后台；不调用真实发布 API，不保存登录凭据或请求明细。"
+    complianceNote: "当前只生成发布包并打开官方后台；不会自动发布，不保存登录凭据或请求明细。"
   },
   xiaohongshu: {
     officialBackendUrl: "https://creator.xiaohongshu.com/",
@@ -2238,7 +2238,7 @@ const publishHandoffBackendMeta: Record<ClosedLoopContentPlatform, Pick<PublishH
     capability: {
       status: "manual_backend_only",
       label: "默认人工后台发布",
-      note: "未确认面向本场景的一键草稿/发布 API；按官方后台人工提交。"
+      note: "按官方后台人工提交；不默认创建平台草稿或自动发布。"
     },
     complianceNote: "当前只生成发布包并打开官方后台；不采集账号登录材料，不模拟隐藏请求。"
   },
@@ -2249,7 +2249,7 @@ const publishHandoffBackendMeta: Record<ClosedLoopContentPlatform, Pick<PublishH
     capability: {
       status: "manual_backend_only",
       label: "默认人工后台发布",
-      note: "视频号助手以网页登录人工发布为准；不确认草稿箱 API。"
+      note: "视频号助手以网页登录人工发布为准；不默认创建平台草稿或自动发布。"
     },
     complianceNote: "当前只生成发布包并打开官方后台；不保存微信登录态或请求明细。"
   },
@@ -2259,10 +2259,10 @@ const publishHandoffBackendMeta: Record<ClosedLoopContentPlatform, Pick<PublishH
     defaultMode: "manual_backend",
     capability: {
       status: "future_official_api_candidate",
-      label: "未来可接官方 API",
-      note: "开放平台能力需身份、应用和权限确认；默认不自动投稿。账号指标仍为 preview-only。"
+      label: "手动发布为主",
+      note: "请在官方后台人工投稿；如未来接入官方能力也需要单独授权。账号指标仍为 preview-only。"
     },
-    complianceNote: "当前只生成发布包并打开官方后台；不调用真实投稿 API，不保存登录凭据或请求明细。"
+    complianceNote: "当前只生成发布包并打开官方后台；不会自动投稿，不保存登录凭据或请求明细。"
   }
 };
 
@@ -2677,7 +2677,7 @@ function buildPublishToMetricsWorkbench(input: {
     postPublishRefresh: postPublishRefresh.sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")),
     postPublishRecoveryItems: postPublishRecoveryItems.sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")),
     matchCandidates: allMatchCandidates.sort((a, b) => b.score - a.score),
-    manualRefreshCopy: "发布确认后请到 /import 手动预览/保存四平台最新本地抓取；系统不会调用真实发布 API，也不会等待平台自动回调。",
+    manualRefreshCopy: "发布确认后请到 /import 手动预览/保存四平台最新本地抓取；系统不会自动发布，也不会等待平台自动回调。",
     scheduledRefresh: {
       nextSuggestedAt: new Date(nowTime + 2 * 60 * 60 * 1000).toISOString(),
       command: "npm run check:local-server-health -- --ports=3200 --strict --require-trusted-data --check-page",

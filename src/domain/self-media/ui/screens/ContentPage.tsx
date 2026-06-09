@@ -29,8 +29,8 @@ const sourceFilters: Array<{ value: SourceFilter; label: string }> = [
   { value: "not_trusted_dashboard", label: "不进运营看板" },
   { value: "manual_import", label: "手动补录" },
   { value: "external_untrusted", label: "外部导入" },
-  { value: "unknown_local", label: "未归类诊断" },
-  { value: "all", label: "全部本地/诊断" }
+  { value: "unknown_local", label: "未归类本地内容" },
+  { value: "all", label: "全部本地内容" }
 ];
 
 const statusFilters: Array<{ value: StatusFilter; label: string }> = [
@@ -379,7 +379,7 @@ function PublishExecutionWorkbenchPanel({
   onSelect: (contentId: string, versionId: string) => void;
   selectedContentId?: string;
 }) {
-  const [copyMessage, setCopyMessage] = useState("手动发布助手只复制本地内容，不调用真实发布 API。");
+  const [copyMessage, setCopyMessage] = useState("手动发布助手只复制本地内容，不会替你自动发布。");
   const allPackages = snapshot.publishToMetricsWorkbench.publishHandoffPackages;
   const packages = selectedContentId ? allPackages.filter((pkg) => pkg.contentId === selectedContentId).slice(0, 4) : [];
   const items = selectedContentId ? snapshot.publishToMetricsWorkbench.executionItems.filter((item) => item.contentId === selectedContentId).slice(0, 4) : [];
@@ -608,7 +608,7 @@ function WorkbenchSummaryPanel({ snapshot }: { snapshot: ContentWorkbenchSnapsho
         <div><strong>{snapshot.summary.actionGeneratedDraftCount}</strong><span>行动项草稿</span></div>
         <div><strong>{snapshot.summary.publishRecordCount}</strong><span>人工发布记录</span></div>
       </div>
-      <p className="muted">默认先看进入运营看板的真实内容、待审核/已排期稿件和行动项生成草稿；手动补录、外部导入和未归类历史行保留在“全部本地/诊断”筛选里。</p>
+      <p className="muted">默认先看进入运营看板的真实内容、待审核/已排期稿件和行动项生成草稿；手动补录、外部导入和未归类历史行保留在“全部本地内容”筛选里。</p>
     </Panel>
   );
 }
@@ -784,7 +784,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
       setStatusFilter("all");
       setSelectedContentId(result.content.id);
       setSelectedVersionId(result.platformVersions[0]?.id);
-      setMessage("新视频已保存，但当前筛选未显示；切换到全部本地/诊断可查看。");
+      setMessage("新视频已保存，但当前筛选未显示；切换到全部本地内容可查看。");
       return;
     }
     setSourceFilter("local_draft");
@@ -970,7 +970,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
                 <Button disabled={safePage >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))} variant="secondary">下一页</Button>
               </div>
             </div>
-            <p className="muted">内容库默认只显示真实用户作品（dataDomain=user_work），并按运营优先/最近更新排序；手动补录、外部导入、验收内容和行动项草稿仍可在诊断筛选里查看，但不会因此进入默认作品库。</p>
+            <p className="muted">内容库默认只显示真实用户作品，并按运营优先/最近更新排序；手动补录、外部导入、历史样例和行动项草稿仍可在本地内容筛选里查看，但不会因此进入默认作品库。</p>
           </Panel>
           <div className="content-layout">
             <div className="content-main-stack">

@@ -101,7 +101,7 @@ function dailyOpsLabel(status: DashboardSnapshot["dailySelfMediaOps"]["status"])
 function businessIssueSummary(input: string | undefined, fallback: string) {
   if (!input) return fallback;
   if (/(^|[\s:/.-])(preflight|pageReady|apiReady|smoke|fixture|demo|fake|command|exitCode|audit|port)([\s:/.-]|$)|\.local|report\.json|report\.md|http:\/\/127\.0\.0\.1|\/api\/self-media|npm run|runId|rawDir|evidenceFile|ops gate|daily platform ops/i.test(input)) {
-    return "运营数据需要复核，内部细节已收起到高级诊断。";
+    return "运营数据需要复核，更多运行信息已默认收起。";
   }
   return input;
 }
@@ -716,8 +716,8 @@ function DashboardAdvancedDiagnosticsPanel({
     <details className="dashboard-advanced-diagnostics" data-testid="dashboard-advanced-diagnostics">
       <summary>
         <span>
-          <strong>高级诊断</strong>
-          <small>展开查看内部运行细节。</small>
+          <strong>更多运行信息</strong>
+          <small>展开查看本地运行细节。</small>
         </span>
       </summary>
       <div className="dashboard-advanced-diagnostics-body">

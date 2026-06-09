@@ -438,7 +438,7 @@ export function MetricDashboardGrid({ snapshot }: { snapshot: DashboardSnapshot 
         <span>{formatNumber(snapshot.realDataScope.trustedContentCount)} 真实内容</span>
         <span>{formatNumber(snapshot.realDataScope.trustedMetricSnapshotCount)} 真实指标快照</span>
         <span>{formatNumber(snapshot.realDataScope.excludedMetricCount)} 条非运营指标未计入</span>
-        <small>当前按近 {recencyWindow} 天发布作品统计，每个作品只展示最新快照；其他记录可在高级诊断或专用筛选中查看。</small>
+        <small>当前按近 {recencyWindow} 天发布作品统计，每个作品只展示最新快照；其他记录可在更多记录区域或专用筛选中查看。</small>
       </section>
 
       <div className="dashboard-main-grid">
