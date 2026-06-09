@@ -492,10 +492,18 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importOverview, /ImportPlatformFlowState/);
   assert.match(importOverview, /import-platform-freshness-warning/);
   assert.match(importOverview, /哪些数据建议刷新/);
+  assert.match(importOverview, /24 小时内新鲜/);
+  assert.match(importOverview, /24-72 小时建议刷新/);
+  assert.match(importOverview, /超过 72 小时需要刷新/);
+  assert.match(importOverview, /数据新鲜/);
+  assert.match(importOverview, /建议刷新/);
+  assert.match(importOverview, /需要刷新/);
   assert.match(importOverview, /可刷新/);
   assert.match(importOverview, /需要登录/);
   assert.match(importOverview, /当前平台暂不支持自动抓取/);
   assert.match(importOverview, /import-platform-next-step/);
+  assert.match(importOverview, /import-platform-freshness/);
+  assert.match(importOverview, /import-platform-check-status/);
   assert.match(importOverview, /这些提示只提醒你补抓，不会制造假数据/);
   assert.doesNotMatch(importOverview, /\/api\/self-media|runId|rawDir|evidenceFile|storageState|password|cookie|token|header/i);
   assert.match(importPage, /login-capture-detail-panel/);
@@ -510,6 +518,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /登录抓取/);
   assert.match(importPage, /本地导出兜底/);
   assert.match(importPage, /importCaptureStates/);
+  assert.match(importPage, /runLoginCaptureAutoRefresh\("manual", false\)/);
   assert.match(importPage, /需要切到作品\/数据页面/);
   assert.match(importPage, /已抓到预览，等待确认保存/);
   assert.match(importPage, /请先在打开的抖音创作者中心登录/);
@@ -872,7 +881,13 @@ test("dashboard default view is data-only and folds internal diagnostics", () =>
   }
   assert.match(dashboardScreen, /businessIssueSummary/);
   assert.match(dashboardScreen, /台账不改变曝光和互动指标/);
-  assert.match(dashboardScreen, /return "需复核"/);
+  assert.match(dashboardScreen, /realCaptureFreshnessWindowLabel/);
+  assert.match(dashboardScreen, /DashboardFreshnessNotice/);
+  assert.match(dashboardScreen, /dashboard-freshness-notice/);
+  assert.match(dashboardScreen, /去导入页刷新/);
+  assert.match(dashboardScreen, /24 小时内有真实抓取，数据新鲜/);
+  assert.match(dashboardScreen, /真实抓取超过 24 小时，建议刷新/);
+  assert.match(dashboardScreen, /真实抓取超过 72 小时，需要刷新/);
   assert.doesNotMatch(dashboardScreen, /最近审计/);
   const dailyPanel = dashboardScreen.slice(
     dashboardScreen.indexOf("function DailyOperatingChecklistPanel"),

@@ -2254,6 +2254,8 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         <ImportPlatformOverview
           activePanel={expandedImportPanel}
           captureStates={importCaptureStates}
+          isChecking={isAutoRefreshing}
+          onCheckStatus={() => runLoginCaptureAutoRefresh("manual", false)}
           onOpenPanel={openImportPanel}
           snapshot={currentSnapshot}
         />

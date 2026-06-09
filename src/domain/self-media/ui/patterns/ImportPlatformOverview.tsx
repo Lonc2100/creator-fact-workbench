@@ -23,6 +23,9 @@ interface PlatformUpdateCard {
   actionLabel: string;
 }
 
+const freshWithinHours = 24;
+const refreshNeededAfterHours = 72;
+
 const platformCards: PlatformUpdateCard[] = [
   {
     key: "douyin",
@@ -63,6 +66,46 @@ function statusTone(status: ReturnType<typeof statusFor>) {
   if (status.browserSessionAvailable || status.isAuthorized) return "success";
   if (status.needsManualAction) return "warning";
   return "info";
+}
+
+function healthPlatformKey(key: ImportUpdatePanelKey): DashboardSnapshot["platformDataHealth"]["platforms"][number]["platform"] {
+  if (key === "video_account") return "video-account";
+  return key;
+}
+
+function freshnessPolicyFor(snapshot: DashboardSnapshot, key: ImportUpdatePanelKey): ImportPlatformFlowState {
+  const health = snapshot.platformDataHealth.platforms.find((item) => item.platform === healthPlatformKey(key));
+  const age = health?.freshness.realCaptureAgeHours;
+  if (!health?.freshness.latestRealCaptureAt || health.realCaptureStatus === "missing") {
+    return {
+      label: "需要刷新",
+      tone: "warning",
+      nextAction: "还没有可靠的最近抓取记录，建议先更新一次。",
+      detail: "新鲜度策略：24 小时内新鲜，24-72 小时建议刷新，超过 72 小时需要刷新。"
+    };
+  }
+  if (typeof age === "number" && age < freshWithinHours) {
+    return {
+      label: "数据新鲜",
+      tone: "success",
+      nextAction: "最近 24 小时内有真实抓取，今天可以先看数据。",
+      detail: "新鲜度策略：24 小时内新鲜。"
+    };
+  }
+  if (typeof age === "number" && age <= refreshNeededAfterHours) {
+    return {
+      label: "建议刷新",
+      tone: "info",
+      nextAction: "最近真实抓取已超过 24 小时，建议今天补一次数据。",
+      detail: "新鲜度策略：24-72 小时建议刷新。"
+    };
+  }
+  return {
+    label: "需要刷新",
+    tone: "warning",
+    nextAction: "最近真实抓取已超过 72 小时，请优先刷新这个平台。",
+    detail: "新鲜度策略：超过 72 小时需要刷新；不会用假数据消除提醒。"
+  };
 }
 
 function defaultFlowState(snapshot: DashboardSnapshot, key: ImportUpdatePanelKey): ImportPlatformFlowState {
@@ -112,20 +155,30 @@ function freshnessSummary(snapshot: DashboardSnapshot) {
     bilibili: "B站"
   };
   const stalePlatforms = snapshot.platformDataHealth.platforms
-    .filter((item) => item.realCaptureStatus === "stale" || item.realCaptureStatus === "missing")
+    .filter((item) => {
+      const age = item.freshness.realCaptureAgeHours;
+      return item.realCaptureStatus === "stale"
+        || item.realCaptureStatus === "missing"
+        || !item.freshness.latestRealCaptureAt
+        || (typeof age === "number" && age > freshWithinHours);
+    })
     .map((item) => labels[item.platform]);
   if (stalePlatforms.length === 0) return null;
-  return `建议刷新：${stalePlatforms.join("、")}。这些提示只提醒你补抓，不会制造假数据。`;
+  return `建议刷新：${stalePlatforms.join("、")}。24 小时内新鲜，24-72 小时建议刷新，超过 72 小时需要刷新；这些提示只提醒你补抓，不会制造假数据。`;
 }
 
 export function ImportPlatformOverview({
   activePanel,
   captureStates,
+  isChecking,
+  onCheckStatus,
   onOpenPanel,
   snapshot
 }: {
   activePanel: ImportUpdatePanelKey | null;
   captureStates?: Partial<Record<ImportUpdatePanelKey, ImportPlatformFlowState>>;
+  isChecking?: boolean;
+  onCheckStatus?: () => void;
   onOpenPanel: (panel: ImportUpdatePanelKey) => void;
   snapshot: DashboardSnapshot;
 }) {
@@ -139,6 +192,11 @@ export function ImportPlatformOverview({
     >
       <div className="trusted-weekly-summary-foot">
         <span>手动更新平台数据，预览后确认保存；进入本页不会自动打开任何平台窗口。</span>
+        {onCheckStatus && (
+          <Button data-testid="import-platform-check-status" onClick={onCheckStatus} variant="secondary" disabled={isChecking}>
+            {isChecking ? "检查中" : "重新检查状态"}
+          </Button>
+        )}
       </div>
       {freshness && (
         <div className="capture-reality-box" data-testid="import-platform-freshness-warning">
@@ -150,16 +208,19 @@ export function ImportPlatformOverview({
         {platformCards.map((card) => {
           const status = statusFor(snapshot, card.key);
           const flow = captureStates?.[card.key] ?? defaultFlowState(snapshot, card.key);
+          const freshness = freshnessPolicyFor(snapshot, card.key);
           const isActive = activePanel === card.key;
           return (
             <article className={isActive ? "is-active" : ""} data-testid={`import-platform-card-${card.key}`} key={card.key}>
               <div className="platform-operation-card-head">
                 <PlatformBadge platform={card.platform} />
                 <Badge tone={statusTone(status)}>{card.headline}</Badge>
+                <Badge tone={freshness.tone}>{freshness.label}</Badge>
                 <Badge tone={flow.tone}>{flow.label}</Badge>
               </div>
               <strong>{platformLabels[card.platform]}</strong>
               <p>{card.detail}</p>
+              <small data-testid={`import-platform-freshness-${card.key}`}>{freshness.nextAction}</small>
               <small data-testid={`import-platform-next-step-${card.key}`}>{flow.nextAction}</small>
               {flow.detail && <small>{flow.detail}</small>}
               <div className="import-preview-actions">

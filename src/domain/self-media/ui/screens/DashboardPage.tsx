@@ -88,7 +88,14 @@ function platformDataHealthLabel(status: DashboardSnapshot["platformDataHealth"]
   if (status === "ok" && staleCount === 0) return "新鲜";
   if (status === "missing") return "待采集";
   if (status === "error") return "需修复";
-  return "需复核";
+  return staleCount > 0 ? "需要刷新" : "建议刷新";
+}
+
+function realCaptureFreshnessWindowLabel(ageHours?: number | null) {
+  if (typeof ageHours !== "number") return "暂无可靠抓取时间，建议刷新。";
+  if (ageHours < 24) return "24 小时内有真实抓取，数据新鲜。";
+  if (ageHours <= 72) return "真实抓取超过 24 小时，建议刷新。";
+  return "真实抓取超过 72 小时，需要刷新。";
 }
 
 function dailyOpsLabel(status: DashboardSnapshot["dailySelfMediaOps"]["status"]) {
@@ -154,6 +161,7 @@ function buildDailyChecklistRows(snapshot: DashboardSnapshot): DailyChecklistRow
   const healthOk = pageReady3200 && apiReady3200 && trustedDataReady3200;
   const captureSchedule = snapshot.dataCaptureScheduleReliability;
   const latestRealCaptureAt = snapshot.platformDataHealth.summary.freshness.latestRealCaptureAt;
+  const realCaptureAgeHours = snapshot.platformDataHealth.summary.freshness.realCaptureAgeHours;
   const realCaptureStaleCount = snapshot.platformDataHealth.summary.realCaptureStaleCount;
   const activeActions = snapshot.actionItems.filter((item) => !isPausedWechatActionItem(item) && !["done", "dropped"].includes(item.status));
   const highActions = activeActions.filter((item) => item.priority === "high").length;
@@ -179,7 +187,7 @@ function buildDailyChecklistRows(snapshot: DashboardSnapshot): DailyChecklistRow
       label: "人工导入新鲜度",
       tone: platformDataHealthTone(snapshot.platformDataHealth.status, realCaptureStaleCount),
       status: platformDataHealthLabel(snapshot.platformDataHealth.status, realCaptureStaleCount),
-      detail: `最近本地导入/采集 ${formatDateTime(latestRealCaptureAt ?? undefined)}；过期平台 ${formatNumber(realCaptureStaleCount)} 个；网页登录后刷新本系统不会自动更新。`,
+      detail: `${realCaptureFreshnessWindowLabel(realCaptureAgeHours)} 最近本地导入/采集 ${formatDateTime(latestRealCaptureAt ?? undefined)}；需要刷新的平台 ${formatNumber(realCaptureStaleCount)} 个。`,
       href: "/import",
       hrefLabel: "查看导入状态"
     },
@@ -323,6 +331,21 @@ function DailyOperatingChecklistPanel({ snapshot }: { snapshot: DashboardSnapsho
         </div>
       )}
     </Panel>
+  );
+}
+
+function DashboardFreshnessNotice({ snapshot }: { snapshot: DashboardSnapshot }) {
+  const freshness = snapshot.platformDataHealth.summary.freshness;
+  const staleCount = snapshot.platformDataHealth.summary.realCaptureStaleCount;
+  const latestRealCaptureAt = freshness.latestRealCaptureAt;
+  const detail = realCaptureFreshnessWindowLabel(freshness.realCaptureAgeHours);
+  const tone: DailyChecklistTone = staleCount > 0 ? "warning" : typeof freshness.realCaptureAgeHours === "number" && freshness.realCaptureAgeHours < 24 ? "success" : "info";
+  return (
+    <div className="trusted-weekly-summary-foot" data-testid="dashboard-freshness-notice">
+      <span><b>{detail}</b> 最近更新：{formatDateTime(latestRealCaptureAt ?? undefined)}；需要刷新平台 {formatNumber(staleCount)} 个。</span>
+      <Badge tone={tone}>{staleCount > 0 ? "需要刷新" : "数据状态"}</Badge>
+      <a className="sm-button sm-button-secondary" href="/import">去导入页刷新</a>
+    </div>
   );
 }
 
@@ -1130,6 +1153,7 @@ export function DashboardPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       />
       <div className="dashboard-page-stack">
         <TrustedOperatingStrip snapshot={current} />
+        <DashboardFreshnessNotice snapshot={current} />
         <MetricDashboardGrid snapshot={current} />
         <TrustedWeeklySummaryPanel
           onCopySafeReport={copySafeWeeklyReport}
