@@ -2290,6 +2290,12 @@ const platformLocalFileImportMeta = {
     label: "小红书创作服务平台",
     format: "image_text"
   },
+  video_account: {
+    source: "video_account_creator_center",
+    tag: "video_account_manual_update",
+    label: "视频号助手",
+    format: "short_video"
+  },
   bilibili: {
     source: "bilibili_creator_center",
     tag: "bilibili_local_export",
@@ -3109,7 +3115,7 @@ export class SelfMediaService {
     const input = request.platformLocalFile;
     const platform = input?.platform;
     if (request.mode !== "platform_local_file" || !input || !platform || !(platform in platformLocalFileImportMeta)) {
-      throw new Error("当前本地平台导出 MVP 只支持抖音、小红书和 B站。");
+      throw new Error("当前本地平台导出 MVP 只支持抖音、小红书、视频号和 B站。");
     }
     const meta = platformLocalFileImportMeta[platform];
     const fileName = input.fileName ?? "";

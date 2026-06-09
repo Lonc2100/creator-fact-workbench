@@ -1,4 +1,7 @@
-import type { DashboardSnapshot, Platform } from "../../types";
+"use client";
+
+import { useMemo, useState } from "react";
+import type { ContentItem, DashboardSnapshot, Platform } from "../../types";
 import { formatNumber, formatPercent } from "../foundations/format";
 import { platformLabels } from "../foundations/labels";
 import { PlatformBadge } from "../components/PlatformBadge";
@@ -9,6 +12,7 @@ interface MetricDatum {
   platformVersionId?: string;
   platform: Platform;
   date: string;
+  updatedAt?: string;
   views: number;
   likes: number;
   comments: number;
@@ -30,6 +34,7 @@ function toMetricEntries(snapshot: DashboardSnapshot): MetricDatum[] {
       platformVersionId: metric.platformVersionId,
       platform: metric.platform,
       date: metric.snapshotDate,
+      updatedAt: metric.updatedAt,
       views: metric.views,
       likes: metric.likes,
       comments: metric.comments,
@@ -46,6 +51,7 @@ function toMetricEntries(snapshot: DashboardSnapshot): MetricDatum[] {
       platformVersionId: undefined,
       platform: metric.platform,
       date: metric.capturedAt,
+      updatedAt: metric.capturedAt,
       views: metric.views,
       likes: metric.likes,
       comments: metric.comments,
@@ -96,33 +102,42 @@ function platformRows(entries: MetricDatum[]) {
 }
 
 function contentRows(snapshot: DashboardSnapshot, entries: MetricDatum[]) {
-  return snapshot.contents
-    .map((content) => {
-      const related = entries.filter((item) => item.contentId === content.id);
-      const views = related.reduce((total, item) => total + item.views, 0);
-      const engagement = related.reduce((total, item) => total + engagementOf(item), 0);
+  const contentById = contentMap(snapshot);
+  return entries
+    .map((entry) => {
+      const content = contentById.get(entry.contentId);
+      if (!content) return null;
+      const views = entry.views;
+      const engagement = engagementOf(entry);
       return {
         content,
+        latest: entry,
         views,
         engagement,
         engagementRate: views > 0 ? (engagement / views) * 100 : 0,
         signal: views >= 1200 || engagement / Math.max(views, 1) >= 0.12 ? "放大复用" : "继续观察"
       };
     })
-    .sort((a, b) => b.views - a.views);
+    .filter((row): row is NonNullable<typeof row> => Boolean(row))
+    .sort((a, b) => compareRecentContent(a.content, b.content) || compareEntryRecency(a.latest, b.latest) || b.views - a.views);
 }
 
-function trendBuckets(entries: MetricDatum[]) {
-  const buckets = new Map<string, { label: string; views: number; engagement: number }>();
+function trendBuckets(entries: MetricDatum[], snapshot: DashboardSnapshot) {
+  const contentById = contentMap(snapshot);
+  const buckets = new Map<string, { key: string; label: string; views: number; engagement: number }>();
   for (const metric of entries) {
-    const date = metric.date ? new Date(metric.date) : null;
+    const content = contentById.get(metric.contentId);
+    const date = content?.publishedAt ? new Date(content.publishedAt) : metric.date ? new Date(metric.date) : null;
+    const key = date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : "unknown";
     const label = date && !Number.isNaN(date.getTime()) ? `${date.getMonth() + 1}/${date.getDate()}` : "未标注";
-    const current = buckets.get(label) ?? { label, views: 0, engagement: 0 };
+    const current = buckets.get(key) ?? { key, label, views: 0, engagement: 0 };
     current.views += metric.views;
     current.engagement += engagementOf(metric);
-    buckets.set(label, current);
+    buckets.set(key, current);
   }
-  return [...buckets.values()].slice(-6);
+  return [...buckets.values()]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .slice(-6);
 }
 
 function strongestPlatformText(platformData: ReturnType<typeof platformRows>, totalViews: number) {
@@ -133,6 +148,76 @@ function strongestPlatformText(platformData: ReturnType<typeof platformRows>, to
 
 function contentTitleMap(snapshot: DashboardSnapshot) {
   return new Map(snapshot.contents.map((content) => [content.id, content.title]));
+}
+
+function contentMap(snapshot: DashboardSnapshot) {
+  return new Map(snapshot.contents.map((content) => [content.id, content]));
+}
+
+function timestampOf(value: string | undefined) {
+  if (!value) return Number.NaN;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? Number.NaN : time;
+}
+
+function validTimestamp(value: number) {
+  return Number.isFinite(value);
+}
+
+function compareEntryRecency(a: MetricDatum, b: MetricDatum) {
+  const dateDelta = (timestampOf(b.date) || 0) - (timestampOf(a.date) || 0);
+  if (dateDelta !== 0) return dateDelta;
+  return (timestampOf(b.updatedAt) || 0) - (timestampOf(a.updatedAt) || 0);
+}
+
+function compareRecentContent(a: ContentItem, b: ContentItem) {
+  return (timestampOf(b.publishedAt) || 0) - (timestampOf(a.publishedAt) || 0);
+}
+
+function latestEntryByContent(entries: MetricDatum[], snapshot: DashboardSnapshot) {
+  const contentById = contentMap(snapshot);
+  const latest = new Map<string, MetricDatum>();
+  for (const entry of entries) {
+    if (!contentById.has(entry.contentId)) continue;
+    const current = latest.get(entry.contentId);
+    if (!current || compareEntryRecency(entry, current) < 0) latest.set(entry.contentId, entry);
+  }
+  return [...latest.values()].sort((a, b) => {
+    const contentA = contentById.get(a.contentId);
+    const contentB = contentById.get(b.contentId);
+    if (contentA && contentB) {
+      const contentDelta = compareRecentContent(contentA, contentB);
+      if (contentDelta !== 0) return contentDelta;
+    }
+    return compareEntryRecency(a, b);
+  });
+}
+
+function recencyWindowRange(snapshot: DashboardSnapshot, days: 7 | 30) {
+  const end = new Date(snapshot.generatedAt || new Date().toISOString());
+  if (Number.isNaN(end.getTime())) return { start: new Date(0), end: new Date() };
+  end.setHours(23, 59, 59, 999);
+  const start = new Date(end);
+  start.setDate(start.getDate() - days + 1);
+  start.setHours(0, 0, 0, 0);
+  return { start, end };
+}
+
+function entriesForPublishedWindow(snapshot: DashboardSnapshot, entries: MetricDatum[], days: 7 | 30) {
+  const { start, end } = recencyWindowRange(snapshot, days);
+  const contentById = contentMap(snapshot);
+  const eligibleContentIds = new Set(
+    snapshot.contents
+      .filter((content) => {
+        const publishedAt = timestampOf(content.publishedAt);
+        return validTimestamp(publishedAt) && publishedAt >= start.getTime() && publishedAt <= end.getTime();
+      })
+      .map((content) => content.id)
+  );
+  return latestEntryByContent(
+    entries.filter((entry) => eligibleContentIds.has(entry.contentId) && contentById.has(entry.contentId)),
+    snapshot
+  );
 }
 
 function startOfWeek(date: Date) {
@@ -222,12 +307,13 @@ function nativeMetricLabels(platform: Platform) {
   return labels[platform];
 }
 
-function dateRange(entries: MetricDatum[], fallback: DashboardSnapshot["weeklyReview"]) {
+function dateRange(entries: MetricDatum[], snapshot: DashboardSnapshot) {
+  const contentById = contentMap(snapshot);
   const timestamps = entries
-    .map((metric) => new Date(metric.date).getTime())
+    .map((metric) => timestampOf(contentById.get(metric.contentId)?.publishedAt ?? metric.date))
     .filter((value) => !Number.isNaN(value))
     .sort((a, b) => a - b);
-  if (!timestamps.length) return `${fallback.startDate} - ${fallback.endDate}`;
+  if (!timestamps.length) return "当前窗口暂无发布作品";
   const formatter = new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" });
   return `${formatter.format(timestamps[0])} - ${formatter.format(timestamps[timestamps.length - 1])}`;
 }
@@ -255,7 +341,9 @@ function sourcePlatformLabel(platform: DashboardSnapshot["metricSourceGroups"][n
 }
 
 export function MetricDashboardGrid({ snapshot }: { snapshot: DashboardSnapshot }) {
-  const entries = toMetricEntries(snapshot);
+  const [recencyWindow, setRecencyWindow] = useState<7 | 30>(30);
+  const allEntries = useMemo(() => toMetricEntries(snapshot), [snapshot]);
+  const entries = useMemo(() => entriesForPublishedWindow(snapshot, allEntries, recencyWindow), [allEntries, recencyWindow, snapshot]);
   const rawTotalViews = entries.reduce((total, item) => total + item.views, 0);
   const totalViews = rawTotalViews || snapshot.weeklyReview.metrics.totalViews;
   const engagement = entries.reduce((total, item) => total + engagementOf(item), 0) || snapshot.weeklyReview.metrics.totalEngagement;
@@ -265,20 +353,29 @@ export function MetricDashboardGrid({ snapshot }: { snapshot: DashboardSnapshot 
   const maxPlatform = Math.max(...platformData.map((item) => item.views), 1);
   const rankedContents = contentRows(snapshot, entries);
   const topContent = rankedContents[0];
-  const trend = trendBuckets(entries);
+  const trend = trendBuckets(entries, snapshot);
   const maxTrendViews = Math.max(...trend.map((item) => item.views), 1);
   const maxTrendEngagement = Math.max(...trend.map((item) => item.engagement), 1);
   const publishedCount = snapshot.platformVersions.filter((item) => item.status === "published").length;
   const goalProgress = Math.min((publishedCount / 12) * 100, 100);
   const totalLeadValue = snapshot.leads.reduce((total, lead) => total + lead.valueEstimate, 0);
   const titleMap = contentTitleMap(snapshot);
+  const contentsById = contentMap(snapshot);
   const periodTables = [
     { id: "day", title: "日数据", rows: aggregateByPeriod(entries, "day") },
     { id: "week", title: "周数据", rows: aggregateByPeriod(entries, "week") },
     { id: "month", title: "月数据", rows: aggregateByPeriod(entries, "month") }
   ];
   const nativeRows = [...entries]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .sort((a, b) => {
+      const contentA = contentsById.get(a.contentId);
+      const contentB = contentsById.get(b.contentId);
+      if (contentA && contentB) {
+        const contentDelta = compareRecentContent(contentA, contentB);
+        if (contentDelta !== 0) return contentDelta;
+      }
+      return compareEntryRecency(a, b);
+    })
     .slice(0, 10);
   const sourceRows = snapshot.metricSourceGroups.slice(0, 6);
   const latestImportRows = snapshot.imports
@@ -301,15 +398,33 @@ export function MetricDashboardGrid({ snapshot }: { snapshot: DashboardSnapshot 
 
       <section className="analytics-filter-bar" aria-label="当前数据看板筛选条件">
         <div className="inline-stack">
-          <button className="analytics-chip is-active" type="button" aria-pressed="true">近 30 天</button>
+          <button
+            className={`analytics-chip ${recencyWindow === 7 ? "is-active" : ""}`}
+            data-testid="dashboard-recency-7"
+            onClick={() => setRecencyWindow(7)}
+            type="button"
+            aria-pressed={recencyWindow === 7}
+          >
+            近 7 天
+          </button>
+          <button
+            className={`analytics-chip ${recencyWindow === 30 ? "is-active" : ""}`}
+            data-testid="dashboard-recency-30"
+            onClick={() => setRecencyWindow(30)}
+            type="button"
+            aria-pressed={recencyWindow === 30}
+          >
+            近 30 天
+          </button>
           <button className="analytics-chip is-active" type="button" aria-pressed="true">可信真实数据</button>
           <button className="analytics-chip" type="button">四平台对比</button>
           <button className="analytics-chip" type="button">曝光 + 互动</button>
           <button className="analytics-chip" type="button">B站内容级</button>
-          <button className="analytics-chip" type="button">内容排行 Top 8</button>
+          <button className="analytics-chip" type="button">最近作品优先</button>
+          <button className="analytics-chip" type="button">最新快照</button>
           <button className="analytics-chip" type="button">指标去重</button>
         </div>
-        <span>窗口：{dateRange(entries, snapshot.weeklyReview)}</span>
+        <span>作品发布时间窗口：{dateRange(entries, snapshot)}</span>
       </section>
 
       <section
@@ -323,7 +438,7 @@ export function MetricDashboardGrid({ snapshot }: { snapshot: DashboardSnapshot 
         <span>{formatNumber(snapshot.realDataScope.trustedContentCount)} 真实内容</span>
         <span>{formatNumber(snapshot.realDataScope.trustedMetricSnapshotCount)} 真实指标快照</span>
         <span>{formatNumber(snapshot.realDataScope.excludedMetricCount)} 条非运营指标未计入</span>
-        <small>默认只看四个内容平台官方后台来源；其他记录可在高级诊断或专用筛选中查看。</small>
+        <small>当前按近 {recencyWindow} 天发布作品统计，每个作品只展示最新快照；其他记录可在高级诊断或专用筛选中查看。</small>
       </section>
 
       <div className="dashboard-main-grid">
@@ -465,7 +580,7 @@ export function MetricDashboardGrid({ snapshot }: { snapshot: DashboardSnapshot 
       <Panel className="dashboard-ranking" data-testid="dashboard-content-ranking" title="内容表现排行" eyebrow="内容榜单">
         <div className="table-wrap">
           <table className="sm-table">
-            <thead><tr><th>内容</th><th>平台</th><th>曝光</th><th>互动</th><th>互动率</th><th>判断</th></tr></thead>
+            <thead><tr><th>内容</th><th>平台</th><th>发布时间</th><th>最近保存</th><th>曝光/观看</th><th>互动</th><th>互动率</th><th>快照</th></tr></thead>
             <tbody>
               {rankedContents.slice(0, 8).map((row) => {
                 return (
@@ -479,13 +594,16 @@ export function MetricDashboardGrid({ snapshot }: { snapshot: DashboardSnapshot 
                   >
                     <td><strong>{row.content.title}</strong><small>{row.content.topic}</small></td>
                     <td><PlatformBadge platform={row.content.platform} /></td>
+                    <td>{row.content.publishedAt ? row.content.publishedAt.slice(0, 10) : "未标注"}</td>
+                    <td>{row.latest.updatedAt ? row.latest.updatedAt.slice(0, 10) : row.latest.date.slice(0, 10)}</td>
                     <td>{formatNumber(row.views)}</td>
                     <td>{formatNumber(row.engagement)}</td>
                     <td>{formatPercent(row.engagementRate)}</td>
-                    <td>{row.signal}</td>
+                    <td>{row.signal} / 最新快照</td>
                   </tr>
                 );
               })}
+              {rankedContents.length === 0 && <tr><td colSpan={8}>当前时间窗口暂无可信作品指标。</td></tr>}
             </tbody>
           </table>
         </div>
@@ -534,14 +652,16 @@ export function MetricDashboardGrid({ snapshot }: { snapshot: DashboardSnapshot 
         <p className="muted">按抖音、小红书、视频号、B站导入快照优先展示；当前只展示内容级可信指标，不混入账号趋势。</p>
         <div className="table-wrap">
           <table className="sm-table analytics-native-table">
-            <thead><tr><th>平台</th><th>日期</th><th>内容</th><th>主指标</th><th>点赞</th><th>评论</th><th>收藏/收藏类</th><th>分享/转发</th><th>粉丝/关注</th></tr></thead>
+            <thead><tr><th>平台</th><th>发布时间</th><th>最近抓取/保存</th><th>内容</th><th>主指标</th><th>点赞</th><th>评论</th><th>收藏/收藏类</th><th>分享/转发</th><th>粉丝/关注</th></tr></thead>
             <tbody>
               {nativeRows.map((row, index) => {
                 const labels = nativeMetricLabels(row.platform);
+                const content = contentsById.get(row.contentId);
                 return (
                   <tr key={`${row.platform}-${row.contentId}-${row.date}-${index}`}>
                     <td><PlatformBadge platform={row.platform} /></td>
-                    <td>{row.date ? row.date.slice(0, 10) : "未标注"}</td>
+                    <td>{content?.publishedAt ? content.publishedAt.slice(0, 10) : "未标注"}</td>
+                    <td>{row.updatedAt ? row.updatedAt.slice(0, 10) : row.date ? row.date.slice(0, 10) : "未标注"}</td>
                     <td><strong>{titleMap.get(row.contentId) ?? row.contentId}</strong><small>{row.kind === "metric_snapshot" ? sourceLabel(row.source) : "复盘口径指标"}</small></td>
                     <td><strong>{formatNumber(row.views)}</strong><small>{labels.primary}</small></td>
                     <td>{formatNumber(row.likes)}</td>
@@ -552,7 +672,7 @@ export function MetricDashboardGrid({ snapshot }: { snapshot: DashboardSnapshot 
                   </tr>
                 );
               })}
-              {nativeRows.length === 0 && <tr><td colSpan={9}>暂无平台原生字段预览。</td></tr>}
+              {nativeRows.length === 0 && <tr><td colSpan={10}>暂无平台原生字段预览。</td></tr>}
             </tbody>
           </table>
         </div>

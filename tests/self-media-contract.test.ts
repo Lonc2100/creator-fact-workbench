@@ -5958,6 +5958,61 @@ test("xiaohongshu local export file import enters trusted content metrics withou
   }
 });
 
+test("video account manual update file import enters trusted content metrics without default browser auto capture", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-video-account-manual-update-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const csv = [
+      "视频ID,标题,发布时间,播放量,点赞数,评论数,收藏数,分享数,朋友圈转发,涨粉,完播率,平均播放时长,公众号阅读转化,流量来源,选题",
+      "va-manual-107,视频号手动更新闭环,2026-06-08T09:00:00.000Z,700,24,5,10,8,2,4,36%,16s,12,推荐,真人表达"
+    ].join("\n");
+
+    const preview = service.previewImportRequest({
+      mode: "platform_local_file",
+      platformLocalFile: { platform: "video_account", csv }
+    });
+    assert.equal(preview.source, "video_account_creator_center");
+    assert.equal(preview.contentCount, 1);
+    assert.equal(preview.realPreviewRows?.[0]?.mappingConfidence, "draft_realistic");
+    assert.equal(preview.realPreviewRows?.[0]?.nativeMetrics["朋友圈转发"], "2");
+    assert.equal(preview.realPreviewRows?.[0]?.canConfirmSave, true);
+    assert.ok(preview.warnings.some((item) => item.includes("video_account_manual_update")));
+    assert.ok(preview.realPreviewRows?.[0]?.warnings.some((item) => item.includes("draft_realistic_headers_need_real_export_confirmation")));
+
+    const result = service.importRequest({
+      mode: "platform_local_file",
+      platformLocalFile: { platform: "video_account", csv }
+    });
+    assert.equal(result.run.status, "success");
+    assert.equal(result.run.source, "video_account_creator_center");
+
+    const savedSnapshot = repo.listMetricSnapshots().find((item) => item.contentId === "va-manual-107");
+    const dashboard = await service.dashboard();
+    assert.ok(savedSnapshot);
+    assert.equal(savedSnapshot?.source, "video_account_creator_center");
+    assert.equal(savedSnapshot?.dataDomain, "user_work");
+    assert.equal(savedSnapshot?.provenance?.trustedScopeEligible, true);
+    assert.equal(savedSnapshot?.views, 700);
+    assert.equal(savedSnapshot?.shares, 8);
+    assert.equal(savedSnapshot?.followersDelta, 4);
+    const savedContent = repo.getEntity("contents", "va-manual-107");
+    assert.equal(savedContent?.dataDomain, "user_work");
+    assert.equal(savedContent?.format, "short_video");
+    assert.ok(savedContent?.notes?.includes("video_account_manual_update:manual_confirmed"));
+    assert.ok(dashboard.contents.some((item) => item.id === "va-manual-107"));
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "va-manual-107" && item.source === "video_account_creator_center"));
+    assert.equal(dashboard.weeklyReview.metrics.totalViews, 700);
+    assert.equal(dashboard.trustedAutoCaptureScheduler.schedulerEnabledCount, 0);
+    assert.equal(dashboard.calendarItems.some((item) => item.contentId === "va-manual-107"), false);
+    assert.doesNotMatch(JSON.stringify(savedSnapshot), /raw request|cookie|token|header|storageState|screenshot|"har"|"trace"/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("douyin local export xlsx import previews and saves without raw request persistence", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-douyin-local-xlsx-"));
   let repo: SqliteSelfMediaRepo | undefined;

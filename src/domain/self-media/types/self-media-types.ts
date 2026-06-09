@@ -1451,7 +1451,7 @@ export interface ImportRequest {
   csv?: string;
   json?: unknown;
   platformLocalFile?: {
-    platform: "douyin" | "xiaohongshu" | "bilibili";
+    platform: "douyin" | "xiaohongshu" | "video_account" | "bilibili";
     csv?: string;
     fileBase64?: string;
     fileName?: string;

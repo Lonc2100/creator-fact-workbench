@@ -409,7 +409,8 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /连接平台：待接入 OAuth/);
   assert.match(importPage, /连接平台：待官方能力确认/);
   assert.match(importPage, /未确认公开稳定个人创作者数据 API/);
-  assert.match(importPage, /未确认稳定创作者内容级数据 API/);
+  assert.match(importPage, /API 能力待确认，个人创作者不默认假设可用/);
+  assert.match(importPage, /视频号手动更新为主/);
   assert.match(importPage, /账号指标 preview-only/);
   assert.match(importPage, /trustedAutoCaptureScheduler/);
   assert.match(importPage, /login-flow-primary/);
@@ -431,7 +432,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /login-capture-auto-refresh/);
   assert.match(importPage, /登录抓取状态检查/);
   assert.match(importPage, /进入本页只刷新本机登录 profile 状态/);
-  assert.match(importPage, /不会自动打开抖音\/小红书窗口/);
+  assert.match(importPage, /不会自动打开抖音\/小红书\/视频号窗口/);
   assert.match(importPage, /login-capture-auto-refresh-button/);
   assert.match(importPage, /打开抖音作品管理页/);
   assert.match(importPage, /打开小红书笔记管理页/);
@@ -544,6 +545,20 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /xiaohongshu-local-file-preview/);
   assert.match(importPage, /xiaohongshu-local-file-save/);
   assert.match(importPage, /xiaohongshu-local-file-dashboard-link/);
+  assert.match(importPage, /video-account-local-file-mvp/);
+  assert.match(importPage, /视频号手动更新/);
+  assert.match(importPage, /手动更新为主/);
+  assert.match(importPage, /登录抓取需扫码，暂不作为每日自动流程/);
+  assert.match(importPage, /API 能力待确认，个人创作者不默认假设可用/);
+  assert.match(importPage, /后续探索：尝试登录抓取/);
+  assert.match(importPage, /video_account_creator_center/);
+  assert.match(importPage, /视频号助手手动更新的内容级表格/);
+  assert.match(importPage, /video-account-local-file-upload/);
+  assert.match(importPage, /video-account-local-file-csv/);
+  assert.match(importPage, /video-account-local-file-confirm/);
+  assert.match(importPage, /video-account-local-file-preview/);
+  assert.match(importPage, /video-account-local-file-save/);
+  assert.match(importPage, /video-account-local-file-dashboard-link/);
   assert.match(importPage, /B站本地导出回收 MVP/);
   assert.match(importPage, /platform_local_file/);
   assert.match(importPage, /bilibili_creator_center/);
@@ -711,10 +726,19 @@ test("dashboard default view is data-only and folds internal diagnostics", () =>
     "总曝光",
     "平台曝光占比",
     "平台互动对比",
-    "内容表现排行"
+    "内容表现排行",
+    "作品发布时间窗口",
+    "最近作品优先",
+    "最新快照",
+    "最近保存",
+    "最近抓取/保存"
   ]) {
     assert.match(metricDashboard, new RegExp(phrase));
   }
+  assert.match(metricDashboard, /dashboard-recency-7/);
+  assert.match(metricDashboard, /dashboard-recency-30/);
+  assert.match(metricDashboard, /entriesForPublishedWindow/);
+  assert.match(metricDashboard, /latestEntryByContent/);
   assert.match(dashboardScreen, /title="周报摘要"/);
   const dashboardDefaultRender = dashboardScreen.slice(
     dashboardScreen.indexOf("<AppShell active=\"/dashboard\">"),
@@ -919,7 +943,9 @@ test("browser capture auto refresh is user-triggered preview only", () => {
   assert.match(route, /session_maybe_available/);
   assert.match(route, /capture_failed/);
   assert.match(route, /userConfirmedLogin: true/);
-  assert.match(route, /video_account[\s\S]*discovery-only|discovery-only[\s\S]*video_account/);
+  assert.match(route, /视频号手动更新为主/);
+  assert.match(route, /登录抓取需扫码，暂不作为每日自动流程/);
+  assert.match(route, /video_account_manual_update_primary/);
   assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "raw", "request", "response", "storage", "screenshot", "har", "trace", "credential"\]/);
   assert.doesNotMatch(route, /action:\s*"save"|userConfirmedContentMetrics:\s*true|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)|screenshot\s*\(|tracing\./);
 });

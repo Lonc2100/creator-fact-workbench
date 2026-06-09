@@ -35,6 +35,11 @@ const sampleBilibiliLocalExportCsv = [
   "bili-local-001,BV1local001,AI短片工作流拆解,2026-06-01T09:00:00.000Z,1600,88,22,12,61,19,30,9,45%,32s,AI短片"
 ].join("\n");
 
+const sampleVideoAccountLocalExportCsv = [
+  "视频ID,标题,发布时间,播放量,点赞数,评论数,收藏数,分享数,朋友圈转发,涨粉,完播率,平均播放时长,公众号阅读转化,流量来源,选题",
+  "va-local-001,视频号真人表达复盘,2026-06-08T09:00:00.000Z,700,24,5,10,8,2,4,36%,16s,12,推荐,真人表达"
+].join("\n");
+
 const confidenceLabels: Record<RealImportPreviewRow["mappingConfidence"], string> = {
   confirmed_official: "官方字段",
   mature_reference: "成熟参考",
@@ -179,14 +184,14 @@ const captureRealityCapabilities: CaptureRealityCapability[] = [
     key: "video-account",
     platform: "video_account",
     label: "视频号",
-    officialApi: "未确认稳定创作者内容级数据 API",
+    officialApi: "API 能力待确认，个人创作者不默认假设可用",
     appReview: "微信开放能力需按具体场景申请",
     oauth: "本产品未接入视频号授权",
-    contentData: "当前只能人工/浏览器辅助读取助手页面",
+    contentData: "手动更新为主：粘贴/导入本人内容级数据",
     publishDraft: "不写成官方草稿箱/API 发布",
-    scheduledAutoCapture: "当前不支持定时自动抓",
-    implemented: "当前仅本地手动导入/浏览器辅助映射",
-    browserAssisted: "可浏览器辅助",
+    scheduledAutoCapture: "登录抓取需扫码，暂不作为每日自动流程",
+    implemented: "当前最小可用为手动录入/粘贴后预览保存",
+    browserAssisted: "后续探索：尝试登录抓取",
     manualImport: "可手动导入",
     futureConnection: "连接平台：待官方能力确认"
   },
@@ -586,7 +591,7 @@ function LoginCaptureAutoRefreshPanel({
     <div className="login-auto-refresh-panel" data-testid="login-capture-auto-refresh">
       <div>
         <strong>登录抓取状态检查</strong>
-        <p>进入本页只刷新本机登录 profile 状态，不会自动打开抖音/小红书窗口；需要抓取时请手动点击按钮打开平台后台。系统只做预览，不会静默保存。</p>
+        <p>进入本页只刷新本机登录 profile 状态，不会自动打开抖音/小红书/视频号窗口；需要抓取时请手动点击按钮打开平台后台。系统只做预览，不会静默保存。</p>
         <small data-testid="login-capture-startup-check">{startupSummary}</small>
       </div>
       <div className="import-preview-actions">
@@ -678,7 +683,7 @@ function loginCapturePrimaryAction(result: AuthedBrowserAutoRefreshResult) {
   }
   return {
     title: "当前没有可自动抓取的平台",
-    detail: "抖音和小红书支持登录后预览；视频号仍是 discovery-only，B站浏览器抓取暂未接入。",
+    detail: "抖音和小红书支持登录后预览；视频号手动更新为主，登录抓取需扫码且暂不作为每日自动流程；B站浏览器抓取暂未接入。",
     badge: "边界",
     tone: "info" as const,
     href: "",
@@ -1512,7 +1517,7 @@ function ImportFirstViewportGuide({
   const browserReadyPlatforms = scheduler.statuses.filter((status) => status.captureMode === "browser_assisted" || status.captureConnectionStatus === "browser_session_active");
   const browserReadyCopy = browserReadyPlatforms.length > 0
     ? browserReadyPlatforms.map((status) => platformLabels[status.platform]).join("、")
-    : "抖音、小红书可走登录抓取；视频号/B站先看状态或使用兜底导入。";
+    : "抖音、小红书可走登录抓取；视频号手动更新为主，B站先看状态或使用兜底导入。";
   return (
     <Panel
       className="import-first-viewport-guide"
@@ -1575,7 +1580,7 @@ function previewStatsFor(preview: ImportPreviewResult | null) {
   };
 }
 
-type LocalFilePlatform = "douyin" | "xiaohongshu" | "bilibili";
+type LocalFilePlatform = "douyin" | "xiaohongshu" | "video_account" | "bilibili";
 
 function douyinBrowserLoginStateLabel(state?: DouyinAuthedBrowserCaptureResult["loginState"]) {
   const labels: Record<DouyinAuthedBrowserCaptureResult["loginState"], string> = {
@@ -1673,6 +1678,11 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [xiaohongshuBrowserLoginConfirmed, setXiaohongshuBrowserLoginConfirmed] = useState(false);
   const [xiaohongshuBrowserMetricsConfirmed, setXiaohongshuBrowserMetricsConfirmed] = useState(false);
   const [xiaohongshuBrowserMessage, setXiaohongshuBrowserMessage] = useState("等待打开小红书后台");
+  const [videoAccountCsv, setVideoAccountCsv] = useState(sampleVideoAccountLocalExportCsv);
+  const [videoAccountFile, setVideoAccountFile] = useState<File | null>(null);
+  const [videoAccountPreview, setVideoAccountPreview] = useState<ImportPreviewResult | null>(null);
+  const [videoAccountConfirmed, setVideoAccountConfirmed] = useState(false);
+  const [videoAccountMessage, setVideoAccountMessage] = useState("等待视频号手动更新表");
   const [bilibiliCsv, setBilibiliCsv] = useState(sampleBilibiliLocalExportCsv);
   const [bilibiliFile, setBilibiliFile] = useState<File | null>(null);
   const [bilibiliPreview, setBilibiliPreview] = useState<ImportPreviewResult | null>(null);
@@ -1685,6 +1695,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [isDouyinBrowserLoading, setIsDouyinBrowserLoading] = useState(false);
   const [isXiaohongshuLoading, setIsXiaohongshuLoading] = useState(false);
   const [isXiaohongshuBrowserLoading, setIsXiaohongshuBrowserLoading] = useState(false);
+  const [isVideoAccountLoading, setIsVideoAccountLoading] = useState(false);
   const [isBilibiliLoading, setIsBilibiliLoading] = useState(false);
   const startupAutoRefreshStarted = useRef(false);
   const returnRefreshPromptLastShownAt = useRef(0);
@@ -1692,9 +1703,11 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const previewStats = useMemo(() => previewStatsFor(preview), [preview]);
   const douyinStats = useMemo(() => previewStatsFor(douyinPreview), [douyinPreview]);
   const xiaohongshuStats = useMemo(() => previewStatsFor(xiaohongshuPreview), [xiaohongshuPreview]);
+  const videoAccountStats = useMemo(() => previewStatsFor(videoAccountPreview), [videoAccountPreview]);
   const bilibiliStats = useMemo(() => previewStatsFor(bilibiliPreview), [bilibiliPreview]);
   const canSaveDouyinLocalFile = douyinStats.confirmable > 0 && douyinConfirmed;
   const canSaveXiaohongshuLocalFile = xiaohongshuStats.confirmable > 0 && xiaohongshuConfirmed;
+  const canSaveVideoAccountLocalFile = videoAccountStats.confirmable > 0 && videoAccountConfirmed;
   const canSaveBilibiliLocalFile = bilibiliStats.confirmable > 0 && bilibiliConfirmed;
   const douyinBrowserRows = douyinBrowserResult?.rows ?? [];
   const douyinBrowserSaveCandidateCount = douyinBrowserRows.filter(canSaveAuthedBrowserRow).length;
@@ -1802,6 +1815,12 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     setXiaohongshuPreview(null);
     setXiaohongshuConfirmed(false);
     if (nextMessage) setXiaohongshuMessage(nextMessage);
+  }
+
+  function resetVideoAccountPreview(nextMessage?: string) {
+    setVideoAccountPreview(null);
+    setVideoAccountConfirmed(false);
+    if (nextMessage) setVideoAccountMessage(nextMessage);
   }
 
   function resetBilibiliPreview(nextMessage?: string) {
@@ -2023,6 +2042,36 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       setXiaohongshuMessage(error instanceof Error ? error.message : "小红书本地导出处理失败");
     } finally {
       setIsXiaohongshuLoading(false);
+    }
+  }
+
+  async function runVideoAccountLocalFile(action: "preview" | "save") {
+    setIsVideoAccountLoading(true);
+    setVideoAccountMessage(action === "preview" ? "视频号手动更新表预览中" : "正在保存视频号内容级指标");
+    try {
+      const request = await buildPlatformLocalFileRequest("video_account", videoAccountFile, videoAccountCsv);
+      const response = await fetch(action === "preview" ? "/api/self-media/import/preview" : "/api/self-media/import", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(request)
+      });
+      const body = await response.json() as (ImportPreviewResult & { errorMessage?: string }) | { run?: { importedCount?: number; status?: string }; errorMessage?: string };
+      if (!response.ok) throw new Error(body.errorMessage ?? "视频号手动更新处理失败");
+      if (action === "preview") {
+        const result = body as ImportPreviewResult;
+        setVideoAccountPreview(result);
+        setVideoAccountConfirmed(false);
+        setVideoAccountMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后来源将保存为 video_account_creator_center。`);
+      } else {
+        const dashboardResponse = await fetch("/api/self-media/dashboard");
+        setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
+        setVideoAccountMessage(`已保存视频号手动更新指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入可信内容级回收。`);
+        setVideoAccountConfirmed(false);
+      }
+    } catch (error) {
+      setVideoAccountMessage(error instanceof Error ? error.message : "视频号手动更新处理失败");
+    } finally {
+      setIsVideoAccountLoading(false);
     }
   }
 
@@ -2454,6 +2503,75 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             <span><b>{xiaohongshuStats.nativeMetrics}</b> 小红书原生字段</span>
           </div>
           <RealPreviewRows rows={xiaohongshuStats.rows} />
+        </Panel>
+        <Panel
+          className="video-account-local-file-mvp"
+          data-testid="video-account-local-file-mvp"
+          title="视频号手动更新"
+          eyebrow="手动更新为主"
+          action={<Badge tone={videoAccountStats.blocked > 0 ? "warning" : videoAccountStats.total > 0 ? "success" : "info"}>{videoAccountStats.confirmable} 行可保存</Badge>}
+        >
+          <div className="import-guide-steps">
+            <article>
+              <strong>1. 手动更新为主</strong>
+              <p>从视频号助手复制或导出本人内容级数据；默认页面加载、切回页面和自动刷新都不会打开视频号窗口。</p>
+            </article>
+            <article>
+              <strong>2. 先预览再确认</strong>
+              <p>至少确认标题、发布时间、播放/观看、点赞、评论、转发/分享等字段，缺稳定视频 ID 的行不会进入可信保存。</p>
+            </article>
+            <article>
+              <strong>3. 后续探索：尝试登录抓取</strong>
+              <p>登录抓取需扫码，暂不作为每日自动流程；API 能力待确认，个人创作者不默认假设可用。</p>
+            </article>
+          </div>
+          <div className="form-grid">
+            <Field label="上传视频号 CSV / XLSX">
+              <input
+                className="sm-input"
+                data-testid="video-account-local-file-upload"
+                type="file"
+                accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] ?? null;
+                  setVideoAccountFile(nextFile);
+                  resetVideoAccountPreview(nextFile ? `已选择 ${nextFile.name}，请先预览字段。` : "等待视频号手动更新表");
+                }}
+              />
+            </Field>
+            <Field label="或粘贴视频号数据 CSV">
+              <TextArea
+                data-testid="video-account-local-file-csv"
+                value={videoAccountCsv}
+                onChange={(event) => {
+                  setVideoAccountCsv(event.target.value);
+                  resetVideoAccountPreview("CSV 已更新，请重新预览字段。");
+                }}
+              />
+            </Field>
+            <label className="import-confirm-check">
+              <input
+                checked={videoAccountConfirmed}
+                data-testid="video-account-local-file-confirm"
+                disabled={videoAccountStats.confirmable === 0 || isVideoAccountLoading}
+                onChange={(event) => setVideoAccountConfirmed(event.target.checked)}
+                type="checkbox"
+              />
+              <span>我确认这是本人从视频号助手手动更新的内容级表格；保存后进入数据看板，且不保存登录凭证、请求头、原始请求或截图。</span>
+            </label>
+            <div className="import-preview-actions">
+              <Button data-testid="video-account-local-file-preview" onClick={() => runVideoAccountLocalFile("preview")} variant="secondary" disabled={isVideoAccountLoading}>{isVideoAccountLoading ? "处理中" : "预览视频号手动更新"}</Button>
+              <Button data-testid="video-account-local-file-save" onClick={() => runVideoAccountLocalFile("save")} variant="primary" disabled={isVideoAccountLoading || !canSaveVideoAccountLocalFile}>{isVideoAccountLoading ? "保存中" : "确认保存到看板"}</Button>
+              <a className="sm-button sm-button-secondary" data-testid="video-account-local-file-dashboard-link" href="/dashboard">查看数据看板</a>
+              <span>{videoAccountMessage}</span>
+            </div>
+          </div>
+          <div className="real-preview-summary">
+            <span><b>{videoAccountStats.total}</b> 行</span>
+            <span><b>{videoAccountStats.confirmable}</b> 可保存</span>
+            <span><b>{videoAccountStats.nativeMetrics}</b> 视频号原生字段</span>
+          </div>
+          <RealPreviewRows rows={videoAccountStats.rows} />
         </Panel>
         <Panel
           className="bilibili-local-file-mvp"
