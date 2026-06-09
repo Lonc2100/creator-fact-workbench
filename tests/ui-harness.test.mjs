@@ -393,17 +393,46 @@ test("content and calendar default views hide internal labels and require explic
 
 test("import page default view is data-only and folds diagnostics", () => {
   const importPage = read("src/domain/self-media/ui/screens/ImportPage.tsx");
-  assert.match(importPage, /先看四个平台的登录抓取状态，再按下一步进入操作/);
-  assert.match(importPage, /ImportFirstViewportGuide/);
-  assert.match(importPage, /import-first-viewport-guide/);
-  assert.match(importPage, /登录抓取四平台状态/);
-  assert.match(importPage, /login-four-platform-status/);
-  assert.match(importPage, /login-flow-next/);
-  assert.match(importPage, /href="#login-flow-primary"/);
+  const importOverview = read("src/domain/self-media/ui/patterns/ImportPlatformOverview.tsx");
+  assert.match(importPage, /title="数据更新"/);
+  assert.match(importPage, /手动更新平台数据，预览后确认保存/);
+  assert.match(importPage, /ImportPlatformOverview/);
+  assert.match(importPage, /expandedImportPanel/);
+  assert.match(importPage, /openImportPanel/);
+  assert.match(importPage, /syncImportPanel/);
+  assert.match(importOverview, /import-platform-overview/);
+  assert.match(importOverview, /今天怎么更新数据/);
+  assert.match(importOverview, /手动更新平台数据，预览后确认保存/);
+  assert.match(importOverview, /不会自动打开任何平台窗口/);
+  assert.match(importOverview, /data-testid=\{`import-platform-card-\$\{card\.key\}`\}/);
+  assert.match(importOverview, /key: "douyin"/);
+  assert.match(importOverview, /key: "xiaohongshu"/);
+  assert.match(importOverview, /key: "video_account"/);
+  assert.match(importOverview, /key: "bilibili"/);
+  assert.match(importOverview, /登录抓取可用/);
+  assert.match(importOverview, /内容分析表格可用/);
+  assert.match(importOverview, /手动更新为主/);
+  assert.match(importOverview, /内容级导入可用/);
+  assert.match(importOverview, /账号指标仍 preview-only/);
+  assert.match(importOverview, /打开抖音更新/);
+  assert.match(importOverview, /打开小红书更新/);
+  assert.match(importOverview, /手动更新视频号/);
+  assert.match(importOverview, /导入 B站数据/);
+  assert.match(importOverview, /import-first-screen-boundary/);
+  assert.doesNotMatch(importOverview, /\/api\/self-media|runId|rawDir|evidenceFile|storageState|password|cookie|token|header/i);
+  assert.match(importPage, /login-capture-detail-panel/);
+  assert.match(importPage, /douyin-import-update-detail/);
+  assert.match(importPage, /xiaohongshu-import-update-detail/);
+  assert.match(importPage, /video_account-import-update-detail/);
+  assert.match(importPage, /bilibili-import-update-detail/);
+  assert.match(importPage, /登录抓取状态与手动刷新/);
+  assert.match(importPage, /抖音更新详情/);
+  assert.match(importPage, /小红书更新详情/);
+  assert.match(importPage, /发布后数据回收/);
   assert.match(importPage, /登录抓取/);
   assert.match(importPage, /本地导出兜底/);
-  assert.match(importPage, /需要你先登录平台后台/);
-  assert.match(importPage, /可以继续下一步/);
+  assert.match(importOverview, /需要你手动登录或提供数据/);
+  assert.match(importOverview, /可以继续预览更新/);
   assert.match(importPage, /切到作品管理页/);
   assert.match(importPage, /请切到作品管理页再抓/);
   assert.match(importPage, /连接平台：待接入 OAuth/);
@@ -427,7 +456,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /下一次抓取/);
   assert.match(importPage, /人工操作/);
   assert.match(importPage, /自动抓取：/);
-  assert.match(importPage, /check-login-status-primary/);
+  assert.match(importOverview, /data-testid=\{`import-platform-open-\$\{card\.key\}`\}/);
   assert.match(importPage, /还没有连接好。请打开平台后台，登录后切到作品管理页/);
   assert.match(importPage, /login-capture-auto-refresh/);
   assert.match(importPage, /登录抓取状态检查/);
@@ -614,15 +643,11 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /showDiagnostics \? item\.warningSummary : operatorWarningLabel\(item\.warningSummary\)/);
   assert.match(importPage, /item\.lastMessage \? operatorWarningLabel\(item\.lastMessage\) : "无"/);
 
-  const firstViewportGuide = importPage.slice(
-    importPage.indexOf("function ImportFirstViewportGuide"),
-    importPage.indexOf("function ScheduledRefreshSettingPanel")
-  );
-  assert.doesNotMatch(firstViewportGuide, /官方 API 授权|本地导出兜底|为什么登录抖音|网页登录状态|CaptureRealityMatrix|platform-capture-reality-matrix|发布后回收|raw|\/api/i);
+  assert.doesNotMatch(importOverview, /官方 API 授权|本地导出兜底|为什么登录抖音|网页登录状态|CaptureRealityMatrix|platform-capture-reality-matrix|发布后回收|raw|\/api/i);
 
   const defaultRender = importPage.slice(
-    importPage.indexOf("<ImportFirstViewportGuide"),
-    importPage.indexOf("<details className=\"analytics-data-section local-export-fallback\"")
+    importPage.indexOf("<ImportPlatformOverview"),
+    importPage.indexOf("<details\n          className=\"analytics-data-section import-update-detail\"")
   );
   assert.doesNotMatch(defaultRender, /<option value="wechat">公众号<\/option>/);
   const advancedRender = importPage.slice(importPage.indexOf("<details className=\"analytics-data-section import-advanced-diagnostics\""));
@@ -676,8 +701,8 @@ test("daily ops green state keeps dashboard import reviews defaults free of diag
     dashboardScreen.indexOf("<DashboardSecondaryOperationsPanel")
   );
   const importDefault = importPage.slice(
-    importPage.indexOf("<ImportFirstViewportGuide"),
-    importPage.indexOf("<details className=\"analytics-data-section local-export-fallback\"")
+    importPage.indexOf("<ImportPlatformOverview"),
+    importPage.indexOf("<details\n          className=\"analytics-data-section import-update-detail\"")
   );
   const reviewsDefault = [
     reviewsPage.slice(reviewsPage.indexOf("<PageHeader"), reviewsPage.indexOf("<EvidenceReviewReport")),

@@ -9,6 +9,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { formatDateTime, formatNumber } from "../foundations/format";
 import { platformLabels } from "../foundations/labels";
 import { ImportDiffTable } from "../patterns/ImportDiffTable";
+import { ImportPlatformOverview, type ImportUpdatePanelKey } from "../patterns/ImportPlatformOverview";
 import { Badge } from "../primitives/Badge";
 import { Button } from "../primitives/Button";
 import { Field, SelectInput, TextArea } from "../primitives/Form";
@@ -1504,47 +1505,6 @@ function PostPublishRefreshPanel({
   );
 }
 
-function ImportFirstViewportGuide({
-  authCheckMessage,
-  onAuthCheck,
-  snapshot
-}: {
-  authCheckMessage: string;
-  onAuthCheck: () => void;
-  snapshot: DashboardSnapshot;
-}) {
-  const scheduler = snapshot.trustedAutoCaptureScheduler;
-  const browserReadyPlatforms = scheduler.statuses.filter((status) => status.captureMode === "browser_assisted" || status.captureConnectionStatus === "browser_session_active");
-  const browserReadyCopy = browserReadyPlatforms.length > 0
-    ? browserReadyPlatforms.map((status) => platformLabels[status.platform]).join("、")
-    : "抖音、小红书可走登录抓取；视频号手动更新为主，B站先看状态或使用兜底导入。";
-  return (
-    <Panel
-      className="import-first-viewport-guide"
-      data-testid="import-first-viewport-guide"
-      title="登录抓取四平台状态"
-      eyebrow="第一步"
-    >
-      <div className="login-platform-status-grid" data-testid="login-four-platform-status">
-        {scheduler.statuses.map((status) => (
-          <article key={`login-status-${status.platform}`}>
-            <strong>{platformLabels[status.platform]}</strong>
-            <span>{status.needsManualAction ? "需要你先登录平台后台" : "可以继续下一步"}</span>
-            <small>{captureConnectionStatusLabels[status.captureConnectionStatus]}</small>
-          </article>
-        ))}
-      </div>
-      <div className="import-first-next-row">
-        <span>{authCheckMessage || `当前可执行：${browserReadyCopy}`}</span>
-        <Button data-testid="check-login-status-primary" onClick={onAuthCheck} variant="primary">检查登录抓取状态</Button>
-        <a className="sm-button sm-button-secondary" data-testid="login-flow-next" href="#login-flow-primary">下一步</a>
-        <a className="sm-button sm-button-secondary" href="#douyin-authed-browser-capture-mvp">进入抖音读取</a>
-        <a className="sm-button sm-button-secondary" href="#xiaohongshu-authed-browser-capture-mvp">进入小红书读取</a>
-      </div>
-    </Panel>
-  );
-}
-
 function ScheduledRefreshSettingPanel({ snapshot }: { snapshot: DashboardSnapshot }) {
   const reliability = snapshot.dataCaptureScheduleReliability;
   const catchUpLabel = reliability.startupCatchUpRequired ? "需要补抓" : "无需补抓";
@@ -1697,6 +1657,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [isXiaohongshuBrowserLoading, setIsXiaohongshuBrowserLoading] = useState(false);
   const [isVideoAccountLoading, setIsVideoAccountLoading] = useState(false);
   const [isBilibiliLoading, setIsBilibiliLoading] = useState(false);
+  const [expandedImportPanel, setExpandedImportPanel] = useState<ImportUpdatePanelKey | null>(null);
   const startupAutoRefreshStarted = useRef(false);
   const returnRefreshPromptLastShownAt = useRef(0);
 
@@ -1733,6 +1694,17 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     });
   }, [autoRefreshResult]);
   const handleCaptureAuthCheck = () => setAuthCheckMessage("还没有连接好。请打开平台后台，登录后切到作品管理页，再点下一步。");
+
+  function openImportPanel(panel: ImportUpdatePanelKey) {
+    setExpandedImportPanel(panel);
+    window.setTimeout(() => {
+      document.getElementById(`${panel}-import-update-detail`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  function syncImportPanel(panel: ImportUpdatePanelKey, open: boolean) {
+    setExpandedImportPanel(open ? panel : (current) => current === panel ? null : current);
+  }
 
   async function refreshAuthedBrowserProfiles() {
     const response = await fetch("/api/self-media/browser-capture");
@@ -2165,16 +2137,29 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     <AppShell active="/import">
       <PageHeader
         eyebrow="数据接入"
-        title="数据导入"
-        description="先看四个平台的登录抓取状态，再按下一步进入操作。"
+        title="数据更新"
+        description="手动更新平台数据，预览后确认保存。"
         actions={<Button onClick={() => window.location.reload()} variant="secondary">刷新</Button>}
       />
       <div className="import-page-stack">
-        <ImportFirstViewportGuide
-          authCheckMessage={authCheckMessage}
-          onAuthCheck={handleCaptureAuthCheck}
+        <ImportPlatformOverview
+          activePanel={expandedImportPanel}
+          onOpenPanel={openImportPanel}
           snapshot={currentSnapshot}
         />
+        <details
+          className="analytics-data-section import-update-detail"
+          data-testid="login-capture-detail-panel"
+          id="login-capture-overview-detail"
+          open={expandedImportPanel === "douyin" || expandedImportPanel === "xiaohongshu"}
+        >
+          <summary>
+            <span>
+              <strong>登录抓取状态与手动刷新</strong>
+              <small>只在你展开后显示后台打开、登录确认和预览刷新入口</small>
+            </span>
+            <i>展开</i>
+          </summary>
         <Panel
           className="login-flow-primary"
           data-testid="login-flow-primary"
@@ -2219,6 +2204,21 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </div>
           </div>
         </Panel>
+        </details>
+        <details
+          className="analytics-data-section import-update-detail"
+          data-testid="douyin-import-update-detail"
+          id="douyin-import-update-detail"
+          onToggle={(event) => syncImportPanel("douyin", event.currentTarget.open)}
+          open={expandedImportPanel === "douyin"}
+        >
+          <summary>
+            <span>
+              <strong>抖音更新详情</strong>
+              <small>登录抓取、详情页预览、人工确认保存</small>
+            </span>
+            <i>展开</i>
+          </summary>
         <Panel
           className="douyin-login-browser-flow"
           data-testid="douyin-login-browser-flow"
@@ -2286,6 +2286,21 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
           <DouyinAuthedBrowserRows rows={douyinBrowserRows} />
         </Panel>
+        </details>
+        <details
+          className="analytics-data-section import-update-detail"
+          data-testid="xiaohongshu-import-update-detail"
+          id="xiaohongshu-import-update-detail"
+          onToggle={(event) => syncImportPanel("xiaohongshu", event.currentTarget.open)}
+          open={expandedImportPanel === "xiaohongshu"}
+        >
+          <summary>
+            <span>
+              <strong>小红书更新详情</strong>
+              <small>内容分析表格、详情页兜底、人工确认保存</small>
+            </span>
+            <i>展开</i>
+          </summary>
         <Panel
           className="xiaohongshu-login-browser-flow xiaohongshu-authed-browser-capture-mvp"
           data-testid="xiaohongshu-login-browser-flow"
@@ -2356,8 +2371,27 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
           <XiaohongshuAuthedBrowserRows rows={xiaohongshuBrowserRows} />
         </Panel>
-        <PostPublishRefreshPanel onConfirmMatch={confirmPlatformContentMatch} snapshot={currentSnapshot} />
-        <details className="analytics-data-section local-export-fallback" data-testid="local-export-fallback" id="local-export-fallback">
+        </details>
+        <details className="analytics-data-section" data-testid="post-publish-refresh-detail" id="post-publish-refresh-detail">
+          <summary>
+            <span>
+              <strong>发布后数据回收</strong>
+              <small>发布后需要匹配本地内容时再展开</small>
+            </span>
+            <i>展开</i>
+          </summary>
+          <PostPublishRefreshPanel onConfirmMatch={confirmPlatformContentMatch} snapshot={currentSnapshot} />
+        </details>
+        <details
+          className="analytics-data-section local-export-fallback"
+          data-testid="local-export-fallback"
+          id="local-export-fallback"
+          onToggle={(event) => {
+            if (event.currentTarget !== event.target) return;
+            if (!event.currentTarget.open && (expandedImportPanel === "video_account" || expandedImportPanel === "bilibili")) setExpandedImportPanel(null);
+          }}
+          open={expandedImportPanel === "video_account" || expandedImportPanel === "bilibili"}
+        >
           <summary>
             <span>
               <strong>本地导出兜底</strong>
@@ -2366,6 +2400,14 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             <i>展开</i>
           </summary>
           <div className="import-preview-stack">
+        <details className="import-platform-subdetail" data-testid="douyin-local-file-detail">
+          <summary>
+            <span>
+              <strong>抖音本地导出兜底</strong>
+              <small>只有需要 CSV / XLSX 时再展开</small>
+            </span>
+            <i>展开</i>
+          </summary>
         <Panel
           className="douyin-local-file-mvp"
           data-testid="douyin-local-file-mvp"
@@ -2435,6 +2477,15 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
           <RealPreviewRows rows={douyinStats.rows} />
         </Panel>
+        </details>
+        <details className="import-platform-subdetail" data-testid="xiaohongshu-local-file-detail">
+          <summary>
+            <span>
+              <strong>小红书本地导出兜底</strong>
+              <small>内容分析表格不可用时再展开</small>
+            </span>
+            <i>展开</i>
+          </summary>
         <Panel
           className="xiaohongshu-local-file-mvp"
           data-testid="xiaohongshu-local-file-mvp"
@@ -2504,6 +2555,24 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
           <RealPreviewRows rows={xiaohongshuStats.rows} />
         </Panel>
+        </details>
+        <details
+          className="import-platform-subdetail"
+          data-testid="video_account-import-update-detail"
+          id="video_account-import-update-detail"
+          onToggle={(event) => {
+            if (event.currentTarget !== event.target) return;
+            syncImportPanel("video_account", event.currentTarget.open);
+          }}
+          open={expandedImportPanel === "video_account"}
+        >
+          <summary>
+            <span>
+              <strong>视频号手动更新</strong>
+              <small>粘贴或上传本人内容级数据</small>
+            </span>
+            <i>展开</i>
+          </summary>
         <Panel
           className="video-account-local-file-mvp"
           data-testid="video-account-local-file-mvp"
@@ -2573,6 +2642,24 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
           <RealPreviewRows rows={videoAccountStats.rows} />
         </Panel>
+        </details>
+        <details
+          className="import-platform-subdetail"
+          data-testid="bilibili-import-update-detail"
+          id="bilibili-import-update-detail"
+          onToggle={(event) => {
+            if (event.currentTarget !== event.target) return;
+            syncImportPanel("bilibili", event.currentTarget.open);
+          }}
+          open={expandedImportPanel === "bilibili"}
+        >
+          <summary>
+            <span>
+              <strong>B站数据导入</strong>
+              <small>内容级导入可用，账号指标 preview-only</small>
+            </span>
+            <i>展开</i>
+          </summary>
         <Panel
           className="bilibili-local-file-mvp"
           data-testid="bilibili-local-file-mvp"
@@ -2642,6 +2729,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           </div>
           <RealPreviewRows rows={bilibiliStats.rows} />
         </Panel>
+        </details>
           </div>
         </details>
         <details className="analytics-data-section">
