@@ -82,9 +82,27 @@ test("interactive UI patterns expose callbacks instead of owning persistence", (
 test("content draft review UI keeps manual review and publish confirmation explicit", () => {
   const contentPattern = read("src/domain/self-media/ui/patterns/ContentManagement.tsx");
   const contentScreen = read("src/domain/self-media/ui/screens/ContentPage.tsx");
+  const contentComposerLibrary = read("src/domain/self-media/ui/patterns/ContentComposerLibraryPanels.tsx");
   const dashboardScreen = read("src/domain/self-media/ui/screens/DashboardPage.tsx");
   const contentRoute = read("src/app/content/page.tsx");
   const contentWorkbenchApi = read("src/app/api/self-media/content-workbench/route.ts");
+  assert.match(contentComposerLibrary, /ContentModeSwitch/);
+  assert.match(contentComposerLibrary, /ContentComposerPanel/);
+  assert.match(contentComposerLibrary, /ContentLibraryPanel/);
+  assert.match(contentComposerLibrary, /创作/);
+  assert.match(contentComposerLibrary, /内容库/);
+  assert.match(contentComposerLibrary, /先把今天的新内容写出来/);
+  assert.match(contentComposerLibrary, /管理已保存的内容资产/);
+  assert.match(contentScreen, /requestedContentModeFromUrl/);
+  assert.match(contentScreen, /const \[mode, setMode\] = useState<ContentPageMode>/);
+  assert.match(contentScreen, /<ContentModeSwitch/);
+  assert.match(contentScreen, /mode === "composer"/);
+  assert.match(contentScreen, /<ContentComposerPanel>/);
+  assert.match(contentScreen, /<ContentLibraryPanel>/);
+  assert.match(contentScreen, /setMode\("library"\)/);
+  assert.match(contentScreen, /mode === "library" && <p className="operation-message"/);
+  assert.match(contentScreen, /title="内容工作台"/);
+  assert.match(contentScreen, /先创作新内容，再到内容库管理平台版本、排期和人工发布/);
   assert.match(contentPattern, /review-content-draft/);
   assert.match(contentPattern, /content-title-input/);
   assert.match(contentPattern, /content-topic-input/);
@@ -146,6 +164,19 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /不进运营看板/);
   assert.match(contentScreen, /行动项草稿仍可在诊断筛选里查看/);
   assert.match(contentScreen, /publishRecords/);
+  const composerRender = contentScreen.slice(
+    contentScreen.indexOf('mode === "composer"'),
+    contentScreen.indexOf("<ContentLibraryPanel>")
+  );
+  assert.match(composerRender, /CreatorVideoPanel/);
+  assert.doesNotMatch(composerRender, /ContentTable|ContentDetail|PlatformVersionEditor|PublishExecutionWorkbenchPanel|TrustedScopeCurationPanel|content-workbench-filters|content-acceptance-data-pool/);
+  const libraryRender = contentScreen.slice(contentScreen.indexOf("<ContentLibraryPanel>"));
+  assert.match(libraryRender, /ContentTable/);
+  assert.match(libraryRender, /ContentDetail/);
+  assert.match(libraryRender, /PlatformVersionEditor/);
+  assert.match(libraryRender, /PublishExecutionWorkbenchPanel/);
+  assert.match(libraryRender, /TrustedScopeCurationPanel/);
+  assert.match(libraryRender, /content-workbench-filters/);
   assert.match(contentRoute, /getSelfMediaContentWorkbench/);
   assert.doesNotMatch(contentRoute, /getSelfMediaDashboard/);
   assert.match(contentWorkbenchApi, /getSelfMediaContentWorkbench/);

@@ -7,6 +7,7 @@ import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
 import { formatDateTime, isoFromLocalDateTime, localDateTimeInputValue } from "../foundations/format";
 import { contentStatusLabels, platformLabels, platformVersionStatusLabels } from "../foundations/labels";
+import { ContentComposerPanel, ContentLibraryPanel, ContentModeSwitch, type ContentPageMode } from "../patterns/ContentComposerLibraryPanels";
 import { ContentDetail, ContentTable, PlatformVersionEditor } from "../patterns/ContentManagement";
 import { Button } from "../primitives/Button";
 import { Panel } from "../primitives/Panel";
@@ -149,6 +150,13 @@ function requestedDataDomainFromUrl() {
   if (typeof window === "undefined") return undefined;
   const value = new URLSearchParams(window.location.search).get("dataDomain");
   return value === "acceptance_run" || value === "user_work" ? value : undefined;
+}
+
+function requestedContentModeFromUrl(): ContentPageMode {
+  if (typeof window === "undefined") return "composer";
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("contentId") || params.get("versionId")) return "library";
+  return "composer";
 }
 
 function CreatorVideoPanel({
@@ -683,6 +691,7 @@ function LocalAcceptanceContentPanel({ rows }: { rows: ContentWorkbenchContentRo
 
 export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }) {
   const [current, setCurrent] = useState(snapshot);
+  const [mode, setMode] = useState<ContentPageMode>(() => requestedContentModeFromUrl());
   const [query, setQuery] = useState("");
   const [platformFilter, setPlatformFilter] = useState<Platform | "all">("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("operating_default");
@@ -782,6 +791,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
     setStatusFilter(result.content.scheduledAt ? "version:scheduled" : "all");
     setSelectedContentId(result.content.id);
     setSelectedVersionId(persistedRow.platformVersions[0]?.id ?? result.platformVersions[0]?.id);
+    setMode("library");
     setMessage(result.content.scheduledAt ? "新视频已保存并选中；四个平台版本已进入日历排期，可继续发布交接。" : "新视频已保存并选中；可继续编辑四个平台版本。");
   }
 
@@ -876,123 +886,140 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
     <AppShell active="/content">
       <PageHeader
         eyebrow="内容运营"
-        title="内容管理"
-        description="默认只显示真实用户作品；验收、测试、demo、导入回放和后台记录默认隔离。"
+        title="内容工作台"
+        description="先创作新内容，再到内容库管理平台版本、排期和人工发布。"
         actions={
-          <>
-            <span className="sm-badge sm-badge-info">{operatingDefaultCount} 条默认可见</span>
-            <span className="sm-badge sm-badge-success">{current.summary.trustedDashboardContentCount} 条进运营看板</span>
-            <span className="sm-badge sm-badge-success">{scheduledCount} 条已排期</span>
-            <span className="sm-badge sm-badge-warning">{acceptanceRows.length} 条验收隔离</span>
-            <span className="sm-badge sm-badge-info">{current.summary.publishRecordCount} 条人工发布记录</span>
-            {blockedCount > 0 && <span className="sm-badge sm-badge-warning">{blockedCount} 条需处理</span>}
-          </>
+          mode === "composer" ? (
+            <>
+              <span className="sm-badge sm-badge-info">创作模式</span>
+              <span className="sm-badge sm-badge-success">{current.summary.draftContentCount} 条草稿</span>
+              <span className="sm-badge sm-badge-success">{scheduledCount} 条已排期</span>
+              <span className="sm-badge sm-badge-info">保存前人工确认</span>
+            </>
+          ) : (
+            <>
+              <span className="sm-badge sm-badge-info">{operatingDefaultCount} 条默认可见</span>
+              <span className="sm-badge sm-badge-success">{current.summary.trustedDashboardContentCount} 条进运营看板</span>
+              <span className="sm-badge sm-badge-success">{scheduledCount} 条已排期</span>
+              <span className="sm-badge sm-badge-warning">{acceptanceRows.length} 条隔离</span>
+              <span className="sm-badge sm-badge-info">{current.summary.publishRecordCount} 条人工发布记录</span>
+              {blockedCount > 0 && <span className="sm-badge sm-badge-warning">{blockedCount} 条需处理</span>}
+            </>
+          )
         }
       />
-      <p className="operation-message" data-testid="content-operation-message">{message}</p>
-      <ContentCurrentTaskPanel snapshot={current} />
-      <CreatorVideoPanel onCreated={handleCreatorDraftCreated} />
-      <div id="publish-handoff">
-        <PublishExecutionWorkbenchPanel
-          onConfirmPublish={confirmPublish}
-          onSelect={(contentId, versionId) => {
-            setSelectedContentId(contentId);
-            setSelectedVersionId(versionId);
-            setMessage("已打开待发布内容；可编辑、改排期或记录发布结果。");
-          }}
-          snapshot={current}
-          selectedContentId={selectedContentId}
-        />
-      </div>
-      <WorkbenchSummaryPanel snapshot={current} />
-      <TrustedScopeCurationPanel snapshot={current} onToggle={patchTrustedScope} />
-      <LocalAcceptanceContentPanel rows={acceptanceRows} />
-      <Panel title="内容列表筛选" eyebrow="默认运营视图">
-        <div className="content-workbench-toolbar" data-testid="content-workbench-filters">
-          <label className="content-workbench-search">
-            <span>搜索</span>
-            <input className="sm-input" onChange={(event) => setQuery(event.target.value)} placeholder="标题、选题、来源、平台版本" type="search" value={query} />
-          </label>
-          <label>
-            <span>平台</span>
-            <select className="sm-input" onChange={(event) => setPlatformFilter(event.target.value as Platform | "all")} value={platformFilter}>
-              {platformFilters.map((item) => <option key={item} value={item}>{item === "all" ? "全部平台" : platformLabels[item]}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>显示范围</span>
-            <select className="sm-input" onChange={(event) => setSourceFilter(event.target.value as SourceFilter)} value={sourceFilter}>
-              {sourceFilters.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>状态</span>
-            <select className="sm-input" onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} value={statusFilter}>
-              {statusFilters.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>排序</span>
-            <select className="sm-input" onChange={(event) => setSort(event.target.value as SortKey)} value={sort}>
-              {sortOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>每页</span>
-            <select className="sm-input" onChange={(event) => setPageSize(Number(event.target.value))} value={pageSize}>
-              {[12, 24, 48].map((item) => <option key={item} value={item}>{item} 条</option>)}
-            </select>
-          </label>
-          <label>
-            <span>密度</span>
-            <select className="sm-input" onChange={(event) => setDensity(event.target.value as DensityMode)} value={density}>
-              <option value="comfortable">标准</option>
-              <option value="compact">紧凑</option>
-            </select>
-          </label>
-        </div>
-        <div className="content-workbench-pagination" aria-label="内容工作台分页">
-          <span>{resultStart}-{resultEnd} / {filteredRows.length} 条匹配，库内共 {current.contentRows.length} 条</span>
-          <div className="inline-stack">
-            <Button disabled={safePage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} variant="secondary">上一页</Button>
-            <span className="sm-badge sm-badge-info">第 {safePage} / {pageCount} 页</span>
-            <Button disabled={safePage >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))} variant="secondary">下一页</Button>
+      {mode === "library" && <p className="operation-message" data-testid="content-operation-message">{message}</p>}
+      <ContentModeSwitch activeMode={mode} libraryCount={operatingDefaultCount} onModeChange={setMode} scheduledCount={scheduledCount} />
+      {mode === "composer" ? (
+        <ContentComposerPanel>
+          <CreatorVideoPanel onCreated={handleCreatorDraftCreated} />
+        </ContentComposerPanel>
+      ) : (
+        <ContentLibraryPanel>
+          <ContentCurrentTaskPanel snapshot={current} />
+          <WorkbenchSummaryPanel snapshot={current} />
+          <Panel title="内容列表筛选" eyebrow="最近优先">
+            <div className="content-workbench-toolbar" data-testid="content-workbench-filters">
+              <label className="content-workbench-search">
+                <span>搜索</span>
+                <input className="sm-input" onChange={(event) => setQuery(event.target.value)} placeholder="标题、选题、来源、平台版本" type="search" value={query} />
+              </label>
+              <label>
+                <span>平台</span>
+                <select className="sm-input" onChange={(event) => setPlatformFilter(event.target.value as Platform | "all")} value={platformFilter}>
+                  {platformFilters.map((item) => <option key={item} value={item}>{item === "all" ? "全部平台" : platformLabels[item]}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>显示范围</span>
+                <select className="sm-input" onChange={(event) => setSourceFilter(event.target.value as SourceFilter)} value={sourceFilter}>
+                  {sourceFilters.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>状态</span>
+                <select className="sm-input" onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} value={statusFilter}>
+                  {statusFilters.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>排序</span>
+                <select className="sm-input" onChange={(event) => setSort(event.target.value as SortKey)} value={sort}>
+                  {sortOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>每页</span>
+                <select className="sm-input" onChange={(event) => setPageSize(Number(event.target.value))} value={pageSize}>
+                  {[12, 24, 48].map((item) => <option key={item} value={item}>{item} 条</option>)}
+                </select>
+              </label>
+              <label>
+                <span>密度</span>
+                <select className="sm-input" onChange={(event) => setDensity(event.target.value as DensityMode)} value={density}>
+                  <option value="comfortable">标准</option>
+                  <option value="compact">紧凑</option>
+                </select>
+              </label>
+            </div>
+            <div className="content-workbench-pagination" aria-label="内容工作台分页">
+              <span>{resultStart}-{resultEnd} / {filteredRows.length} 条匹配，库内共 {current.contentRows.length} 条</span>
+              <div className="inline-stack">
+                <Button disabled={safePage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} variant="secondary">上一页</Button>
+                <span className="sm-badge sm-badge-info">第 {safePage} / {pageCount} 页</span>
+                <Button disabled={safePage >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))} variant="secondary">下一页</Button>
+              </div>
+            </div>
+            <p className="muted">内容库默认只显示真实用户作品（dataDomain=user_work），并按运营优先/最近更新排序；手动补录、外部导入、验收内容和行动项草稿仍可在诊断筛选里查看，但不会因此进入默认作品库。</p>
+          </Panel>
+          <div className="content-layout">
+            <div className="content-main-stack">
+              <ContentTable
+                contents={visibleContents}
+                density={density}
+                onSelect={(id) => { setSelectedContentId(id); setSelectedVersionId(current.platformVersions.find((version) => version.contentId === id)?.id); }}
+                resultSummary={`${resultStart}-${resultEnd} / ${filteredRows.length} 条`}
+                rows={pagedRows}
+                selectedContentId={selected?.id}
+                versions={current.platformVersions}
+              />
+              <ContentDetail
+                content={selected}
+                onSelectVersion={setSelectedVersionId}
+                publishRecords={current.publishRecords}
+                queueItems={current.queue}
+                selectedVersionId={selectedVersion?.id}
+                versions={current.platformVersions}
+                workbenchRow={selectedWorkbenchRow}
+              />
+            </div>
+            <PlatformVersionEditor
+              actionItem={selectedActionItem}
+              content={selected}
+              onConfirmPublish={confirmPublish}
+              onReviewDraft={reviewDraft}
+              onSave={saveVersion}
+              onStatusPatch={patchVersion}
+              queueItem={selectedQueue}
+              version={selectedVersion}
+            />
           </div>
-        </div>
-        <p className="muted">默认运营视图只显示 dataDomain=user_work 的真实用户作品；手动补录、外部导入、验收内容和行动项草稿仍可在诊断筛选里查看，但不会因此进入默认作品库。</p>
-      </Panel>
-      <div className="content-layout">
-        <div className="content-main-stack">
-          <ContentTable
-            contents={visibleContents}
-            density={density}
-            onSelect={(id) => { setSelectedContentId(id); setSelectedVersionId(current.platformVersions.find((version) => version.contentId === id)?.id); }}
-            resultSummary={`${resultStart}-${resultEnd} / ${filteredRows.length} 条`}
-            rows={pagedRows}
-            selectedContentId={selected?.id}
-            versions={current.platformVersions}
-          />
-          <ContentDetail
-            content={selected}
-            onSelectVersion={setSelectedVersionId}
-            publishRecords={current.publishRecords}
-            queueItems={current.queue}
-            selectedVersionId={selectedVersion?.id}
-            versions={current.platformVersions}
-            workbenchRow={selectedWorkbenchRow}
-          />
-        </div>
-        <PlatformVersionEditor
-          actionItem={selectedActionItem}
-          content={selected}
-          onConfirmPublish={confirmPublish}
-          onReviewDraft={reviewDraft}
-          onSave={saveVersion}
-          onStatusPatch={patchVersion}
-          queueItem={selectedQueue}
-          version={selectedVersion}
-        />
-      </div>
+          <div id="publish-handoff">
+            <PublishExecutionWorkbenchPanel
+              onConfirmPublish={confirmPublish}
+              onSelect={(contentId, versionId) => {
+                setSelectedContentId(contentId);
+                setSelectedVersionId(versionId);
+                setMessage("已打开待发布内容；可编辑、改排期或记录发布结果。");
+              }}
+              snapshot={current}
+              selectedContentId={selectedContentId}
+            />
+          </div>
+          <TrustedScopeCurationPanel snapshot={current} onToggle={patchTrustedScope} />
+          <LocalAcceptanceContentPanel rows={acceptanceRows} />
+        </ContentLibraryPanel>
+      )}
     </AppShell>
   );
 }
