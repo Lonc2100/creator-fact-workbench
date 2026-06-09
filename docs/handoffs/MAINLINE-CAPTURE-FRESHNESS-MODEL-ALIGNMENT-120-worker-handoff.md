@@ -4,8 +4,8 @@
 - Goal: align the freshness model so user-confirmed trusted browser/content metric saves count as real refresh evidence, without storing sensitive raw platform material.
 - Entry context: 119 saved real Xiaohongshu and Douyin content-level metrics after explicit user confirmation, but freshness still reported the old raw capture timestamp.
 - Code changes: yes.
-- Commit: yes, included with `fix(self-media): align freshness with confirmed browser captures`.
-- Push: pending at final handoff update time; final push result is recorded by the main session after commit.
+- Commit: yes. Implementation commit `c5131b527b2977b222c5439dc385427b948d0b9b` with `fix(self-media): align freshness with confirmed browser captures`.
+- Push: yes. `git push origin HEAD` succeeded to `origin/main`.
 
 ## Root Cause
 - The 118 freshness path used `.local/*/raw` file mtimes as the only real-capture timestamp.
