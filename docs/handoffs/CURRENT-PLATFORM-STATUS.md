@@ -188,6 +188,45 @@ Current operator-data baseline as of 2026-06-09:
 - `/import` startup/focus/auto-refresh must not open Video Account windows. Douyin and Xiaohongshu still use user-triggered login capture; Video Account uses the manual update panel unless a future task explicitly approves a login/API path.
 - Existing platform realities remain: Douyin detail/data-page capture has saved 1 real work; Xiaohongshu content-analysis table capture has saved 7 real notes; Bilibili content-level archive/import is usable while Bilibili account metrics remain preview-only; WeChat/Official Account remains paused.
 
+## 115 Usable Creator Release Closure
+
+Current usable creator release baseline as of 2026-06-09:
+
+| Bundle | Commit | Status | Handoff |
+| --- | --- | --- | --- |
+| Import first-screen consolidation | `439dc33 refactor(self-media): simplify import first screen` | Done | `MAINLINE-IMPORT-FIRST-SCREEN-CONSOLIDATION-109-worker-handoff.md` |
+| Content composer/library split | `47ef5f4 refactor(self-media): split content composer and library` | Done | `MAINLINE-CONTENT-COMPOSER-LIBRARY-SPLIT-110-worker-handoff.md` |
+| Calendar scheduling/history split | `7bace1c refactor(self-media): separate calendar scheduling from history` | Done | `MAINLINE-CALENDAR-SCHEDULING-HISTORY-SPLIT-111-worker-handoff.md` |
+| Navigation and reviews cleanup | `cb03138 refactor(self-media): simplify navigation and review surfaces` | Done | `MAINLINE-NAVIGATION-REVIEWS-SURFACE-CLEANUP-112-worker-handoff.md` |
+| Human creator workflow walkthrough | `aa95330 fix(self-media): smooth creator workflow walkthrough` | Done | `MAINLINE-HUMAN-CREATOR-WORKFLOW-WALKTHROUGH-113-worker-handoff.md` |
+| Content composer schedule persistence | `d5bdcdd fix(self-media): persist content composer schedules` | Done | `MAINLINE-CONTENT-SCHEDULE-PERSISTENCE-FIX-114-worker-handoff.md` |
+
+Current daily creator path:
+
+- `/dashboard`: data-first operator view with recent-first `近 7 天` / `近 30 天` published-work windows, latest snapshot per work, and trusted content-level totals.
+- `/import`: creator-facing data update page. Douyin and Xiaohongshu are explicit manual login-capture/open-backend flows; Xiaohongshu main path is the creator `statistics/data-analysis` table; Video Account is manual paste/upload update; Bilibili content-level import remains available while account metrics are preview-only.
+- `/content`: default `创作` mode for rough idea -> local discussion -> four-platform drafts -> save. `内容库` is the explicit secondary mode for saved content, platform versions, trusted-scope curation, and manual publish assistant.
+- `/content`: direct future-time entry is now durable. If a future time is entered before saving four-platform drafts, the page verifies content, platform versions, queue rows, and calendar schedule; otherwise it fails closed with a creator-facing message.
+- `/calendar`: default main grid is future real publishing schedules only, grouped by content/time so multi-platform schedules appear as one card with platform badges. History, publish ledger, isolated data, and unscheduled drafts are secondary collapsed sections.
+- `/reviews`: default first screen is recent 7/30-day performance, Top content, and a small action list. Full detail remains collapsed.
+
+Validated live 3200 snapshot:
+
+- Fixed entry: `http://localhost:3200/dashboard`.
+- Dashboard showed `21` trusted contents and `22` trusted metric snapshots before/after the 114 schedule proof content.
+- 114 retained local proof content `content-creator-ef2633cdc996` titled `AI短片脚本：让普通场景出现反转`, scheduled for `2026-06-13 10:00 +08:00`, with one merged 4-platform calendar card and zero metric snapshots.
+- Read-only 115 walkthrough found no default visible `run id`, `raw`, `evidence`, `API`, `path`, `storageState`, `cookie`, `token`, `header`, `测试`, `验收`, or `诊断` text across `/dashboard`, `/import`, `/content`, `/calendar`, and `/reviews`.
+- No external platform window was opened during the 115 read-only walkthrough.
+
+Release boundaries:
+
+- The workbench does not call real platform publish APIs; publishing remains manual confirmation only.
+- All creator-center metric saves still require preview and explicit user confirmation; no silent save and no automatic `userConfirmedContentMetrics:true`.
+- Browser/login capture may require user login, QR scan, verification, or page switching. Do not store password, cookie, token, header, storageState, raw request/response, screenshot, HAR, trace, or real platform DOM.
+- Video Account defaults to manual update; login/API capture remains future exploration, not daily automatic flow.
+- Bilibili account metrics remain preview-only and must not enter durable content totals.
+- WeChat Official Account / WeChat backend remains paused.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.

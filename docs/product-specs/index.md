@@ -51,6 +51,13 @@ This index separates active release scope from paused or diagnostic-only work. D
 - [Login capture auto-open 088](../handoffs/MAINLINE-LOGIN-CAPTURE-AUTO-OPEN-088-worker-handoff.md)
 - [Login capture return-to-preview 089](../handoffs/MAINLINE-LOGIN-CAPTURE-RETURN-PREVIEW-089-worker-handoff.md)
 - [Usable creator mainline closure 090](../handoffs/MAINLINE-USABLE-CLOSURE-090-worker-handoff.md)
+- [Import first screen consolidation 109](../handoffs/MAINLINE-IMPORT-FIRST-SCREEN-CONSOLIDATION-109-worker-handoff.md)
+- [Content composer/library split 110](../handoffs/MAINLINE-CONTENT-COMPOSER-LIBRARY-SPLIT-110-worker-handoff.md)
+- [Calendar scheduling/history split 111](../handoffs/MAINLINE-CALENDAR-SCHEDULING-HISTORY-SPLIT-111-worker-handoff.md)
+- [Navigation and reviews cleanup 112](../handoffs/MAINLINE-NAVIGATION-REVIEWS-SURFACE-CLEANUP-112-worker-handoff.md)
+- [Human creator workflow walkthrough 113](../handoffs/MAINLINE-HUMAN-CREATOR-WORKFLOW-WALKTHROUGH-113-worker-handoff.md)
+- [Content schedule persistence fix 114](../handoffs/MAINLINE-CONTENT-SCHEDULE-PERSISTENCE-FIX-114-worker-handoff.md)
+- [Usable creator release closure 115](../handoffs/MAINLINE-USABLE-RELEASE-CLOSURE-115-worker-handoff.md)
 
 ## Paused / Diagnostic-Only
 
