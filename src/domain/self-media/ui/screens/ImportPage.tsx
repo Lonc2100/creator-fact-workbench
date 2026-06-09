@@ -9,7 +9,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { formatDateTime, formatNumber } from "../foundations/format";
 import { platformLabels } from "../foundations/labels";
 import { ImportDiffTable } from "../patterns/ImportDiffTable";
-import { ImportPlatformOverview, type ImportUpdatePanelKey } from "../patterns/ImportPlatformOverview";
+import { ImportPlatformOverview, type ImportPlatformFlowState, type ImportUpdatePanelKey } from "../patterns/ImportPlatformOverview";
 import { Badge } from "../primitives/Badge";
 import { Button } from "../primitives/Button";
 import { Field, SelectInput, TextArea } from "../primitives/Form";
@@ -1676,6 +1676,115 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const xiaohongshuBrowserRows = xiaohongshuBrowserResult?.rows ?? [];
   const xiaohongshuBrowserSaveCandidateCount = xiaohongshuBrowserRows.filter(canSaveAuthedBrowserRow).length;
   const canSaveXiaohongshuBrowserCapture = xiaohongshuBrowserSaveCandidateCount > 0 && xiaohongshuBrowserLoginConfirmed && xiaohongshuBrowserMetricsConfirmed;
+  const importCaptureStates = useMemo<Partial<Record<ImportUpdatePanelKey, ImportPlatformFlowState>>>(() => {
+    const douyinState: ImportPlatformFlowState = douyinBrowserSaveCandidateCount > 0
+      ? {
+          label: "已抓到预览，等待确认保存",
+          tone: "success",
+          nextAction: `已识别 ${formatNumber(douyinBrowserSaveCandidateCount)} 条可保存作品；展开抖音更新，确认来源和指标后保存。`,
+          detail: "保存仍需你勾选确认，不会自动写入看板。"
+        }
+      : douyinBrowserResult?.loginState === "needs_login" || douyinBrowserResult?.loginState === "not_opened"
+        ? {
+            label: "需要登录",
+            tone: "warning",
+            nextAction: "请先在打开的抖音创作者中心登录，然后回到这里点确认已登录或重新读取。",
+            detail: "如果已经登录，请确认当前窗口仍在创作者后台。"
+          }
+        : douyinBrowserResult && douyinBrowserRows.length === 0
+          ? {
+              label: "需要切到作品/数据页面",
+              tone: "warning",
+              nextAction: "已看到抖音后台，但没有读到作品行；请切到作品管理页，或点开具体作品的数据详情后重试。",
+              detail: douyinBrowserMessage
+            }
+          : {
+              label: douyinBrowserLoginConfirmed || douyinBrowserResult?.browserOpened ? "可刷新" : "需要登录",
+              tone: douyinBrowserLoginConfirmed || douyinBrowserResult?.browserOpened ? "success" : "warning",
+              nextAction: douyinBrowserLoginConfirmed || douyinBrowserResult?.browserOpened
+                ? "展开抖音更新，读取当前作品管理页；抓到后先预览再确认保存。"
+                : "打开抖音创作者中心并完成登录，再读取作品管理页或详情页。",
+              detail: "页面不会自动打开平台窗口。"
+            };
+
+    const xiaohongshuState: ImportPlatformFlowState = xiaohongshuBrowserSaveCandidateCount > 0
+      ? {
+          label: "已抓到预览，等待确认保存",
+          tone: "success",
+          nextAction: `已识别 ${formatNumber(xiaohongshuBrowserSaveCandidateCount)} 条可保存笔记；展开小红书更新，确认表格行后保存。`,
+          detail: "保存仍需你勾选确认，不会自动写入看板。"
+        }
+      : xiaohongshuBrowserResult?.loginState === "needs_login" || xiaohongshuBrowserResult?.loginState === "not_opened"
+        ? {
+            label: "需要登录",
+            tone: "warning",
+            nextAction: "请先在小红书创作服务平台完成登录，然后回到这里点确认已登录或重新读取。",
+            detail: "如果点到公开笔记页，请回到创作者后台。"
+          }
+        : xiaohongshuBrowserResult?.loginState === "wrong_page" || (xiaohongshuBrowserResult && xiaohongshuBrowserRows.length === 0)
+          ? {
+              label: "需要切到作品/数据页面",
+              tone: "warning",
+              nextAction: "请切到数据看板 / 内容分析 / 笔记数据表格；公开 explore 页面不会作为可信抓取源。",
+              detail: xiaohongshuBrowserMessage
+            }
+          : {
+              label: xiaohongshuBrowserLoginConfirmed || xiaohongshuBrowserResult?.browserOpened ? "可刷新" : "需要登录",
+              tone: xiaohongshuBrowserLoginConfirmed || xiaohongshuBrowserResult?.browserOpened ? "success" : "warning",
+              nextAction: xiaohongshuBrowserLoginConfirmed || xiaohongshuBrowserResult?.browserOpened
+                ? "展开小红书更新，读取内容分析表格；每行一条笔记，先预览再确认保存。"
+                : "打开小红书创作服务平台并完成登录，再读取内容分析表格。",
+              detail: "页面不会自动打开平台窗口。"
+            };
+
+    const videoAccountState: ImportPlatformFlowState = videoAccountStats.confirmable > 0
+      ? {
+          label: "已抓到预览，等待确认保存",
+          tone: "success",
+          nextAction: `已识别 ${formatNumber(videoAccountStats.confirmable)} 条视频号可保存数据；展开后确认来源再保存。`,
+          detail: "视频号仍以手动更新为主。"
+        }
+      : {
+          label: "当前平台暂不支持自动抓取",
+          tone: "info",
+          nextAction: "视频号主路径是手动录入或粘贴内容级数据；登录抓取需扫码，暂不作为每日自动流程。",
+          detail: "保存前仍会先预览字段。"
+        };
+
+    const bilibiliState: ImportPlatformFlowState = bilibiliStats.confirmable > 0
+      ? {
+          label: "已抓到预览，等待确认保存",
+          tone: "success",
+          nextAction: `已识别 ${formatNumber(bilibiliStats.confirmable)} 条 B站稿件可保存数据；展开后确认来源再保存。`,
+          detail: "账号总览指标仍只预览。"
+        }
+      : {
+          label: "可刷新",
+          tone: "info",
+          nextAction: "B站可导入稿件内容级表格；账号指标只做预览，不进入可信总量。",
+          detail: "上传或粘贴后先预览字段。"
+        };
+
+    return {
+      douyin: douyinState,
+      xiaohongshu: xiaohongshuState,
+      video_account: videoAccountState,
+      bilibili: bilibiliState
+    };
+  }, [
+    bilibiliStats.confirmable,
+    douyinBrowserLoginConfirmed,
+    douyinBrowserMessage,
+    douyinBrowserResult,
+    douyinBrowserRows.length,
+    douyinBrowserSaveCandidateCount,
+    videoAccountStats.confirmable,
+    xiaohongshuBrowserLoginConfirmed,
+    xiaohongshuBrowserMessage,
+    xiaohongshuBrowserResult,
+    xiaohongshuBrowserRows.length,
+    xiaohongshuBrowserSaveCandidateCount
+  ]);
   const browserProfileStartupSummary = useMemo(() => {
     const profiles = browserProfileStatus?.profiles ?? [];
     if (profiles.length === 0) return autoRefreshMessage;
@@ -2144,6 +2253,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       <div className="import-page-stack">
         <ImportPlatformOverview
           activePanel={expandedImportPanel}
+          captureStates={importCaptureStates}
           onOpenPanel={openImportPanel}
           snapshot={currentSnapshot}
         />
