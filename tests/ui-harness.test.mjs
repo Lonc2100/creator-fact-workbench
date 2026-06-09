@@ -700,6 +700,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /AuthedBrowserProfileManager/);
   assert.ok(importPage.indexOf("import-advanced-diagnostics") < importPage.indexOf("<AuthedBrowserProfileManager"));
   assert.match(importPage, /更多设置与手动导入/);
+  assert.match(importPage, /data-testid="platform-sync-freshness-detail"/);
   assert.match(importPage, /OperationHistoryTable history=\{history\}/);
   assert.match(importPage, /OperationHistoryTable history=\{currentSnapshot\.operationHistory\} showDiagnostics testId="platform-operation-history-diagnostics-table"/);
   assert.match(importPage, /showDiagnostics && <th>来源<\/th>/);

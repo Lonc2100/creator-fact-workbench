@@ -4410,7 +4410,7 @@ export class SelfMediaService {
     const trustedAutoCaptureScheduler = buildTrustedAutoCaptureScheduler({ generatedAt, platformDataHealth, platformImportStatuses });
     const realDataScope = buildRealDataScopeSummary({ contents: allContents, metrics: allMetrics, metricSnapshots: allMetricSnapshots, imports, trustedSnapshots: metricSnapshots });
     const trustedOperatingStatus = buildTrustedOperatingStatus(realDataScope, metricSnapshots);
-    const trustedScopeCuration = buildTrustedScopeCurationSummary(operationalContents, allMetricSnapshots, metricSnapshots);
+    const trustedScopeCuration = buildTrustedScopeCurationSummary(allContents, allMetricSnapshots, metricSnapshots);
     const postImportActionSuggestions = enrichPostImportActionSuggestions(buildPostImportActionSuggestions({ contents: trustedContents, metricSnapshots, metricPlatformGroups, platformDataHealth }), actionItems);
     const automationRuns = this.repo.listAutomationRuns();
     const evidenceInsights = this.buildEvidenceInsights(metricSnapshots);

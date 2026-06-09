@@ -2732,7 +2732,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         </details>
           </div>
         </details>
-        <details className="analytics-data-section">
+        <details className="analytics-data-section" data-testid="platform-sync-freshness-detail">
           <summary>
             <span>
               <strong>四平台同步与数据新鲜度</strong>

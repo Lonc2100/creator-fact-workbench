@@ -187,6 +187,16 @@ async function operationResultText(page) {
   return page.locator(".platform-import-operation-result").innerText().catch(() => "");
 }
 
+async function openPlatformOperationsHistory(page) {
+  const secondarySection = page.locator('[data-testid="platform-sync-freshness-detail"]');
+  await secondarySection.waitFor({ state: "attached", timeout: 30000 });
+  const wasOpen = await secondarySection.evaluate((element) => element.open === true);
+  if (!wasOpen) {
+    await page.locator('[data-testid="platform-sync-freshness-detail"] > summary').click();
+  }
+  await page.locator('[data-testid="platform-operation-history-table"]').waitFor({ state: "visible", timeout: 30000 });
+}
+
 async function clickOperation(page, action, platform) {
   const responsePromise = page.waitForResponse(
     (response) => response.url().includes("/api/self-media/platform-imports/operations") && response.request().method() === "POST",
@@ -312,7 +322,11 @@ async function runSmoke() {
   try {
     const importResponse = await page.goto(`${server.baseUrl}${IMPORT_PATH}`, { waitUntil: "networkidle" });
     assert(importResponse?.ok(), `Import page did not load: ${importResponse?.status() ?? "no-response"}`);
-    await page.locator('[data-testid="platform-operation-history-table"]').waitFor({ timeout: 30000 });
+    const defaultVisibleText = await page.locator("body").innerText();
+    const defaultCopyCheck = scanDefaultImportCopy("visible-import-default-copy", defaultVisibleText);
+    assert(defaultCopyCheck.ok, `Engineering import warning copy appeared in the default UI: ${defaultCopyCheck.matchedPatterns.join(", ")}`);
+    assert(await page.locator('[data-testid="platform-operation-history-table"]').isVisible().catch(() => false) === false, "Operation history table should stay folded on the default import first screen.");
+    await openPlatformOperationsHistory(page);
     const before = await dashboard(page);
     const operations = [];
 
@@ -331,7 +345,6 @@ async function runSmoke() {
       scanSensitiveText("operation-history", recentHistory),
       scanSensitiveText("operation-results", operations.map(summarizeOperation))
     ];
-    const defaultCopyCheck = scanDefaultImportCopy("visible-import-default-copy", visibleText);
     const statusSources = after.platformImportStatuses.map((item) => ({
       platform: item.platform,
       source: item.source,
