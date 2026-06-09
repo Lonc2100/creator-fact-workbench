@@ -81,11 +81,11 @@ export function OverviewPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           <p>{nextAction ? nextAction.title : "暂无待推进动作"}。</p>
         </a>
 
-        <a className="creator-tile" href="/leads">
+        <a className="creator-tile" href="/reviews#review-lead-followups">
           <div className="creator-tile-icon"><Users size={19} aria-hidden="true" /></div>
-          <span>线索机会</span>
+          <span>线索跟进</span>
           <strong>{formatNumber(totalLeadValue)}</strong>
-          <p>{activeLeads.length} 条活跃线索，跟进动作进入下一轮计划。</p>
+          <p>{activeLeads.length} 条活跃线索，先并入复盘行动里判断是否值得推进。</p>
         </a>
       </div>
 

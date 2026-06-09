@@ -337,6 +337,7 @@ test("operator UX polish keeps default copy Chinese and quiet", () => {
   const importPage = read("src/domain/self-media/ui/screens/ImportPage.tsx");
   const reviewsPage = read("src/domain/self-media/ui/screens/ReviewsPage.tsx");
   const reviewPattern = read("src/domain/self-media/ui/patterns/EvidenceReviewReport.tsx");
+  const reviewFocusSurface = read("src/domain/self-media/ui/patterns/ReviewFocusSurface.tsx");
   const sidebarNav = read("src/domain/self-media/ui/components/SidebarNav.tsx");
   const overviewPage = read("src/domain/self-media/ui/screens/OverviewPage.tsx");
   const selfMediaService = read("src/domain/self-media/service/self-media-service.ts");
@@ -348,6 +349,7 @@ test("operator UX polish keeps default copy Chinese and quiet", () => {
     ["calendar", calendarPattern],
     ["import", importPage],
     ["reviews", reviewPattern],
+    ["review focus", reviewFocusSurface],
     ["sidebar", sidebarNav]
   ]) {
     assert.doesNotMatch(source, /eyebrow="(?:Data actions|Weekly summary|Post-import actions|Operating tasks|Source \/ Platform|Evidence Table|History|Review Window|Action Items|Run details|Advanced import|Manual preview|Editor)"/, `${label} keeps old English eyebrow copy`);
@@ -401,7 +403,11 @@ test("operator UX polish keeps default copy Chinese and quiet", () => {
   assert.match(calendarScreen, /submitted_review/);
   assert.match(sidebarNav, /自媒体运营后台/);
   assert.doesNotMatch(sidebarNav, /\/ui-lab|界面规范|UI Lab/);
+  for (const navLabel of ["总览", "导入", "内容", "发布日历", "数据看板", "周月复盘"]) assert.match(sidebarNav, new RegExp(navLabel));
+  assert.doesNotMatch(sidebarNav, /\/leads|label: "线索"|Users/);
   assert.doesNotMatch(sidebarNav, /Self-media operating system|UI Lab|Design lab|label: "Home"|label: "Create"|label: "Plan"|label: "Data"|label: "Review"/);
+  assert.doesNotMatch(overviewPage, /href="\/leads"/);
+  assert.match(overviewPage, /href="\/reviews#review-lead-followups"/);
 
   const workflowCopy = [
     contentPattern.slice(0, contentPattern.indexOf('<div className="publish-confirmation-strip">')),
@@ -719,10 +725,21 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.doesNotMatch(importPage, /Stop-Process|Remove-Item|npm run dev/);
 });
 
-test("reviews default view emphasizes conclusions metrics evidence and actions", () => {
+test("reviews default view emphasizes recent performance top content and focused actions", () => {
   const reviewsPage = read("src/domain/self-media/ui/screens/ReviewsPage.tsx");
   const reviewPattern = read("src/domain/self-media/ui/patterns/EvidenceReviewReport.tsx");
-  assert.match(reviewsPage, /默认只看可信真实四平台内容级数据，先读结论、指标、证据和行动项/);
+  const reviewFocusSurface = read("src/domain/self-media/ui/patterns/ReviewFocusSurface.tsx");
+  assert.match(reviewsPage, /先看最近表现、Top 内容和少量行动项/);
+  assert.match(reviewsPage, /ReviewFocusSurface/);
+  assert.match(reviewsPage, /reviews-full-detail/);
+  assert.match(reviewFocusSurface, /reviews-focus-surface/);
+  assert.match(reviewFocusSurface, /review-top-content/);
+  assert.match(reviewFocusSurface, /review-priority-actions/);
+  assert.match(reviewFocusSurface, /review-lead-followups/);
+  assert.match(reviewFocusSurface, /近 7 天/);
+  assert.match(reviewFocusSurface, /近 30 天/);
+  assert.match(reviewFocusSurface, /slice\(0, 5\)/);
+  assert.match(reviewFocusSurface, /href="\/leads"/);
   for (const phrase of ["本周结论", "复盘指标来源", "证据表格", "下轮行动项"]) {
     assert.match(reviewPattern, new RegExp(phrase));
   }
@@ -741,7 +758,10 @@ test("reviews default view emphasizes conclusions metrics evidence and actions",
   );
   assert.doesNotMatch(reviewSidebar, /复盘历史|当前周期/);
   assert.doesNotMatch(reviewPattern, /可追溯证据 refs|Imported Metric Snapshots|AccountMetricSnapshot/);
-  const defaultRender = reviewsPage.slice(reviewsPage.indexOf("<PageHeader"), reviewsPage.indexOf("<EvidenceReviewReport"));
+  const defaultRender = [
+    reviewsPage.slice(reviewsPage.indexOf("<PageHeader"), reviewsPage.indexOf("<EvidenceReviewReport")),
+    reviewFocusSurface
+  ].join("\n");
   assert.doesNotMatch(defaultRender, /report\.json|report\.md|D:\\|npm run|http:\/\/127\.0\.0\.1|\/api\/self-media\/dashboard|runId|rawDir|evidenceFile|pageReady|apiReady|smoke|fixture|demo\/fake/i);
 });
 
@@ -750,6 +770,7 @@ test("daily ops green state keeps dashboard import reviews defaults free of diag
   const importPage = read("src/domain/self-media/ui/screens/ImportPage.tsx");
   const reviewsPage = read("src/domain/self-media/ui/screens/ReviewsPage.tsx");
   const reviewPattern = read("src/domain/self-media/ui/patterns/EvidenceReviewReport.tsx");
+  const reviewFocusSurface = read("src/domain/self-media/ui/patterns/ReviewFocusSurface.tsx");
   const forbidden = /report\.json|report\.md|D:\\|npm run|http:\/\/127\.0\.0\.1|\/api\/self-media|runId|rawDir|evidenceFile|preflight|pageReady|apiReady|\bcommand\b|exitCode|smoke|fixture|demo\/fake|\bcookie\b|\btoken\b|\bheaders?\b|comment_content|danmu_text|danmu/i;
 
   const dashboardDefault = dashboardScreen.slice(
@@ -762,8 +783,7 @@ test("daily ops green state keeps dashboard import reviews defaults free of diag
   );
   const reviewsDefault = [
     reviewsPage.slice(reviewsPage.indexOf("<PageHeader"), reviewsPage.indexOf("<EvidenceReviewReport")),
-    reviewPattern.slice(reviewPattern.indexOf("<Panel className=\"review-summary-panel\""), reviewPattern.indexOf("<details className=\"analytics-data-section review-advanced-diagnostics\"")),
-    reviewPattern.slice(reviewPattern.indexOf("<aside className=\"review-sidebar\">"), reviewPattern.indexOf("</aside>"))
+    reviewFocusSurface
   ].join("\n");
 
   assert.match(dashboardScreen, /dashboard-advanced-diagnostics/);

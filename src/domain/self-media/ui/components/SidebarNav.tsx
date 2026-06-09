@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, FileText, Home, Lightbulb, Megaphone, Sparkles, Upload, Users } from "lucide-react";
+import { BarChart3, CalendarDays, FileText, Home, Lightbulb, Megaphone, Sparkles, Upload } from "lucide-react";
 import Link from "next/link";
 import { cx } from "../foundations/cx";
 
@@ -8,8 +8,7 @@ const navItems = [
   { href: "/content", label: "内容", icon: FileText },
   { href: "/calendar", label: "发布日历", icon: CalendarDays },
   { href: "/dashboard", label: "数据看板", icon: Sparkles },
-  { href: "/reviews", label: "周月复盘", icon: Lightbulb },
-  { href: "/leads", label: "线索", icon: Users }
+  { href: "/reviews", label: "周月复盘", icon: Lightbulb }
 ];
 
 const railItems = [

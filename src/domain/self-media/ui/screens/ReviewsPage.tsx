@@ -5,6 +5,7 @@ import type { DashboardSnapshot, ReviewActionItem } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { EvidenceReviewReport } from "../patterns/EvidenceReviewReport";
+import { ReviewFocusSurface } from "../patterns/ReviewFocusSurface";
 import { Button } from "../primitives/Button";
 
 const periodCopy = {
@@ -76,7 +77,7 @@ export function ReviewsPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       <PageHeader
         eyebrow="经营复盘"
         title="周月复盘"
-        description="默认只看可信真实四平台内容级数据，先读结论、指标、证据和行动项。"
+        description="先看最近表现、Top 内容和少量行动项，完整明细默认收起。"
         actions={<Button data-testid="save-review-button" disabled={busy} onClick={saveReview} variant="primary">保存{selectedCopy.label}</Button>}
       />
       <div className="route-card-grid review-mode-grid" aria-label="复盘入口">
@@ -89,7 +90,15 @@ export function ReviewsPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         ))}
       </div>
       <p className="operation-message" data-testid="review-operation-message">{message}</p>
-      <EvidenceReviewReport onActionStatus={updateAction} period={period} snapshot={current} />
+      <ReviewFocusSurface onActionStatus={updateAction} period={period} snapshot={current} />
+      <details className="analytics-data-section reviews-full-detail" data-testid="reviews-full-detail">
+        <summary>
+          <strong>完整复盘明细</strong>
+          <span>展开查看指标来源、完整行动列表和历史正文。</span>
+          <i>展开</i>
+        </summary>
+        <EvidenceReviewReport onActionStatus={updateAction} period={period} snapshot={current} />
+      </details>
     </AppShell>
   );
 }
