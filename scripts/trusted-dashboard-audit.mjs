@@ -58,7 +58,10 @@ function readLatestHealthFreshness() {
     smokeAgeHours: freshness.smokeAgeHours ?? null,
     realCaptureIsStale: freshness.realCaptureIsStale ?? null,
     smokeIsStale: freshness.smokeIsStale ?? null,
-    staleAfterHours: report?.staleAfterHours ?? freshness.staleAfterHours ?? null
+    staleAfterHours: report?.staleAfterHours ?? freshness.staleAfterHours ?? null,
+    realCaptureEvidenceSource: freshness.realCaptureEvidenceSource ?? null,
+    latestTrustedBrowserCaptureAt: freshness.latestTrustedBrowserCaptureAt ?? null,
+    trustedBrowserCaptureRowCount: freshness.trustedBrowserCaptureRowCount ?? null
   };
 }
 

@@ -477,6 +477,7 @@ export interface ContentWorkbenchSnapshot {
 
 export interface DataFreshnessTimelineView {
   latestRealCaptureAt?: string | null;
+  latestTrustedBrowserCaptureAt?: string | null;
   latestSmokeAt?: string | null;
   latestAuditAt?: string | null;
   realCaptureAgeHours?: number | null;
@@ -484,6 +485,8 @@ export interface DataFreshnessTimelineView {
   realCaptureIsStale?: boolean | null;
   smokeIsStale?: boolean | null;
   staleAfterHours?: number | null;
+  realCaptureEvidenceSource?: string | null;
+  trustedBrowserCaptureRowCount?: number | null;
 }
 
 export type RealCaptureFreshnessStatus = "fresh" | "stale" | "missing" | "unknown";

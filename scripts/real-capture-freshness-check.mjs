@@ -19,7 +19,8 @@ function valueText(value) {
 }
 
 function platformStatus(platform) {
-  if (!platform.raw.exists || platform.raw.captureCount === 0) return "missing";
+  if (platform.realCaptureStatus && platform.realCaptureStatus !== "unknown") return platform.realCaptureStatus;
+  if (!platform.freshness.latestRealCaptureAt) return "missing";
   if (platform.freshness.realCaptureIsStale === true) return "stale";
   if (platform.freshness.realCaptureIsStale === false) return "fresh";
   return "unknown";
@@ -48,6 +49,9 @@ export function buildRealCaptureFreshnessReport(options = {}) {
       status,
       rawPath: platform.raw.path,
       rawCaptureCount: platform.raw.captureCount,
+      trustedBrowserCaptureRowCount: platform.trustedBrowserCapture?.rowCount ?? 0,
+      latestTrustedBrowserCaptureAt: platform.trustedBrowserCapture?.latestCapturedAt ?? null,
+      realCaptureEvidenceSource: platform.freshness.realCaptureEvidenceSource ?? null,
       latestRealCaptureAt: platform.freshness.latestRealCaptureAt,
       realCaptureAgeHours: platform.freshness.realCaptureAgeHours,
       realCaptureIsStale: platform.freshness.realCaptureIsStale,
@@ -104,7 +108,7 @@ export function renderRealCaptureFreshnessMarkdown(report) {
     `Status: ${report.status}`,
     `Stale threshold: ${report.staleAfterHours} hours`,
     "",
-    "This is a read-only local evidence check. It does not open a browser, collect platform data, read original response bodies, read passwords/cookies/tokens/headers, write the operating DB, or touch WeChat.",
+    "This is a read-only local evidence check. It accepts raw real-capture evidence and user-confirmed trusted content metric rows, including trusted browser captures. It does not open a browser, collect platform data, read original response bodies, read passwords/cookies/tokens/headers, write the operating DB, or touch WeChat.",
     "",
     "## Summary",
     "",
@@ -114,13 +118,13 @@ export function renderRealCaptureFreshnessMarkdown(report) {
     "",
     "## Platform Freshness",
     "",
-    "| Platform | Status | Raw captures | Recent real capture | Real age h | Recent smoke | Smoke age h | Next action |",
-    "| --- | --- | ---: | --- | ---: | --- | ---: | --- |"
+    "| Platform | Status | Raw captures | Trusted metric rows | Evidence source | Recent real capture | Real age h | Recent smoke | Smoke age h | Next action |",
+    "| --- | --- | ---: | ---: | --- | --- | ---: | --- | ---: | --- |"
   ];
 
   for (const platform of report.platforms) {
     lines.push(
-      `| ${platform.platform} | ${platform.status} | ${platform.rawCaptureCount} | ${valueText(platform.latestRealCaptureAt)} | ${valueText(platform.realCaptureAgeHours)} | ${valueText(platform.latestSmokeAt)} | ${valueText(platform.smokeAgeHours)} | ${platform.nextAction} |`
+      `| ${platform.platform} | ${platform.status} | ${platform.rawCaptureCount} | ${platform.trustedBrowserCaptureRowCount} | ${valueText(platform.realCaptureEvidenceSource)} | ${valueText(platform.latestRealCaptureAt)} | ${valueText(platform.realCaptureAgeHours)} | ${valueText(platform.latestSmokeAt)} | ${valueText(platform.smokeAgeHours)} | ${platform.nextAction} |`
     );
   }
 

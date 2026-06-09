@@ -205,14 +205,15 @@ type PlatformDataHealthModule = {
       staleCount: number;
       realCaptureStaleCount?: number;
       bilibiliPreviewOnlyOk: boolean | null;
-      freshness?: { latestRealCaptureAt: string | null; latestSmokeAt: string | null; latestAuditAt: string | null; realCaptureIsStale: boolean | null; smokeIsStale: boolean | null };
+      freshness?: { latestRealCaptureAt: string | null; latestTrustedBrowserCaptureAt?: string | null; latestSmokeAt: string | null; latestAuditAt: string | null; realCaptureIsStale: boolean | null; smokeIsStale: boolean | null; realCaptureEvidenceSource?: string | null; trustedBrowserCaptureRowCount?: number | null };
     };
     platforms: Array<{
       platform: string;
       status: string;
       warnings: string[];
       raw: { exists: boolean; captureCount: number; latestRealCaptureAt?: string | null; isStale?: boolean | null };
-      freshness?: { latestRealCaptureAt: string | null; latestSmokeAt: string | null; realCaptureIsStale: boolean | null; smokeIsStale: boolean | null };
+      freshness?: { latestRealCaptureAt: string | null; latestTrustedBrowserCaptureAt?: string | null; latestSmokeAt: string | null; realCaptureIsStale: boolean | null; smokeIsStale: boolean | null; realCaptureEvidenceSource?: string | null };
+      trustedBrowserCapture?: { rowCount: number; latestCapturedAt: string | null };
       realCaptureStatus?: string;
       nextAction?: string;
       commands?: { manualStep: string; preview: string; save: string; health: string; freshness: string; audit: string; gate: string };
@@ -3118,6 +3119,91 @@ test("platform data health does not let fresh smoke masquerade as fresh real cap
   assert.equal(douyin.commands?.save, "npm run import:douyin -- --save");
   assert.ok(douyin.nextAction?.includes("人工登录"));
   assert.ok(douyin.warnings.some((warning) => warning.includes("real capture is older than 72 hours")));
+});
+
+test("platform data health accepts confirmed trusted browser capture rows as real freshness evidence", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-platform-health-trusted-browser-capture-"));
+  const rawDir = path.join(dir, ".local", "douyin-personal-v0", "raw");
+  const rawPath = path.join(rawDir, "capture.json");
+  const oldRawCaptureAt = new Date("2026-05-30T08:00:00.000Z");
+  const trustedSavedAt = "2026-06-04T07:45:00.000Z";
+  mkdirSync(rawDir, { recursive: true });
+  writeFileSync(rawPath, JSON.stringify({ cookie: "do-not-leak-cookie", token: "do-not-leak-token", rawPayload: "do-not-leak-payload" }));
+  utimesSync(rawPath, oldRawCaptureAt, oldRawCaptureAt);
+  writeJsonSummary(path.join(dir, ".local", "douyin-personal-v1", "mapping-preview.json"), {
+    generatedAt: trustedSavedAt,
+    saved: true,
+    payload: { source: "douyin_creator_center", contentCount: 1, metricCount: 1 }
+  });
+  writeJsonSummary(path.join(dir, ".local", "douyin-personal-v1", "save-smoke-report.json"), {
+    generatedAt: trustedSavedAt,
+    passed: true,
+    source: "douyin_creator_center",
+    contentCount: 1,
+    metricCount: 1,
+    checks: { importRunSource: true }
+  });
+
+  const repo = new SqliteSelfMediaRepo(path.join(dir, ".local", "self-media.sqlite"));
+  repo.upsertEntity("contents", "douyin-trusted-browser-1", {
+    id: "douyin-trusted-browser-1",
+    title: "当诸葛亮被传送到未来",
+    platform: "douyin",
+    topic: "AI 短片",
+    status: "published",
+    createdAt: trustedSavedAt,
+    updatedAt: trustedSavedAt,
+    dataDomain: "user_work",
+    workOwnership: "user_owned_work"
+  });
+  repo.upsertEntity("metricSnapshots", "snapshot-douyin-trusted-browser-1", {
+    id: "snapshot-douyin-trusted-browser-1",
+    platformVersionId: "version-douyin-trusted-browser-1",
+    contentId: "douyin-trusted-browser-1",
+    platform: "douyin",
+    snapshotDate: trustedSavedAt,
+    views: 1042,
+    likes: 28,
+    comments: 6,
+    saves: 3,
+    shares: 1,
+    followersDelta: 0,
+    source: "douyin_creator_center",
+    importRunId: "import-douyin-trusted-browser",
+    provenance: { trustedScopeEligible: true },
+    updatedAt: trustedSavedAt,
+    dataDomain: "user_work"
+  });
+  repo.recordImport({
+    id: "import-douyin-trusted-browser",
+    source: "douyin_creator_center",
+    status: "success",
+    importedCount: 1,
+    startedAt: trustedSavedAt,
+    finishedAt: trustedSavedAt,
+    provenance: { trustedScopeEligible: true },
+    dataDomain: "user_work"
+  });
+  repo.close();
+
+  const { buildPlatformDataHealthReport } = await loadPlatformDataHealthModule();
+  const report = buildPlatformDataHealthReport({ cwd: dir, now: new Date("2026-06-04T08:00:00.000Z"), platforms: ["douyin"] });
+  const douyin = report.platforms[0];
+  const serialized = JSON.stringify(report);
+
+  assert.equal(report.summary.realCaptureStaleCount, 0);
+  assert.equal(report.summary.freshness?.latestRealCaptureAt, trustedSavedAt);
+  assert.equal(report.summary.freshness?.realCaptureIsStale, false);
+  assert.equal(report.summary.freshness?.realCaptureEvidenceSource, "trusted_browser_capture");
+  assert.equal(report.summary.freshness?.trustedBrowserCaptureRowCount, 1);
+  assert.equal(douyin.realCaptureStatus, "fresh");
+  assert.equal(douyin.freshness?.latestRealCaptureAt, trustedSavedAt);
+  assert.equal(douyin.freshness?.latestTrustedBrowserCaptureAt, trustedSavedAt);
+  assert.equal(douyin.freshness?.realCaptureEvidenceSource, "trusted_browser_capture");
+  assert.equal(douyin.trustedBrowserCapture?.rowCount, 1);
+  assert.equal(douyin.raw.isStale, true);
+  assert.ok(douyin.warnings.some((warning) => warning.includes("trusted browser capture is fresh")));
+  assert.doesNotMatch(serialized, /do-not-leak-cookie|do-not-leak-token|do-not-leak-payload|authorization/i);
 });
 
 test("real capture freshness check reports stale real captures separately from fresh smoke", async () => {

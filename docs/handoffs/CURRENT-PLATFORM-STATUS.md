@@ -227,6 +227,23 @@ Release boundaries:
 - Bilibili account metrics remain preview-only and must not enter durable content totals.
 - WeChat Official Account / WeChat backend remains paused.
 
+## 120 Capture Freshness Model Alignment
+
+Current freshness model as of 2026-06-09:
+
+- Freshness still uses the 118 window: within 24 hours is fresh, 24-72 hours suggests refresh, and more than 72 hours needs refresh.
+- Real freshness evidence now accepts two safe evidence classes:
+  - raw real-capture evidence from the existing local raw capture directories;
+  - user-confirmed trusted content-level metric saves from the operating sqlite DB.
+- Confirmed trusted saves record only safe summaries for freshness: platform/source, saved/captured timestamp, safe source type, row count, and existing local import run id where available. They do not store password, cookie, token, header, storageState, raw request/response, screenshot, HAR, trace, or real platform DOM.
+- The 119 assisted real capture is now recognized by freshness:
+  - Douyin: latest evidence comes from trusted browser capture, not the old raw timestamp.
+  - Xiaohongshu: latest evidence comes from trusted browser capture, not the old raw timestamp.
+  - Video Account: freshness can come from the manual-update trusted content metric path; it remains manual-update-first, not automatic login capture.
+  - Bilibili: freshness can come from trusted content-level imports; account metrics remain preview-only and do not enter durable totals.
+- `npm run check:real-capture-freshness` is still read-only. It does not open a browser, collect new data, or write the operating DB.
+- `npm run health:platform-data` may still warn for old smoke/mapping/raw diagnostic files. That warning is separate from trusted real freshness and must not be hidden by fake capture data.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.

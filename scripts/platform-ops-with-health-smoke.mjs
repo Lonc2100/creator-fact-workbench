@@ -88,7 +88,10 @@ export function evaluateHealthGate(healthReport) {
         smokeAgeHours: freshness.smokeAgeHours ?? null,
         realCaptureIsStale: freshness.realCaptureIsStale ?? null,
         smokeIsStale: freshness.smokeIsStale ?? null,
-        staleAfterHours: healthReport?.staleAfterHours ?? freshness.staleAfterHours ?? null
+        staleAfterHours: healthReport?.staleAfterHours ?? freshness.staleAfterHours ?? null,
+        realCaptureEvidenceSource: freshness.realCaptureEvidenceSource ?? null,
+        latestTrustedBrowserCaptureAt: freshness.latestTrustedBrowserCaptureAt ?? null,
+        trustedBrowserCaptureRowCount: freshness.trustedBrowserCaptureRowCount ?? null
       }
     }
   };

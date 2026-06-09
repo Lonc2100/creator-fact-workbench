@@ -91,7 +91,10 @@ function summarizeHealthGate(cwd) {
       smokeAgeHours: freshness.smokeAgeHours ?? null,
       realCaptureIsStale: freshness.realCaptureIsStale ?? null,
       smokeIsStale: freshness.smokeIsStale ?? null,
-      staleAfterHours: freshness.staleAfterHours ?? null
+      staleAfterHours: freshness.staleAfterHours ?? null,
+      realCaptureEvidenceSource: freshness.realCaptureEvidenceSource ?? null,
+      latestTrustedBrowserCaptureAt: freshness.latestTrustedBrowserCaptureAt ?? null,
+      trustedBrowserCaptureRowCount: freshness.trustedBrowserCaptureRowCount ?? null
     }
   };
 }
@@ -119,7 +122,10 @@ function summarizeTrustedAudit(cwd) {
       smokeAgeHours: freshness.smokeAgeHours ?? null,
       realCaptureIsStale: freshness.realCaptureIsStale ?? null,
       smokeIsStale: freshness.smokeIsStale ?? null,
-      staleAfterHours: freshness.staleAfterHours ?? null
+      staleAfterHours: freshness.staleAfterHours ?? null,
+      realCaptureEvidenceSource: freshness.realCaptureEvidenceSource ?? null,
+      latestTrustedBrowserCaptureAt: freshness.latestTrustedBrowserCaptureAt ?? null,
+      trustedBrowserCaptureRowCount: freshness.trustedBrowserCaptureRowCount ?? null
     }
   };
 }
@@ -191,7 +197,10 @@ function buildFreshnessSummary(steps) {
     smokeAgeHours: auditFreshness.smokeAgeHours ?? healthFreshness.smokeAgeHours ?? null,
     realCaptureIsStale: auditFreshness.realCaptureIsStale ?? healthFreshness.realCaptureIsStale ?? null,
     smokeIsStale: auditFreshness.smokeIsStale ?? healthFreshness.smokeIsStale ?? null,
-    staleAfterHours: auditFreshness.staleAfterHours ?? healthFreshness.staleAfterHours ?? null
+    staleAfterHours: auditFreshness.staleAfterHours ?? healthFreshness.staleAfterHours ?? null,
+    realCaptureEvidenceSource: auditFreshness.realCaptureEvidenceSource ?? healthFreshness.realCaptureEvidenceSource ?? null,
+    latestTrustedBrowserCaptureAt: auditFreshness.latestTrustedBrowserCaptureAt ?? healthFreshness.latestTrustedBrowserCaptureAt ?? null,
+    trustedBrowserCaptureRowCount: auditFreshness.trustedBrowserCaptureRowCount ?? healthFreshness.trustedBrowserCaptureRowCount ?? null
   };
 }
 

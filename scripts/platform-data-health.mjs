@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 
 export const STALE_AFTER_HOURS = 72;
@@ -9,6 +10,7 @@ export const PLATFORM_HEALTH_CONFIG = [
     key: "douyin",
     label: "Douyin personal creator center",
     expectedSource: "douyin_creator_center",
+    trustedEvidenceSourceType: "trusted_browser_capture",
     rawDir: ".local/douyin-personal-v0/raw",
     mappingPreview: ".local/douyin-personal-v1/mapping-preview.json",
     saveSmokeReport: ".local/douyin-personal-v1/save-smoke-report.json"
@@ -17,6 +19,7 @@ export const PLATFORM_HEALTH_CONFIG = [
     key: "xiaohongshu",
     label: "Xiaohongshu creator center",
     expectedSource: "xiaohongshu_creator_center",
+    trustedEvidenceSourceType: "trusted_browser_capture",
     rawDir: ".local/xiaohongshu-personal-v0/raw",
     mappingPreview: ".local/xiaohongshu-personal-v1/mapping-preview.json",
     saveSmokeReport: ".local/xiaohongshu-personal-v1/save-smoke-report.json"
@@ -25,6 +28,7 @@ export const PLATFORM_HEALTH_CONFIG = [
     key: "video-account",
     label: "Video Account assistant",
     expectedSource: "video_account_creator_center",
+    trustedEvidenceSourceType: "trusted_manual_update",
     rawDir: ".local/video-account-personal-v0/raw",
     mappingPreview: ".local/video-account-personal-v1/mapping-preview.json",
     saveSmokeReport: ".local/video-account-personal-v1/save-smoke-report.json"
@@ -33,6 +37,7 @@ export const PLATFORM_HEALTH_CONFIG = [
     key: "bilibili",
     label: "Bilibili creator center",
     expectedSource: "bilibili_creator_center",
+    trustedEvidenceSourceType: "trusted_content_import",
     rawDir: ".local/bilibili-personal-v0/raw",
     mappingPreview: ".local/bilibili-personal-v1/mapping-preview.json",
     saveSmokeReport: ".local/bilibili-personal-v1/save-smoke-report.json"
@@ -112,6 +117,118 @@ function readJsonSummary(filePath) {
     return { exists: true, data: JSON.parse(readFileSync(filePath, "utf8")), error: null };
   } catch (error) {
     return { exists: true, data: null, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+function resolveDbPath(cwd) {
+  const explicitPath = process.env.SELF_MEDIA_DB_PATH?.trim();
+  if (explicitPath) return path.resolve(cwd, explicitPath);
+  return path.resolve(cwd, process.env.SELF_MEDIA_PROFILE?.trim().toLowerCase() === "clean" ? ".local/self-media-clean.sqlite" : ".local/self-media.sqlite");
+}
+
+function parseJson(value, fallback = {}) {
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return fallback;
+  }
+}
+
+function readCollection(db, collection) {
+  return db.prepare("SELECT id, data FROM entities WHERE collection = ? ORDER BY updated_at DESC").all(collection)
+    .map((row) => ({ id: row.id, ...parseJson(row.data, {}) }));
+}
+
+function readImportRuns(db) {
+  return db.prepare("SELECT id, data FROM import_runs ORDER BY started_at DESC").all()
+    .map((row) => ({ id: row.id, ...parseJson(row.data, {}) }));
+}
+
+function isTrustedBrowserCaptureSnapshot(snapshot, contentsById, expectedSource) {
+  if (snapshot?.source !== expectedSource) return false;
+  if (snapshot?.dataDomain && snapshot.dataDomain !== "user_work") return false;
+  const content = contentsById.get(snapshot.contentId);
+  if (content?.userExcludedFromTrustedScope === true || content?.trustedScopeOverride === "exclude") return false;
+  if (snapshot?.provenance?.isTestFixture === true || snapshot?.provenance?.trustedScopeEligible === false) return false;
+  if (snapshot?.provenance?.trustedScopeEligible === true) return true;
+  return content?.dataDomain === "user_work" || snapshot?.dataDomain === "user_work" || content?.trustedScopeOverride === "include";
+}
+
+function trustedBrowserCaptureSummary(cwd, config, now) {
+  const dbPath = resolveDbPath(cwd);
+  if (!existsSync(dbPath)) {
+    return {
+      sourceType: config.trustedEvidenceSourceType,
+      dbExists: false,
+      rowCount: 0,
+      importRunCount: 0,
+      latestCapturedAt: null,
+      ageHours: null,
+      isStale: null,
+      latestImportRunId: null
+    };
+  }
+
+  try {
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      const tableRows = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all();
+      const tableNames = new Set(tableRows.map((row) => row.name));
+      if (!tableNames.has("entities") || !tableNames.has("import_runs")) {
+        return {
+          sourceType: config.trustedEvidenceSourceType,
+          dbExists: true,
+          rowCount: 0,
+          importRunCount: 0,
+          latestCapturedAt: null,
+          ageHours: null,
+          isStale: null,
+          latestImportRunId: null
+        };
+      }
+
+      const contentsById = new Map(readCollection(db, "contents").map((item) => [item.id, item]));
+      const importRuns = readImportRuns(db).filter((run) => run.source === config.expectedSource && run.status === "success");
+      const importRunsById = new Map(importRuns.map((run) => [run.id, run]));
+      const snapshots = readCollection(db, "metricSnapshots")
+        .filter((snapshot) => isTrustedBrowserCaptureSnapshot(snapshot, contentsById, config.expectedSource));
+      const importRunIds = new Set(snapshots.map((snapshot) => snapshot.importRunId).filter(Boolean));
+      const snapshotEvidence = snapshots.map((snapshot) => {
+        const run = snapshot.importRunId ? importRunsById.get(snapshot.importRunId) : undefined;
+        return {
+          snapshot,
+          latestAt: latestIso([snapshot.updatedAt, run?.finishedAt, run?.startedAt])
+        };
+      });
+      const latestCapturedAt = latestIso(snapshotEvidence.map((item) => item.latestAt));
+      const latestRunId = snapshotEvidence.find((item) => item.latestAt === latestCapturedAt)?.snapshot.importRunId
+        ?? importRuns.find((run) => run.finishedAt === latestCapturedAt || run.startedAt === latestCapturedAt)?.id
+        ?? null;
+      const captureAge = ageHours(latestCapturedAt, now);
+      return {
+        sourceType: config.trustedEvidenceSourceType,
+        dbExists: true,
+        rowCount: snapshots.length,
+        importRunCount: importRunIds.size,
+        latestCapturedAt,
+        ageHours: captureAge,
+        isStale: captureAge === null ? null : captureAge > STALE_AFTER_HOURS,
+        latestImportRunId: latestRunId
+      };
+    } finally {
+      db.close();
+    }
+  } catch {
+    return {
+      sourceType: config.trustedEvidenceSourceType,
+      dbExists: true,
+      rowCount: 0,
+      importRunCount: 0,
+      latestCapturedAt: null,
+      ageHours: null,
+      isStale: null,
+      latestImportRunId: null
+    };
   }
 }
 
@@ -237,7 +354,8 @@ function buildPlatformWarnings(platform) {
   const warnings = [];
   if (!platform.raw.exists) warnings.push("raw capture directory is missing");
   if (platform.raw.exists && platform.raw.captureCount === 0) warnings.push("raw capture directory has no json captures");
-  if (platform.raw.isStale) warnings.push(`real capture is older than ${STALE_AFTER_HOURS} hours`);
+  if (platform.raw.isStale && platform.trustedBrowserCapture?.isStale !== false) warnings.push(`real capture is older than ${STALE_AFTER_HOURS} hours`);
+  if (platform.raw.isStale && platform.trustedBrowserCapture?.isStale === false) warnings.push("raw capture evidence is old, but confirmed trusted browser capture is fresh");
   for (const item of [platform.mappingPreview, platform.saveSmokeReport]) {
     if (!item.exists) warnings.push(`${item.path} is missing`);
     if (item.exists && !item.parsed) warnings.push(`${item.path} could not be parsed`);
@@ -258,21 +376,33 @@ function platformSummary(cwd, config, now) {
   const raw = dirSummary(cwd, config.rawDir, now);
   const mappingPreview = mappingPreviewSummary(cwd, config, now);
   const saveSmokeReport = saveSmokeSummary(cwd, config, now);
-  const latestGeneratedAt = latestIso([raw.latestModifiedAt, mappingPreview.generatedAt, saveSmokeReport.generatedAt]);
-  const realCaptureStatus = !raw.exists || raw.captureCount === 0 ? "missing" : raw.isStale === true ? "stale" : raw.isStale === false ? "fresh" : "unknown";
+  const trustedBrowserCapture = trustedBrowserCaptureSummary(cwd, config, now);
+  const latestRealCaptureAt = latestIso([raw.latestRealCaptureAt, trustedBrowserCapture.latestCapturedAt]);
+  const realCaptureAge = ageHours(latestRealCaptureAt, now);
+  const realCaptureIsStale = realCaptureAge === null ? null : realCaptureAge > STALE_AFTER_HOURS;
+  const realCaptureEvidenceSource = trustedBrowserCapture.latestCapturedAt && trustedBrowserCapture.latestCapturedAt === latestRealCaptureAt
+    ? trustedBrowserCapture.sourceType
+    : raw.latestRealCaptureAt && raw.latestRealCaptureAt === latestRealCaptureAt
+      ? "raw_real_capture"
+      : null;
+  const latestGeneratedAt = latestIso([raw.latestModifiedAt, trustedBrowserCapture.latestCapturedAt, mappingPreview.generatedAt, saveSmokeReport.generatedAt]);
+  const realCaptureStatus = !latestRealCaptureAt ? "missing" : realCaptureIsStale === true ? "stale" : realCaptureIsStale === false ? "fresh" : "unknown";
   const commands = assistedRefreshCommands(config.key);
   const nextAction = realCaptureStatus === "missing" || realCaptureStatus === "stale"
     ? `${commands.manualStep} 然后依次运行 preview、save、health、freshness、audit、gate 命令；不要自动采集，不要读取密码/cookie/token/header。`
     : "真实采集仍在 72 小时内；如刚完成人工采集，可继续 preview/save，再运行 health、freshness、audit、gate。";
   const freshness = {
-    latestRealCaptureAt: raw.latestRealCaptureAt,
-    realCaptureAgeHours: raw.ageHours,
-    realCaptureIsStale: raw.isStale,
+    latestRealCaptureAt,
+    realCaptureAgeHours: realCaptureAge,
+    realCaptureIsStale,
     latestSmokeAt: saveSmokeReport.generatedAt,
     smokeAgeHours: saveSmokeReport.ageHours,
     smokeIsStale: saveSmokeReport.isStale,
     latestAuditAt: null,
-    staleAfterHours: STALE_AFTER_HOURS
+    staleAfterHours: STALE_AFTER_HOURS,
+    realCaptureEvidenceSource,
+    latestTrustedBrowserCaptureAt: trustedBrowserCapture.latestCapturedAt,
+    trustedBrowserCaptureRowCount: trustedBrowserCapture.rowCount
   };
   const platform = {
     platform: config.key,
@@ -281,6 +411,7 @@ function platformSummary(cwd, config, now) {
     latestGeneratedAt,
     freshness,
     raw,
+    trustedBrowserCapture,
     mappingPreview,
     saveSmokeReport,
     realCaptureStatus,
@@ -394,13 +525,14 @@ export function buildPlatformDataHealthReport(options = {}) {
   const latestSmokeAt = latestIso(platforms.map((platform) => platform.freshness.latestSmokeAt));
   const realCaptureAge = ageHours(latestRealCaptureAt, now);
   const smokeAge = ageHours(latestSmokeAt, now);
+  const latestRealCapturePlatform = platforms.find((platform) => platform.freshness.latestRealCaptureAt === latestRealCaptureAt);
 
   return {
     generatedAt: now.toISOString(),
     task: "PLATFORM-DATA-HEALTH-026",
     staleAfterHours: STALE_AFTER_HOURS,
     scope: {
-      note: "Reads raw directory counts and whitelisted summary JSON fields only; original response bodies are not read or emitted.",
+      note: "Reads raw directory counts, trusted content metric save summaries, and whitelisted summary JSON fields only; original response bodies are not read or emitted.",
       platforms: configs.map((item) => item.key)
     },
     platforms,
@@ -423,7 +555,10 @@ export function buildPlatformDataHealthReport(options = {}) {
         smokeAgeHours: smokeAge,
         realCaptureIsStale: realCaptureAge === null ? null : realCaptureAge > STALE_AFTER_HOURS,
         smokeIsStale: smokeAge === null ? null : smokeAge > STALE_AFTER_HOURS,
-        staleAfterHours: STALE_AFTER_HOURS
+        staleAfterHours: STALE_AFTER_HOURS,
+        realCaptureEvidenceSource: latestRealCapturePlatform?.freshness.realCaptureEvidenceSource ?? null,
+        latestTrustedBrowserCaptureAt: latestIso(platforms.map((platform) => platform.freshness.latestTrustedBrowserCaptureAt)),
+        trustedBrowserCaptureRowCount: platforms.reduce((total, platform) => total + (platform.freshness.trustedBrowserCaptureRowCount ?? 0), 0)
       }
     },
     status: overallStatus([
@@ -449,7 +584,7 @@ export function renderPlatformDataHealthMarkdown(report) {
     `Status: ${report.status}`,
     `Stale threshold: ${report.staleAfterHours} hours`,
     "",
-    "This report reads raw directory counts plus whitelisted summary fields only. It does not read or emit original response bodies.",
+    "This report reads raw directory counts, trusted content metric save summaries, and whitelisted summary fields only. It does not read or emit original response bodies.",
     "",
     "## Platform Summary",
     "",

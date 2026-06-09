@@ -853,13 +853,16 @@ function freshnessTimelineView(value: unknown) {
   const item = asRecord(value);
   return {
     latestRealCaptureAt: stringValue(item.latestRealCaptureAt),
+    latestTrustedBrowserCaptureAt: stringValue(item.latestTrustedBrowserCaptureAt),
     latestSmokeAt: stringValue(item.latestSmokeAt),
     latestAuditAt: stringValue(item.latestAuditAt),
     realCaptureAgeHours: numberValue(item.realCaptureAgeHours),
     smokeAgeHours: numberValue(item.smokeAgeHours),
     realCaptureIsStale: booleanValue(item.realCaptureIsStale),
     smokeIsStale: booleanValue(item.smokeIsStale),
-    staleAfterHours: numberValue(item.staleAfterHours)
+    staleAfterHours: numberValue(item.staleAfterHours),
+    realCaptureEvidenceSource: stringValue(item.realCaptureEvidenceSource),
+    trustedBrowserCaptureRowCount: numberValue(item.trustedBrowserCaptureRowCount)
   };
 }
 
