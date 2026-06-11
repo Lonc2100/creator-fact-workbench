@@ -244,6 +244,42 @@ Current freshness model as of 2026-06-09:
 - `npm run check:real-capture-freshness` is still read-only. It does not open a browser, collect new data, or write the operating DB.
 - `npm run health:platform-data` may still warn for old smoke/mapping/raw diagnostic files. That warning is separate from trusted real freshness and must not be hidden by fake capture data.
 
+## 124 Real Refresh Cycle Snapshot
+
+Current real refresh baseline as of 2026-06-11:
+
+| Platform | Current usable refresh path | Latest real/confirmed save state | Freshness status | Boundary |
+| --- | --- | --- | --- | --- |
+| Xiaohongshu | Creator service `statistics/data-analysis` content-analysis table | 119 saved 7 creator-center table rows after explicit user confirmation | Fresh by trusted browser capture / content table evidence | Detail page remains fallback; no public explore scraping as trusted source |
+| Douyin | Creator center work detail/data page opened from assisted browser flow | 119 saved 1 creator-center detail row after explicit user confirmation | Fresh by trusted browser capture evidence | List page can fail closed; no silent save |
+| Bilibili | User-provided creator-center/current manuscript-level table with stable BV/manuscript id | 123 saved 1 current Bilibili content-level row after explicit user confirmation | Fresh by `trusted_content_import`; latest evidence `2026-06-11T04:58:03.798Z` | Account metrics remain preview-only |
+| Video Account | Manual content-level paste/upload | No new data saved in 119-123 | Manual update remains available but pending current user-provided row | No automatic login capture promise |
+
+Current dashboard trusted scope:
+
+- Trusted contents: 23.
+- Trusted metric snapshots: 32.
+- Calendar default main grid is not polluted by imported historical/content metric rows.
+- Bilibili 123 imported row `BV1Wp7k6uEn4` appears in trusted metrics, not in the future publish calendar.
+- Daily gate exits 0 and `passed: true`; current status can still be `warn` because old raw/health diagnostic evidence is stale. That warn is not a business freshness failure after the 123 `trusted_content_import` save.
+
+Current daily refresh order:
+
+1. Open `http://localhost:3200/dashboard` and read the startup freshness notice.
+2. Open `/import` and use `今日建议刷新`.
+3. For Douyin: open the creator center only from the explicit manual button, complete login if needed, switch/open a work detail/data page, preview, then save only after user confirmation.
+4. For Xiaohongshu: open the creator service platform only from the explicit manual button, use the content-analysis table, preview rows, then save only after user confirmation.
+5. For Bilibili: paste/upload a current manuscript-level table that includes stable BV/manuscript IDs; preview must fail closed for rows without stable IDs; save only after user confirmation.
+6. For Video Account: prepare owned content-level data and use manual paste/upload; no automatic login capture is promised.
+
+Still not promised:
+
+- No real platform publish API calls.
+- No WeChat/Official Account / backend restoration.
+- No automatic Video Account capture commitment.
+- No durable Bilibili account-level metric totals.
+- No password, cookie, token, header, storageState, raw request/response, screenshot, HAR, trace, or real platform DOM storage.
+
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.

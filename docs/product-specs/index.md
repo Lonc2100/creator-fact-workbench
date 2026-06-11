@@ -58,6 +58,13 @@ This index separates active release scope from paused or diagnostic-only work. D
 - [Human creator workflow walkthrough 113](../handoffs/MAINLINE-HUMAN-CREATOR-WORKFLOW-WALKTHROUGH-113-worker-handoff.md)
 - [Content schedule persistence fix 114](../handoffs/MAINLINE-CONTENT-SCHEDULE-PERSISTENCE-FIX-114-worker-handoff.md)
 - [Usable creator release closure 115](../handoffs/MAINLINE-USABLE-RELEASE-CLOSURE-115-worker-handoff.md)
+- Real refresh cycle / usable operations baseline:
+  [User-assisted real capture 119](../handoffs/MAINLINE-USER-ASSISTED-REAL-CAPTURE-119-worker-handoff.md),
+  [Freshness model alignment 120](../handoffs/MAINLINE-CAPTURE-FRESHNESS-MODEL-ALIGNMENT-120-worker-handoff.md),
+  [Video Account and Bilibili import paths 121](../handoffs/MAINLINE-VIDEO-ACCOUNT-AND-BILIBILI-IMPORT-PATH-121-worker-handoff.md),
+  [Startup refresh guidance 122](../handoffs/MAINLINE-STARTUP-REFRESH-CHECK-AND-REMINDER-122-worker-handoff.md),
+  [Today refresh execution 123](../handoffs/MAINLINE-TODAY-REFRESH-EXECUTION-CYCLE-123-worker-handoff.md),
+  [Real refresh cycle closure 124](../handoffs/MAINLINE-REAL-REFRESH-CYCLE-CLOSURE-124-worker-handoff.md).
 
 ## Paused / Diagnostic-Only
 
