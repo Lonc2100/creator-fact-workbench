@@ -266,9 +266,10 @@ function titleOf(candidate: VideoAccountDomCandidate) {
 
 function isNoisyContainer(candidate: VideoAccountDomCandidate) {
   const text = clean(candidate.text);
-  if (candidate.childCandidateCount > 0) return true;
+  const visiblePublishTimeCount = (text.match(/20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}/g) ?? []).length;
+  if (candidate.childCandidateCount > 0 && !(visiblePublishTimeCount === 1 && isMetricLikeText(text))) return true;
   if (text.length > 1800) return true;
-  if ((text.match(/20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}/g) ?? []).length > 1) return true;
+  if (visiblePublishTimeCount > 1) return true;
   if (/(账号总览|数据总览|粉丝画像|用户画像|私信|评论正文|直播数据|带货|收入|收益)/.test(text)) return true;
   return false;
 }
@@ -386,10 +387,23 @@ function tableMetrics(candidate: VideoAccountDomCandidate): PageScanMetricCovera
 
 function metricsOf(candidate: VideoAccountDomCandidate): PageScanMetricCoverage {
   const byTable = tableMetrics(candidate);
-  if (Object.values(byTable.present).some(Boolean)) return byTable;
   const byLabel = labeledMetrics(candidate.text);
-  if (Object.values(byLabel.present).some(Boolean)) return byLabel;
-  return unlabeledIconMetrics(candidate.text);
+  const byIcon = unlabeledIconMetrics(candidate.text);
+  const values = { views: 0, likes: 0, comments: 0, saves: 0, shares: 0, followersDelta: 0 };
+  const present: PageScanMetricCoverage["present"] = {};
+  for (const source of [byIcon, byLabel, byTable]) {
+    for (const key of ["views", "likes", "comments", "saves", "shares"] as const) {
+      if (!source.present[key]) continue;
+      present[key] = true;
+      values[key] = source.values[key] || values[key];
+    }
+    values.followersDelta = source.values.followersDelta || values.followersDelta;
+  }
+  return {
+    values,
+    present,
+    recommendationSeen: byTable.recommendationSeen || byLabel.recommendationSeen || byIcon.recommendationSeen
+  };
 }
 
 function pageScanReadiness(row: VideoAccountBrowserVisibleRow, present: PageScanMetricCoverage["present"]) {

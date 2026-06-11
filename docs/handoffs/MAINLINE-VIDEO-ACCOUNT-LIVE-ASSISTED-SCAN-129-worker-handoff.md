@@ -4,10 +4,10 @@
 
 - Task ID: `MAINLINE-VIDEO-ACCOUNT-LIVE-ASSISTED-SCAN-129`.
 - Goal: run the Video Account Assistant assisted page-scan path from `/import`, scan the logged-in current works/data list page, preview candidates, and save only after explicit user confirmation.
-- Result: partially completed. The controlled Video Account Assistant browser window was opened from the local 3200 flow, but the platform stayed on the login page and no user login confirmation was available in this worker turn, so no real works/data list could be scanned and no save was performed.
-- Commit: yes, in this commit.
-- Push: yes, pushed after validation.
-- Need main-session/user action: yes, if the goal is to complete a real preview/save in this same task chain. The user must finish Video Account Assistant login in the opened controlled window and switch to a works/data list page.
+- Result: completed after user-assisted login. The controlled Video Account Assistant browser window was opened/reused from the local 3200 flow, the logged-in works list was scanned, 6 can-save Video Account content rows were previewed, the user confirmed saving, and 6 rows were saved to trusted dashboard metrics.
+- Commit: pending for the final live completion patch at the time this addendum was written.
+- Push: pending for the final live completion patch at the time this addendum was written.
+- Need main-session/user action: no for this task. Future scans still require the user to be logged into the controlled Video Account Assistant profile and to confirm before saving.
 
 ## Worklog
 
@@ -77,6 +77,7 @@
 - No save was performed.
 - Reason: there was no real preview with can-save candidates, and the user did not explicitly confirm saving any preview rows.
 - No password, cookie, token, header, storageState, raw request, raw response, screenshot, HAR, trace, or platform DOM was saved.
+- After save/verification, the controlled Video Account Assistant scanning window was closed through the route; the local browser profile remains on disk for future user-assisted login reuse.
 
 ## Current Data Check
 
@@ -217,3 +218,107 @@ Observed on `http://127.0.0.1:3200/api/self-media/dashboard` after the failed pr
   - `npm run test:self-media`: PASS, 156 tests.
   - `npm run test:ui-harness`: PASS, 20 tests.
 - Live retry still returned 0 candidates because the controlled browser page was not in the screenshot-like hovered video-management row state at the time of scan.
+
+## Final Live Completion Addendum
+
+- Final completion checked on: 2026-06-11T21:01:19+08:00.
+- Final workload class: live assisted business acceptance plus narrow scanner/parser hardening, save, verification, and handoff.
+- Controlled Video Account Assistant page: yes, opened/reused at `https://channels.weixin.qq.com/platform/post/list`.
+- User login assistance: yes. The user logged in and then kept the Video Account Assistant video-management page available for scanning.
+- User insight used: stable refs can appear only after aiming/hovering a work row and opening the row-right share menu; the page also exposes a sanitized `post_list` response after page refresh.
+
+### Final Code / Scanner Changes
+
+- `src/app/api/self-media/platform-imports/browser-capture/video-account/route.ts`
+  - Added frame-aware scanning, because the works list can live inside a child frame.
+  - Added a narrow visual-row fallback for Video Account `div`/virtual-list layouts.
+  - Added a safe works-list navigation nudge to `内容管理 > 视频` before scanning.
+  - Added safe diagnostics for failed/no-save previews: frame count, frames with publish time, same-row metric/publish-time counts, and unlabeled-work-like counts. These diagnostics do not persist DOM or raw payloads.
+  - Added a final fallback that listens only to the current page's Video Account Assistant `post_list` response during a user-triggered preview refresh, converts it immediately into sanitized preview rows, and does not save or return raw response bodies.
+  - For assisted page-scan rows from this final fallback, mapped metrics according to the live UI/user-confirmed semantics:
+    - `readCount` -> views/play.
+    - `favCount` -> likes/thumbs-up.
+    - `commentCount` -> comments.
+    - `forwardCount` / `forwardAggregationCount` -> shares.
+    - `likeCount` is recommendation/heart and is not mapped to `saves`.
+    - `saves` remains `0`.
+- `src/domain/self-media/providers/video-account-personal-provider.ts`
+  - Relaxed noisy-container filtering only for a single publish-time row with recognizable metric shape.
+  - Combined table/labeled/icon metric parsing so table headers cannot mask icon-row numeric extraction.
+
+### Final Preview Result
+
+- `capture_preview` succeeded on 2026-06-11T20:56:23+08:00.
+- Rows: `6`.
+- Content candidates: `6`.
+- Metric candidates: `6`.
+- Save candidates: `6`.
+- All rows had stable `export/...` IDs, titles, publish times, views, likes, comments, shares, and no blocking fields.
+- Preview safety warnings were expected:
+  - `video_account_sanitized_post_list_preview`
+  - `video_account_recommendation_not_mapped_to_saves`
+
+Preview candidates:
+
+| Title | Published | Views | Likes | Comments | Saves | Shares | Stable ref |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `原创AI短片《星落之后》...` | 2026-06-08T09:14:44.000Z | 412 | 1 | 0 | 0 | 0 | `export/UzFfBgAAxKWDHHsCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg` |
+| `真以为我到此为止了吗...` | 2026-06-05T11:50:25.000Z | 656 | 6 | 1 | 0 | 1 | `export/UzFfBgAAxLuDUAk9ACnAjMzT4DCarAKQYo8bFstbMDJZ4yjH0g` |
+| `以为是末日，没想到是.....` | 2026-06-01T11:46:07.000Z | 308073 | 2166 | 69 | 0 | 719 | `export/UzFfBgAAxMCCUB4-ejrFjMzT4DCakJTvG3K-ewwdef-rPe1fGQ` |
+| `《玻璃》｜当年暗恋的人，现在在哪？...` | 2026-05-21T02:36:02.000Z | 1607 | 9 | 0 | 0 | 1 | `export/UzFfBgAAxN2CDA8EUVb3jMzT4DCa1ZydVdtAgHCTRkTXxsqsqA` |
+| `用AI体验独居老人的一天，看完想给爸妈打个电话...` | 2026-05-17T09:19:33.000Z | 844 | 10 | 0 | 0 | 0 | `export/UzFfBgAAxN-CQHMOUX3ojMzT4DCaC4mbJKtM9uvJFqKx3dQeJg` |
+| `《在那一瞬间我仿佛身上的每一个细胞都受到了生命威胁...` | 2021-02-05T09:59:22.000Z | 507 | 0 | 0 | 0 | 4 | `export/UzFfAgtgekIEAQAAAAAAwQklOKQwJgAAAAstQy6ubaLX4KHWvLEZgBPEyYMQHQFwbrn4zNPgMJoCsZLaGrHJi_yZpUjssuz8` |
+
+### Final Save Result
+
+- User confirmation: after the preview was shown in chat, the user replied `可以保存`.
+- Save request used:
+  - `action = save`
+  - `userConfirmedLogin = true`
+  - `userConfirmedContentMetrics = true`
+- Save result: HTTP 200 / ok.
+- Import run ID: `import-video_account_creator_center-1781182682103`.
+- Saved rows: the 6 preview candidates listed above.
+- Saved metrics mapping:
+  - recommendation/heart did not enter `saves`;
+  - thumbs-up entered `likes`;
+  - comments/shares followed same-row/platform response fields;
+  - `saves` stayed `0`.
+- No password, cookie, token, header, storageState, raw request, raw response, screenshot, HAR, trace, or platform DOM was saved.
+
+### Final Data / Boundary Checks
+
+Observed from `http://127.0.0.1:3200/api/self-media/dashboard` after save:
+
+- Trusted contents: `34` (previous live baseline was `28`, so +6).
+- Trusted metric snapshots: `46`.
+- Video Account metric snapshots: `15` total.
+- The six new saved rows were visible by content IDs:
+  - `video-account-7cd39f75`
+  - `video-account-e3fe6513`
+  - `video-account-911534ec`
+  - `video-account-8f3d9a9e`
+  - `video-account-982677fe`
+  - `video-account-38513717`
+- Default dashboard calendar items remained `12`.
+- Default calendar imported/trusted rows remained `0`, confirming imported Video Account metrics did not enter the main publish calendar.
+
+### Final Validation
+
+- `git diff --check`: PASS.
+- `npm run typecheck`: PASS.
+- `npm run test:self-media`: PASS, 156 tests.
+- `npm run test:ui-harness`: PASS, 20 tests.
+- `$env:NEXT_DIST_DIR='.next-build-129-main'; npm run build`: PASS.
+  - Next.js temporary build side effects to `next-env.d.ts` and `tsconfig.json` were restored.
+- `npm run check:local-server-health -- --ports=3200 --strict --require-trusted-data --check-page`: PASS.
+- `npm run gate:daily-platform-ops -- --dashboard-url=http://127.0.0.1:3200/api/self-media/dashboard`: PASS with warning status.
+  - Command exit code: `0`.
+  - Gate report status: `warn`, `passed: true`, `blocked: false`.
+  - Warning reason: stale smoke health count under the current 72h threshold.
+  - Trusted dashboard audit inside the gate passed with trusted contents `34`, trusted metric snapshots `46`, latest real capture around 2026-06-11T12:58Z, and no mismatches.
+
+### Final Commit / Push
+
+- Final commit/push: pending when this section was written; expected narrow commit message:
+  - `feat(self-media): verify video account assisted scan`
