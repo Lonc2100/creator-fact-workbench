@@ -48,6 +48,8 @@ Automation levels:
 
 Recommended level: Level 2. The queue removes prompt-copy friction while preserving user gates for login, real-data save, deletion, force push, sensitive material, PRD scope changes, and heavy-gate scheduling.
 
+Current pilot target: Level 2.5. A readiness script may turn queue items into a main/Ops dispatch report and a Worker prompt, but it must not call Codex thread tools itself.
+
 Dispatch queue rules:
 
 - A queue item is evidence, not permission to run.
@@ -56,6 +58,7 @@ Dispatch queue rules:
 - `needs_user_gate: true` means the main/Ops session must wait for the user before dispatch or before the relevant save action.
 - Heavy gates remain serial: live 3200, browser/E2E, sqlite writes, Next build, and daily platform ops gate.
 - The queue generator must not create Codex threads, modify business code, commit, push, delete files, or save platform data.
+- `create_thread` is a main/Ops action for a ready queue item; `send_message_to_thread` is a main/Ops action for an already assigned Worker. A queue item with `needs_user_gate: true` must remain blocked until the user gate is satisfied.
 
 ## Runtime Quality Protocol
 

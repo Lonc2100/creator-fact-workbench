@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-06-11T09:06:14.164Z",
+  "generatedBy": "scripts/self-media-dispatch-readiness.mjs",
+  "queueDir": "docs/handoffs/dispatch-queue",
+  "items": [
+    {
+      "taskId": "MAINLINE-VIDEO-ACCOUNT-MANUAL-DATA-INTAKE-127",
+      "queueFile": "docs/handoffs/dispatch-queue/MAINLINE-VIDEO-ACCOUNT-MANUAL-DATA-INTAKE-127.json",
+      "dedupeKey": "50e2023272d8d9fe",
+      "dispatchStatus": "waiting_user_gate",
+      "needs_user_gate": true,
+      "readiness": "blocked_by_user_gate",
+      "canDispatch": false,
+      "reason": "Saving real Video Account data requires user-provided owned content-level data with a stable work ID/link and explicit confirmation before save.",
+      "missingUserData": [
+        "视频号作品标题",
+        "发布时间",
+        "稳定作品 ID 或链接",
+        "播放/曝光/浏览",
+        "点赞",
+        "评论",
+        "收藏/转发/分享等可用字段"
+      ],
+      "suggestedThreadTitle": "Worker 127 - Video Account Manual Data Intake",
+      "threadToolPlan": {
+        "tool": "none",
+        "note": "Do not create or send a Worker thread until the user gate is satisfied."
+      },
+      "prompt": "create_goal: MAINLINE-VIDEO-ACCOUNT-MANUAL-DATA-INTAKE-127\n\nWhen the user provides a current owned Video Account content-level row or export, run the manual update path through preview, explicit user confirmation, save, freshness update, dashboard check, and calendar non-pollution check.\n\n通俗说明：\n视频号自动抓取仍不承诺。等用户提供一条或多条当前视频号作品级数据后，Worker 才能从 /dashboard -> /import 的视频号手动更新入口预览、请用户确认并保存。\n\nRequired reading:\n- AGENTS.md\n- docs/handoffs/CURRENT-PLATFORM-STATUS.md\n- docs/handoffs/MAINLINE-VIDEO-ACCOUNT-MANUAL-UPDATE-CYCLE-125-worker-handoff.md\n- docs/runbooks/self-media-daily-ops.md\n- docs/trellis-parallel-workflow.md\n\nAllowed files:\n- docs/handoffs/MAINLINE-VIDEO-ACCOUNT-MANUAL-DATA-INTAKE-127-worker-handoff.md\n- docs/handoffs/dispatch-queue/*.json\n- docs/handoffs/dispatch-queue/*.md\n- Only if UI copy is unclear: src/domain/self-media/ui/screens/ImportPage.tsx\n- Only if tests need copy/testid alignment: tests/ui-harness.test.mjs\n- Only if provider validation rejects a valid user-provided export shape: tests/self-media-contract.test.ts\n\nForbidden files:\n- .local/**\n- .agents/**\n- .codex/**\n- .trellis/**\n- .runtime/**\n- docs/generated/template-doctor-report.md\n- scripts/smoke-self-media.mjs\n- src/domain/self-media/ui/screens/LeadsPage.tsx\n- src/domain/self-media/ui/screens/UiLabPage.tsx\n- tests/agent-trajectory.test.mjs\n- docs/handoffs/MEDIACRAWLER-ADAPTER-AUDIT-094-worker-handoff.md\n- scripts/check-browser-automation.mjs\n\nValidation commands:\n- git diff --check\n- npm run typecheck\n- npm run test:self-media\n- npm run test:ui-harness\n- NEXT_DIST_DIR=.next-build-127-main npm run build\n- npm run check:local-server-health -- --ports=3200 --strict --require-trusted-data --check-page\n- npm run gate:daily-platform-ops -- --dashboard-url=http://127.0.0.1:3200/api/self-media/dashboard\n\nHandoff path: docs/handoffs/MAINLINE-VIDEO-ACCOUNT-MANUAL-DATA-INTAKE-127-worker-handoff.md\nUser gate state: blocked_by_user_gate\nUser gate reason: Saving real Video Account data requires user-provided owned content-level data with a stable work ID/link and explicit confirmation before save.\n\nSafety gates:\n- Stop for user login, QR code, captcha, or platform risk-control checks.\n- Stop before saving real platform data; user must explicitly confirm the preview rows.\n- Stop before deleting files or folders.\n- Stop before force push.\n- Stop if sensitive material appears: password, cookie, token, header, storageState, raw request, raw response, screenshot, HAR, trace.\n- Stop if the task needs to redefine PRD scope or promote Video Account automatic capture.\n- Stop if another active Worker is editing the same files or running heavy gates.\n\nHeavy gates must remain serial:\n- live 3200 checks\n- browser/E2E flows\n- sqlite writes\n- Next build\n- daily platform ops gate\n\nDo not save real platform data until the user explicitly confirms preview rows. Do not save password/cookie/token/header/storageState/raw request/raw response/screenshot/HAR/trace."
+    }
+  ]
+}
