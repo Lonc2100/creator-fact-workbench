@@ -16,6 +16,11 @@ type VideoAccountBrowserSession = {
   lastRows: VideoAccountBrowserVisibleRow[];
 };
 
+type VideoAccountDomCandidateWithGeometry = VideoAccountDomCandidate & {
+  hoverPoints: Array<{ x: number; y: number }>;
+  shareClickPoints: Array<{ x: number; y: number }>;
+};
+
 declare global {
   // eslint-disable-next-line no-var
   var __selfMediaVideoAccountBrowserSession: VideoAccountBrowserSession | undefined;
@@ -105,6 +110,7 @@ async function openSession(target: VideoAccountAuthedBrowserCaptureRequest["targ
     viewport: { width: 1440, height: 1000 },
     locale: "zh-CN"
   });
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "https://channels.weixin.qq.com" }).catch(() => undefined);
   const page = context.pages()[0] ?? await context.newPage();
   await page.goto(resolveAuthedBrowserTargetUrl("video_account", target), { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
   const session = { context, page, openedAt: openedStatus.lastOpenedAt ?? new Date().toISOString(), lastRows: [] };
@@ -194,6 +200,16 @@ async function extractVisibleRows(page: Page): Promise<VideoAccountBrowserVisibl
       const cells = Array.from(element.querySelectorAll("td,th,[role='cell'],[class*='cell'],[class*='Cell'],[class*='metric'],[class*='Metric'],[class*='count'],[class*='Count']"))
         .map((cell) => clean(cell.textContent))
         .filter(Boolean);
+      const rect = element.getBoundingClientRect();
+      const centerY = Math.round(rect.top + Math.min(rect.height - 12, Math.max(28, rect.height * 0.55)));
+      const hoverPoints = [0.18, 0.38, 0.58, 0.72].map((ratio) => ({
+        x: Math.round(rect.left + rect.width * ratio),
+        y: centerY
+      }));
+      const shareClickPoints = [0.62, 0.66, 0.7, 0.74, 0.78, 0.82].map((ratio) => ({
+        x: Math.round(rect.left + rect.width * ratio),
+        y: centerY
+      }));
       return {
         text,
         tagName: element.tagName.toLowerCase(),
@@ -205,11 +221,99 @@ async function extractVisibleRows(page: Page): Promise<VideoAccountBrowserVisibl
         dataValues,
         cells,
         columnNames: headersFor(element),
-        childCandidateCount: childCandidateCount(element, text)
+        childCandidateCount: childCandidateCount(element, text),
+        hoverPoints,
+        shareClickPoints
       };
     });
-  }) as VideoAccountDomCandidate[];
+  }) as VideoAccountDomCandidateWithGeometry[];
+  await enrichCandidatesFromShareMenu(page, candidates);
   return selectVideoAccountAssistantPageRows(candidates, capturedAt);
+}
+
+function hasStableRef(candidate: VideoAccountDomCandidate) {
+  const values = [...candidate.hrefs, ...candidate.dataValues, candidate.idAttr ?? ""].filter(Boolean);
+  return values.some((value) => /export\/[A-Za-z0-9_-]{20,}|https?:\/\/weixin\.qq\.com\/sph\/[A-Za-z0-9_-]{6,}/.test(value));
+}
+
+function sanitizedClipboardValue(value: string) {
+  const exportMatch = value.match(/export\/[A-Za-z0-9_-]{20,}/);
+  if (exportMatch) return exportMatch[0];
+  const sphMatch = value.match(/https?:\/\/weixin\.qq\.com\/sph\/[A-Za-z0-9_-]{6,}/);
+  if (!sphMatch) return "";
+  try {
+    const url = new URL(sphMatch[0]);
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return sphMatch[0].split("?")[0];
+  }
+}
+
+async function copyMenuValue(page: Page, label: "复制视频ID" | "复制视频链接") {
+  const item = page.getByText(label, { exact: true });
+  if (!await item.isVisible().catch(() => false)) return "";
+  await item.click({ timeout: 3000 }).catch(() => undefined);
+  await page.waitForTimeout(250);
+  const copied = await page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
+  return sanitizedClipboardValue(copied);
+}
+
+async function reopenShareMenu(page: Page, clickPoints: Array<{ x: number; y: number }>) {
+  for (const point of clickPoints) {
+    await page.mouse.move(point.x, point.y).catch(() => undefined);
+    await page.waitForTimeout(120);
+    await page.mouse.click(point.x, point.y).catch(() => undefined);
+    await page.waitForTimeout(450);
+    const hasMenu = await page.getByText("复制视频ID", { exact: true }).isVisible().catch(() => false)
+      || await page.getByText("复制视频链接", { exact: true }).isVisible().catch(() => false);
+    if (hasMenu) return true;
+  }
+  return false;
+}
+
+async function hoverCandidateRow(page: Page, candidate: VideoAccountDomCandidateWithGeometry) {
+  for (const point of candidate.hoverPoints) {
+    await page.mouse.move(point.x, point.y).catch(() => undefined);
+    await page.waitForTimeout(250);
+  }
+}
+
+async function clickVisibleShareControl(page: Page, candidate: VideoAccountDomCandidateWithGeometry) {
+  await hoverCandidateRow(page, candidate);
+  const explicit = page.getByTitle("分享").or(page.getByText("分享", { exact: true })).or(page.locator("[aria-label*='分享']")).first();
+  if (await explicit.isVisible().catch(() => false)) {
+    await explicit.hover().catch(() => undefined);
+    await explicit.click({ timeout: 3000 }).catch(() => undefined);
+    await page.waitForTimeout(450);
+    return await page.getByText("复制视频ID", { exact: true }).isVisible().catch(() => false)
+      || await page.getByText("复制视频链接", { exact: true }).isVisible().catch(() => false);
+  }
+  return reopenShareMenu(page, candidate.shareClickPoints);
+}
+
+async function enrichCandidatesFromShareMenu(page: Page, candidates: VideoAccountDomCandidateWithGeometry[]) {
+  const targets = candidates
+    .filter((candidate) => !hasStableRef(candidate) && candidate.shareClickPoints.length > 0 && /播放|曝光|浏览|观看|阅读|点赞|评论|分享|转发|推荐/.test(candidate.text))
+    .slice(0, 10);
+  if (targets.length === 0) return;
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: "https://channels.weixin.qq.com" }).catch(() => undefined);
+  for (const candidate of targets) {
+    const openedForId = await clickVisibleShareControl(page, candidate);
+    if (!openedForId) {
+      candidate.dataValues.push("share_menu:not_opened");
+      continue;
+    }
+    const copiedId = await copyMenuValue(page, "复制视频ID");
+    if (copiedId) candidate.dataValues.push(copiedId);
+    const openedForLink = await clickVisibleShareControl(page, candidate);
+    if (openedForLink) {
+      const copiedLink = await copyMenuValue(page, "复制视频链接");
+      if (copiedLink) candidate.hrefs.push(copiedLink);
+    }
+    if (copiedId || candidate.hrefs.some((href) => /weixin\.qq\.com\/sph\//.test(href))) candidate.dataValues.push("share_menu:copied_stable_ref");
+  }
 }
 
 async function extractVisiblePageWarnings(page: Page) {

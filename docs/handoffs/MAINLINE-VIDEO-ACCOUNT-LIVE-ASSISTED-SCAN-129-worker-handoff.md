@@ -190,3 +190,30 @@ Observed on `http://127.0.0.1:3200/api/self-media/dashboard` after the failed pr
   - None exposed same-row metric plus publish-time rows.
   - None exposed stable `weixin.qq.com/sph` anchors or `export/...` attributes.
 - Conclusion: the current accessible Video Account Assistant pages still do not provide the minimum durable scan contract: title, publish time, same-row views/likes/comments/shares, and stable link/export ID. No save was attempted.
+
+## Share-menu Insight Addendum
+
+- User provided a screenshot showing the real stable ID/link workflow:
+  - hover/aim at a specific work row in Video Account Assistant video management;
+  - row-right action icons appear only after hover;
+  - click the share icon;
+  - the menu contains `复制视频ID`, `下载视频二维码`, and `复制视频链接`.
+- Root cause clarified: the stable ID/link is not persistently visible in the work row DOM, so a pure visible-row scan cannot collect the required stable ref.
+- Implemented a narrow preview-only enrichment path:
+  - hover candidate rows before trying row-right action controls;
+  - open the share menu when available;
+  - only click explicit copy actions: `复制视频ID` and `复制视频链接`;
+  - read clipboard text and keep only sanitized `export/...` IDs or `https://weixin.qq.com/sph/...` links;
+  - do not click publish/edit/delete/upload/private-message actions;
+  - do not save DOM, screenshots, raw responses, cookies, tokens, headers, HAR, trace, or storageState.
+- Also added support for unlabeled icon metric rows matching the screenshot order:
+  - first number after publish time = views/watch;
+  - second number = recommendation, not saved as `saves`;
+  - third number = comments;
+  - fourth number = shares;
+  - fifth number = likes/thumbs-up.
+- Validation after this patch:
+  - `npm run typecheck`: PASS.
+  - `npm run test:self-media`: PASS, 156 tests.
+  - `npm run test:ui-harness`: PASS, 20 tests.
+- Live retry still returned 0 candidates because the controlled browser page was not in the screenshot-like hovered video-management row state at the time of scan.

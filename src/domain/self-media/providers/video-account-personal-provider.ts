@@ -214,6 +214,12 @@ function metricValue(text: string, labels: string[]) {
   return 0;
 }
 
+function metricNumbers(text: string) {
+  const dateMatch = text.match(/20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}(?:日)?(?:\s+\d{1,2}:\d{2})?/);
+  const source = dateMatch ? text.slice((dateMatch.index ?? 0) + dateMatch[0].length) : text;
+  return Array.from(source.matchAll(/-?\d+(?:\.\d+)?\s*(?:万|亿|k|K)?/g)).map((match) => numberFrom(match[0]));
+}
+
 function publishedAtFromText(text: string) {
   const exact = text.match(/(20\d{2}[-/.年]\d{1,2}[-/.月]\d{1,2}(?:日)?(?:\s+\d{1,2}:\d{2})?)/);
   if (exact) {
@@ -235,7 +241,8 @@ function nonEmptyCells(candidate: VideoAccountDomCandidate) {
 }
 
 function isMetricLikeText(value: string) {
-  return /(播放|曝光|浏览|观看|阅读|点赞|评论|收藏|分享|转发|推荐|涨粉|关注|互动)/.test(value);
+  return /(播放|曝光|浏览|观看|阅读|点赞|评论|收藏|分享|转发|推荐|涨粉|关注|互动)/.test(value)
+    || Boolean(publishedAtFromText(value) && metricNumbers(value).length >= 5);
 }
 
 function isBadTitleLine(value: string) {
@@ -345,6 +352,23 @@ function labeledMetrics(text: string): PageScanMetricCoverage {
   };
 }
 
+function unlabeledIconMetrics(text: string): PageScanMetricCoverage {
+  const numbers = metricNumbers(text).filter((value) => Number.isFinite(value));
+  const values = { views: 0, likes: 0, comments: 0, saves: 0, shares: 0, followersDelta: 0 };
+  const present: PageScanMetricCoverage["present"] = {};
+  if (numbers.length >= 5 && publishedAtFromText(text)) {
+    values.views = numbers[0] ?? 0;
+    values.comments = numbers[2] ?? 0;
+    values.shares = numbers[3] ?? 0;
+    values.likes = numbers[4] ?? 0;
+    present.views = true;
+    present.likes = true;
+    present.comments = true;
+    present.shares = true;
+  }
+  return { values, present, recommendationSeen: numbers.length >= 5 };
+}
+
 function tableMetrics(candidate: VideoAccountDomCandidate): PageScanMetricCoverage {
   const values = { views: 0, likes: 0, comments: 0, saves: 0, shares: 0, followersDelta: 0 };
   const present: PageScanMetricCoverage["present"] = {};
@@ -363,7 +387,9 @@ function tableMetrics(candidate: VideoAccountDomCandidate): PageScanMetricCovera
 function metricsOf(candidate: VideoAccountDomCandidate): PageScanMetricCoverage {
   const byTable = tableMetrics(candidate);
   if (Object.values(byTable.present).some(Boolean)) return byTable;
-  return labeledMetrics(candidate.text);
+  const byLabel = labeledMetrics(candidate.text);
+  if (Object.values(byLabel.present).some(Boolean)) return byLabel;
+  return unlabeledIconMetrics(candidate.text);
 }
 
 function pageScanReadiness(row: VideoAccountBrowserVisibleRow, present: PageScanMetricCoverage["present"]) {
@@ -392,7 +418,9 @@ export function selectVideoAccountAssistantPageRows(candidates: VideoAccountDomC
     const idInfo = nativeIdOf(candidate);
     const title = titleOf(candidate);
     const coverage = metricsOf(candidate);
-    const pageLooksRight = /(视频号助手|视频号|作品|内容|发表|发布|播放|曝光|浏览)/.test(text);
+    const hasRecognizedMetricShape = Object.values(coverage.present).some(Boolean);
+    const pageLooksRight = /(视频号助手|视频号|作品|内容|发表|发布|播放|曝光|浏览)/.test(text)
+      || Boolean(idInfo.nativeId && publishedAtFromText(text) && hasRecognizedMetricShape);
     const row: VideoAccountBrowserVisibleRow = {
       id: idInfo.id,
       nativeId: idInfo.nativeId,

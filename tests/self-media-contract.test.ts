@@ -1867,6 +1867,33 @@ test("video account assisted page scanner previews candidates and keeps recommen
   assert.ok(payload.contents[0].notes?.includes("recommendation_not_mapped_to_saves"));
 });
 
+test("video account assisted page scanner maps unlabeled icon metric rows", () => {
+  const rows = selectVideoAccountAssistantPageRows([
+    {
+      text: "原创AI短片《星落之后》。 AI巨物压境，华夏火种实验室被攻破。 顾衡在最后一刻完成... 2026年06月08日 17:14 411 0 0 0 1",
+      tagName: "div",
+      role: undefined,
+      className: "post-list-item",
+      idAttr: "row-1",
+      titleAttr: "原创AI短片《星落之后》。 AI巨物压境，华夏火种实验室被攻破。 顾衡在最后一刻完成...",
+      hrefs: ["https://weixin.qq.com/sph/AH6eG1lD9"],
+      dataValues: ["export/UzFfBgAAxKWDHHsCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg"],
+      cells: [],
+      columnNames: [],
+      childCandidateCount: 0
+    }
+  ], "2026-06-11T09:00:00.000Z");
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].canSave, true);
+  assert.equal(rows[0].views, 411);
+  assert.equal(rows[0].likes, 1);
+  assert.equal(rows[0].comments, 0);
+  assert.equal(rows[0].saves, 0);
+  assert.equal(rows[0].shares, 0);
+  assert.ok(rows[0].warnings.includes("video_account_recommendation_not_mapped_to_saves"));
+});
+
 test("video account assisted page scanner blocks rows without stable id or same-row metrics", () => {
   const rows = selectVideoAccountAssistantPageRows([
     {

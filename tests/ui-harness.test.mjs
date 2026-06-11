@@ -1109,6 +1109,10 @@ test("video account assisted page scan opens works target without saving login m
   assert.doesNotMatch(route, /body\.userConfirmedLogin \|\| loginState === "logged_in_or_accessible"/);
   assert.match(importPage, /runVideoAccountAuthedBrowserCapture\(action: VideoAccountAuthedBrowserCaptureResult\["action"\], target: "default" \| "works_page" = "works_page"\)/);
   assert.match(route, /selectVideoAccountAssistantPageRows/);
+  assert.match(route, /enrichCandidatesFromShareMenu/);
+  assert.match(route, /grantPermissions\(\["clipboard-read", "clipboard-write"\]/);
+  assert.match(route, /copyMenuValue\(page, "复制视频ID"\)/);
+  assert.match(route, /copyMenuValue\(page, "复制视频链接"\)/);
   assert.match(route, /extractVisiblePageWarnings/);
   assert.match(route, /video_account_no_visible_publish_time/);
   assert.match(route, /video_account_no_visible_stable_link_or_export_id/);
