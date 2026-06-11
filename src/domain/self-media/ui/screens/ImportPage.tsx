@@ -33,12 +33,12 @@ const sampleXiaohongshuLocalExportCsv = [
 
 const videoAccountLocalExportPlaceholder = [
   "视频ID,标题,发布时间,播放量,点赞数,评论数,收藏数,分享数,朋友圈转发,涨粉,完播率,平均播放时长,公众号阅读转化,流量来源,选题",
-  "请粘贴你从视频号助手复制的本人内容级数据，每行一条作品"
+  "请粘贴今天从视频号助手确认过的本人内容级数据，每行一条作品"
 ].join("\n");
 
 const bilibiliLocalExportPlaceholder = [
   "稿件ID,BV号,标题,发布时间,播放量,点赞数,评论数,弹幕数,收藏数,分享数,投币数,涨粉,完播率,平均播放时长,选题",
-  "请粘贴你从 B站创作中心导出的本人稿件数据，每行一条稿件"
+  "请粘贴今天从 B站创作中心确认过的本人稿件数据，每行一条稿件"
 ].join("\n");
 
 const confidenceLabels: Record<RealImportPreviewRow["mappingConfidence"], string> = {
@@ -196,7 +196,7 @@ const captureRealityCapabilities: CaptureRealityCapability[] = [
     key: "video-account",
     platform: "video_account",
     label: "视频号",
-    officialApi: "API 能力待确认，个人创作者不默认假设可用",
+    officialApi: "官方能力待确认，个人创作者不默认假设可用",
     appReview: "微信开放能力需按具体场景申请",
     oauth: "本产品未接入视频号授权",
     contentData: "手动更新为主：粘贴/导入本人内容级数据",
@@ -2160,7 +2160,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       } else {
         const dashboardResponse = await fetch("/api/self-media/dashboard");
         setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
-        setVideoAccountMessage(`已保存视频号手动更新指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入可信内容级回收。`);
+        setVideoAccountMessage(`已保存视频号手动更新指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入数据看板，视频号新鲜度已按手动更新证据刷新。`);
         setVideoAccountConfirmed(false);
       }
     } catch (error) {
@@ -2190,7 +2190,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       } else {
         const dashboardResponse = await fetch("/api/self-media/dashboard");
         setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
-        setBilibiliMessage(`已保存 B站本地导出指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入可信内容级回收。`);
+        setBilibiliMessage(`已保存 B站内容级导入指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入数据看板，B站新鲜度已按内容级导入证据刷新。`);
         setBilibiliConfirmed(false);
       }
     } catch (error) {
@@ -2709,7 +2709,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           <div className="import-guide-steps">
             <article>
               <strong>1. 手动更新为主</strong>
-              <p>从视频号助手复制或导出本人内容级数据；默认页面加载、切回页面和自动刷新都不会打开视频号窗口。</p>
+              <p>从视频号助手复制或导出今天确认过的本人内容级数据；默认页面加载、切回页面和自动刷新都不会打开视频号窗口。</p>
             </article>
             <article>
               <strong>2. 先预览再确认</strong>
@@ -2717,7 +2717,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </article>
             <article>
               <strong>3. 后续探索：尝试登录抓取</strong>
-              <p>登录抓取需扫码，暂不作为每日自动流程；API 能力待确认，个人创作者不默认假设可用。</p>
+              <p>登录抓取需扫码，暂不作为每日自动流程；官方能力待确认，个人创作者不默认假设可用。</p>
             </article>
             <article>
               <strong>4. 保存后刷新状态</strong>
@@ -2761,7 +2761,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </label>
             <div className="capture-reality-box" data-testid="video-account-manual-field-guide">
               <strong>建议粘贴字段</strong>
-              <p>作品标题、发布时间、播放/曝光、点赞、评论、收藏、分享；有视频 ID 或作品链接时优先带上，保存后会刷新视频号数据状态。</p>
+              <p>作品标题、发布时间、播放/曝光、点赞、评论、收藏、分享；有视频 ID 或作品链接时优先带上。没有今天确认过的数据时先不要保存，保存后会刷新视频号数据状态。</p>
             </div>
             <div className="import-preview-actions">
               <Button data-testid="video-account-local-file-preview" onClick={() => runVideoAccountLocalFile("preview")} variant="secondary" disabled={isVideoAccountLoading}>{isVideoAccountLoading ? "处理中" : "预览视频号手动更新"}</Button>
@@ -2805,7 +2805,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           <div className="import-guide-steps">
             <article>
               <strong>1. 从 B站后台导出或复制</strong>
-              <p>只接收你主动拿到的稿件内容级表格；系统不会读取 B站网页登录状态。</p>
+              <p>只接收你今天从 B站后台主动确认过的稿件内容级表格；系统不会读取 B站网页登录状态。</p>
             </article>
             <article>
               <strong>2. 本地预览字段</strong>
@@ -2853,7 +2853,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </label>
             <div className="capture-reality-box" data-testid="bilibili-content-import-field-guide">
               <strong>建议导入字段</strong>
-              <p>稿件 ID/BV 号、标题、发布时间、播放、点赞、评论、弹幕、收藏、分享、投币；账号总览数据只预览，不写入内容级可信总量。</p>
+              <p>稿件 ID/BV 号、标题、发布时间、播放、点赞、评论、弹幕、收藏、分享、投币；没有当前确认过的稿件数据时先不要保存，账号总览数据只预览，不写入内容级可信总量。</p>
             </div>
             <div className="import-preview-actions">
               <Button data-testid="bilibili-local-file-preview" onClick={() => runBilibiliLocalFile("preview")} variant="secondary" disabled={isBilibiliLoading}>{isBilibiliLoading ? "处理中" : "预览 B站导出"}</Button>

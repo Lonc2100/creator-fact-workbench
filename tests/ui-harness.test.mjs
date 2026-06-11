@@ -540,7 +540,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /连接平台：待接入 OAuth/);
   assert.match(importPage, /连接平台：待官方能力确认/);
   assert.match(importPage, /未确认公开稳定个人创作者数据 API/);
-  assert.match(importPage, /API 能力待确认，个人创作者不默认假设可用/);
+  assert.match(importPage, /官方能力待确认，个人创作者不默认假设可用/);
   assert.match(importPage, /视频号手动更新为主/);
   assert.match(importPage, /账号指标 preview-only/);
   assert.match(importPage, /trustedAutoCaptureScheduler/);
@@ -680,7 +680,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /视频号手动更新/);
   assert.match(importPage, /手动更新为主/);
   assert.match(importPage, /登录抓取需扫码，暂不作为每日自动流程/);
-  assert.match(importPage, /API 能力待确认，个人创作者不默认假设可用/);
+  assert.match(importPage, /官方能力待确认，个人创作者不默认假设可用/);
   assert.match(importPage, /后续探索：尝试登录抓取/);
   assert.match(importPage, /video_account_creator_center/);
   assert.match(importPage, /视频号助手手动更新的内容级表格/);
@@ -689,6 +689,9 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /videoAccountLocalExportPlaceholder/);
   assert.match(importPage, /video-account-manual-field-guide/);
   assert.match(importPage, /作品标题、发布时间、播放\/曝光、点赞、评论、收藏、分享/);
+  assert.match(importPage, /今天从视频号助手确认过/);
+  assert.match(importPage, /没有今天确认过的数据时先不要保存/);
+  assert.match(importPage, /视频号新鲜度已按手动更新证据刷新/);
   assert.match(importPage, /刷新视频号数据状态/);
   assert.match(importPage, /video-account-local-file-confirm/);
   assert.match(importPage, /video-account-local-file-preview/);
@@ -698,6 +701,9 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /bilibiliLocalExportPlaceholder/);
   assert.match(importPage, /bilibili-content-import-field-guide/);
   assert.match(importPage, /稿件 ID\/BV 号、标题、发布时间、播放、点赞、评论、弹幕、收藏、分享、投币/);
+  assert.match(importPage, /今天从 B站创作中心确认过/);
+  assert.match(importPage, /没有当前确认过的稿件数据时先不要保存/);
+  assert.match(importPage, /B站新鲜度已按内容级导入证据刷新/);
   assert.match(importPage, /刷新 B站数据状态/);
   assert.doesNotMatch(importPage, /sampleBilibiliLocalExportCsv|sampleVideoAccountLocalExportCsv/);
   assert.match(importPage, /platform_local_file/);
