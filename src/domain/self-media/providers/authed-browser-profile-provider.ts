@@ -18,7 +18,8 @@ const metaFileName = "session-meta.json";
 const sensitiveKeyPattern = /cookie|token|password|header|headers|raw|request|storage|credential|authorization/i;
 const worksPageTargets: Partial<Record<AuthedBrowserPlatform, string>> = {
   douyin: "https://creator.douyin.com/creator-micro/content/manage",
-  xiaohongshu: "https://creator.xiaohongshu.com/new/note-manager"
+  xiaohongshu: "https://creator.xiaohongshu.com/new/note-manager",
+  video_account: "https://channels.weixin.qq.com/platform/post/list"
 };
 
 type SafeProfileMeta = {

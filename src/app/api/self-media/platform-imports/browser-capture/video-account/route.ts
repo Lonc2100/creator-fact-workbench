@@ -79,18 +79,21 @@ async function getPageText(page: Page) {
 }
 
 async function inferLoginState(page: Page, userConfirmedLogin?: boolean): Promise<VideoAccountAuthedBrowserLoginState> {
-  if (userConfirmedLogin) return "user_confirmed";
   const currentUrl = page.url();
   const bodyText = await getPageText(page);
   if (!/channels\.weixin\.qq\.com/.test(currentUrl)) return "wrong_page";
   if (/login|登录|扫码登录|请使用微信扫码|二维码|验证码/.test(`${currentUrl} ${bodyText}`)) return "needs_login";
+  if (userConfirmedLogin) return "user_confirmed";
   if (/视频号助手|发表|作品|内容|数据|播放|曝光|浏览|点赞|评论/.test(bodyText)) return "logged_in_or_accessible";
   return "unknown";
 }
 
-async function openSession(target: VideoAccountAuthedBrowserCaptureRequest["target"] = "default") {
+async function openSession(target: VideoAccountAuthedBrowserCaptureRequest["target"] = "works_page") {
   const existing = globalThis.__selfMediaVideoAccountBrowserSession;
   if (existing && !existing.page.isClosed()) {
+    if (target === "works_page" && /\/login\.html|\/platform\/?$/.test(existing.page.url())) {
+      await existing.page.goto(resolveAuthedBrowserTargetUrl("video_account", target), { waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => undefined);
+    }
     await existing.page.bringToFront().catch(() => undefined);
     return existing;
   }
@@ -239,13 +242,13 @@ export async function POST(request: Request) {
       return Response.json(emptyResult(action, { ok: true, loginState: "closed", browserOpened: false, message: "已关闭视频号助手扫描窗口；登录会话只保存在本机 profile，不写入业务数据。" }));
     }
 
-    const session = action === "open" ? await openSession(body.target ?? "default") : globalThis.__selfMediaVideoAccountBrowserSession;
+    const session = action === "open" ? await openSession(body.target ?? "works_page") : globalThis.__selfMediaVideoAccountBrowserSession;
     if (!session || session.page.isClosed()) {
       return Response.json(emptyResult(action, { message: "请先打开视频号助手页面并登录；系统不会在扫描动作里自动打开窗口。", warnings: ["video_account_assistant_not_opened"] }), { status: 400 });
     }
 
     const loginState = await inferLoginState(session.page, body.userConfirmedLogin);
-    if (body.userConfirmedLogin || loginState === "logged_in_or_accessible" || loginState === "user_confirmed") markAuthedBrowserProfileConfirmed("video_account");
+    if (loginState === "logged_in_or_accessible" || loginState === "user_confirmed") markAuthedBrowserProfileConfirmed("video_account");
     const base = {
       action,
       loginState,
@@ -268,7 +271,7 @@ export async function POST(request: Request) {
       }), { status: loginState === "wrong_page" ? 400 : 200 });
     }
 
-    if (loginState === "needs_login" && !body.userConfirmedLogin) {
+    if (loginState === "needs_login") {
       return Response.json(emptyResult(action, { ...base, message: "页面仍像登录页；请先完成扫码登录并勾选确认已登录。", warnings: ["needs_login"] }), { status: 400 });
     }
     if (loginState === "wrong_page") {

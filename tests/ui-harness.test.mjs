@@ -680,6 +680,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /video-account-assisted-page-scan-mvp/);
   assert.match(importPage, /video-account-assisted-page-scan/);
   assert.match(importPage, /video-account-assisted-page-save-confirm/);
+  assert.match(importPage, /点击打开后会进入专用本机窗口/);
   assert.match(importPage, /推荐不作为收藏/);
   assert.match(importPage, /视频号表格兜底/);
   assert.match(importPage, /手动更新为主/);
@@ -1084,6 +1085,7 @@ test("browser capture profile route exposes local-only session controls", () => 
   assert.match(route, /confirmAuthedBrowserProfileLogin/);
   assert.match(route, /blockedInputKeys = \["cookie", "token", "password", "header", "headers", "authorization", "raw", "request", "response", "storage", "storageState", "screenshot", "har", "trace", "credential"\]/);
   assert.match(provider, /\.local\/browser-profiles/);
+  assert.match(provider, /video_account: "https:\/\/channels\.weixin\.qq\.com\/platform\/post\/list"/);
   assert.match(provider, /noCookieTokenHeaderInBusinessDb: true/);
   assert.match(provider, /noStorageStateExport: true/);
   assert.match(provider, /noSensitiveLoginMaterialInDocsTestsOrGit: true/);
@@ -1092,6 +1094,24 @@ test("browser capture profile route exposes local-only session controls", () => 
   assert.match(config, /platform: "xiaohongshu",[\s\S]*captureMvpEnabled: true/);
   assert.match(config, /profileDirRef: "\.local\/browser-profiles\/video_account"/);
   assert.match(config, /profileDirRef: "\.local\/browser-profiles\/bilibili"/);
+});
+
+test("video account assisted page scan opens works target without saving login material", () => {
+  const route = read("src/app/api/self-media/platform-imports/browser-capture/video-account/route.ts");
+  const importPage = read("src/domain/self-media/ui/screens/ImportPage.tsx");
+  assert.match(route, /chromium\.launchPersistentContext/);
+  assert.match(route, /authedBrowserProfileDir\("video_account"\)/);
+  assert.match(route, /resolveAuthedBrowserTargetUrl\("video_account", target\)/);
+  assert.match(route, /async function openSession\(target: VideoAccountAuthedBrowserCaptureRequest\["target"\] = "works_page"\)/);
+  assert.match(route, /body\.target \?\? "works_page"/);
+  assert.ok(route.indexOf("if (/login|登录|扫码登录|请使用微信扫码|二维码|验证码/") < route.indexOf("if (userConfirmedLogin) return \"user_confirmed\""));
+  assert.match(route, /if \(loginState === "needs_login"\) \{/);
+  assert.doesNotMatch(route, /body\.userConfirmedLogin \|\| loginState === "logged_in_or_accessible"/);
+  assert.match(importPage, /runVideoAccountAuthedBrowserCapture\(action: VideoAccountAuthedBrowserCaptureResult\["action"\], target: "default" \| "works_page" = "works_page"\)/);
+  assert.match(route, /selectVideoAccountAssistantPageRows/);
+  assert.match(route, /userConfirmedContentMetrics/);
+  assert.match(route, /recommendationNotMappedToSaves: true/);
+  assert.doesNotMatch(route, /action:\s*"save"|storageState\s*\(|cookies\s*\(|setExtraHTTPHeaders|request\.headers|response\.text\(\)|screenshot\s*\(|tracing\./);
 });
 
 test("browser capture auto refresh is user-triggered preview only", () => {

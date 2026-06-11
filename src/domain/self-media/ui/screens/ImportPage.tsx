@@ -2201,7 +2201,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     }
   }
 
-  async function runVideoAccountAuthedBrowserCapture(action: VideoAccountAuthedBrowserCaptureResult["action"], target: "default" | "works_page" = "default") {
+  async function runVideoAccountAuthedBrowserCapture(action: VideoAccountAuthedBrowserCaptureResult["action"], target: "default" | "works_page" = "works_page") {
     setIsVideoAccountBrowserLoading(true);
     const labels: Record<VideoAccountAuthedBrowserCaptureResult["action"], string> = {
       open: "正在打开视频号助手",
@@ -2876,7 +2876,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
           <div className="import-guide-steps">
             <article>
               <strong>1. 打开并登录视频号助手</strong>
-              <p>系统默认不会自动打开外部窗口；如需使用专用本机窗口，请手动点击打开并完成扫码登录。</p>
+              <p>点击打开后会进入专用本机窗口；请完成扫码登录，并停在作品或数据列表页。</p>
             </article>
             <article>
               <strong>2. 扫描当前作品列表</strong>
