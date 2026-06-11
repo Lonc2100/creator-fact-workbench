@@ -36,6 +36,27 @@ Good parallel long-cycle tasks include docs/status audits, bundle attribution, p
 
 Heavy browser/E2E tasks remain serialized unless the task explicitly provides isolated ports, isolated sqlite paths, and isolated `NEXT_DIST_DIR`. Do not run multiple Playwright/Next/database smoke gates in parallel against the same local server or DB.
 
+## Auto Dispatch Pilot
+
+The project uses a Level 2 dispatch-queue pilot for next-task handoff. Workers may write durable handoffs; a local script may turn an accepted handoff into a queue candidate under `docs/handoffs/dispatch-queue/`; only the Orchestrator or fixed Ops session may decide whether to create or steer a Codex thread.
+
+Automation levels:
+
+- Level 1: generate the next prompt for the user to copy manually.
+- Level 2: generate a structured dispatch queue, then let the main/Ops session dispatch after safety checks.
+- Level 3: hook or Ops automation opens the next Worker automatically. This is not active for this repo.
+
+Recommended level: Level 2. The queue removes prompt-copy friction while preserving user gates for login, real-data save, deletion, force push, sensitive material, PRD scope changes, and heavy-gate scheduling.
+
+Dispatch queue rules:
+
+- A queue item is evidence, not permission to run.
+- Queue items must include task id, objective, plain-language summary, required reading, allowed files, forbidden files, validation commands, handoff path, and `needs_user_gate`.
+- Queue items must not contain password, cookie, token, header, storageState, raw request, raw response, screenshot, HAR, trace, or platform DOM.
+- `needs_user_gate: true` means the main/Ops session must wait for the user before dispatch or before the relevant save action.
+- Heavy gates remain serial: live 3200, browser/E2E, sqlite writes, Next build, and daily platform ops gate.
+- The queue generator must not create Codex threads, modify business code, commit, push, delete files, or save platform data.
+
 ## Runtime Quality Protocol
 
 Worker runtime is a quality signal, not a timer to game. Do not reward or punish agents for merely staying open longer. Use better task planning, task merging, extra-depth passes, and stronger handoffs to improve quality.

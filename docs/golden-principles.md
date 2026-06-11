@@ -77,6 +77,18 @@ Auditor 不能只说“建议优化”。必须指出文件、风险、验收方
 - 如果补扫会越界、改动业务代码、触发重型 gate 并行竞争或重复破坏性操作，停止补扫并说明原因；
 - 主会话用任务拆分质量、证据完整度和验证结果评价 Worker，不按耗时本身奖惩。
 
+### 11. 自动派发不能替代 Orchestrator 判断
+
+自动派发的目标是减少复制提示词和人工推进频次，不是让项目无人监管。当前项目只接受 Level 2：脚本生成 dispatch queue，主会话或固定 Ops 会话读取后再派发。
+
+必须保持：
+
+- PRD > CURRENT-PLATFORM-STATUS > closure handoff > worker handoff；
+- 子会话只能提供证据和完成任务包，不能重定义 PRD；
+- 删除文件、保存真实平台数据、登录/扫码/验证码、force push、敏感材料、主线 PRD 改动、同文件并发冲突都必须停下找用户；
+- live 3200、browser/E2E、sqlite 写入、Next build、daily gate 串行调度；
+- queue 文件是候选，不是无限循环开线程的调度器。
+
 ## Slim Refactor 模式
 
 ### Quick

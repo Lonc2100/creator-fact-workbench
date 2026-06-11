@@ -115,6 +115,37 @@ Worker 必须自己读取 `AGENTS.md`、任务包、PRD 和 `docs/handoffs/READM
 
 Worker 完成后，聊天只回四行短状态；截图、文件清单、风险和验证细节全部写进 handoff。
 
+## 自动派发试点
+
+当前项目采用 Level 2 自动派发：
+
+```text
+Worker handoff -> dispatch queue -> main/Ops safety check -> optional Codex thread dispatch
+```
+
+队列生成命令：
+
+```bash
+node scripts/self-media-next-dispatch.mjs --dry-run
+```
+
+输出：
+
+- `docs/handoffs/dispatch-queue/*.json`
+- `docs/handoffs/dispatch-queue/latest-report.md`
+
+脚本只生成候选，不开线程、不保存数据、不提交、不推送、不删除文件。详细协议见 `docs/runbooks/self-media-auto-dispatch.md`。
+
+主会话派发前必须检查：
+
+1. `dispatchStatus` 是否仍可派发。
+2. `dedupeKey` 是否已经被派发过。
+3. `needs_user_gate` 是否为 `true`；如果是，先等用户满足条件。
+4. `allowedFiles` / `forbiddenFiles` 是否和当前 dirty worktree 冲突。
+5. 是否有重型 gate 正在运行。
+
+实际创建 Codex 子会话时，主会话或固定 Ops 会话使用 Codex thread 工具。队列脚本本身不能调用 `create_thread` 或 `send_message_to_thread`。
+
 ## 主会话验收流程
 
 Worker 完成后回到主会话：
