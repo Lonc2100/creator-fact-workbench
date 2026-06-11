@@ -45,9 +45,9 @@ const platformCards: PlatformUpdateCard[] = [
   {
     key: "video_account",
     platform: "video_account",
-    headline: "手动更新为主",
-    detail: "粘贴或上传视频号内容级数据；确认保存后作为手动更新证据刷新状态。",
-    actionLabel: "手动更新视频号"
+    headline: "助手页面扫描",
+    detail: "扫描当前视频号助手作品/数据列表，先预览候选，再批量确认保存。",
+    actionLabel: "扫描视频号助手"
   },
   {
     key: "bilibili",
@@ -112,10 +112,10 @@ function freshnessPolicyFor(snapshot: DashboardSnapshot, key: ImportUpdatePanelK
 function defaultFlowState(snapshot: DashboardSnapshot, key: ImportUpdatePanelKey): ImportPlatformFlowState {
   if (key === "video_account") {
     return {
-      label: "当前平台暂不支持自动抓取",
+      label: "可扫描当前助手页",
       tone: "info",
-      nextAction: "视频号以手动更新为主：粘贴或上传内容级数据，预览后再确认保存。",
-      detail: "确认保存会作为视频号手动更新证据；登录抓取需要扫码，暂不作为每日自动流程。"
+      nextAction: "打开并登录视频号助手，切到作品/数据列表后扫描当前页面；保存前仍需人工确认。",
+      detail: "默认不会自动开窗或自动保存；粘贴/上传表格仍作为兜底。"
     };
   }
   if (key === "bilibili") {
@@ -186,7 +186,7 @@ function refreshChecklistNextAction(key: ImportUpdatePanelKey, freshness: Import
     return isFresh ? "可先看数据；需要补抓时展开小红书更新。" : "打开小红书更新，切到内容分析表格页后读取。";
   }
   if (key === "video_account") {
-    return isFresh ? "可先看数据；有新作品时手动更新视频号。" : "准备作品级数据，手动粘贴或上传后预览。";
+    return isFresh ? "可先看数据；有新作品时扫描视频号助手当前页。" : "打开视频号助手作品/数据列表，扫描当前页生成预览。";
   }
   return isFresh ? "可先看数据；有新稿件时导入 B站内容级表格。" : "导入当前稿件级表格；账号指标仍 preview-only。";
 }

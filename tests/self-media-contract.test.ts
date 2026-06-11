@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { BilibiliPersonalProvider, CsvPresetProvider, DouyinPersonalProvider, FakeSelfMediaProvider, getAuthedBrowserProfileStatusView, ManualImportProvider, MediaCrawlerImportProvider, N8nExecutionProvider, VideoAccountPersonalProvider, WechatOfficialProvider, XiaohongshuPersonalProvider, previewBilibiliAccountMetricSnapshots } from "../src/domain/self-media/providers";
+import { BilibiliPersonalProvider, CsvPresetProvider, DouyinPersonalProvider, FakeSelfMediaProvider, getAuthedBrowserProfileStatusView, ManualImportProvider, MediaCrawlerImportProvider, N8nExecutionProvider, selectVideoAccountAssistantPageRows, VideoAccountPersonalProvider, WechatOfficialProvider, XiaohongshuPersonalProvider, previewBilibiliAccountMetricSnapshots } from "../src/domain/self-media/providers";
 import { SqliteSelfMediaRepo } from "../src/domain/self-media/repo";
 import { getSaveEnabledPlatformImportOperationPlatforms, runSelfMediaPlatformImportOperation } from "../src/domain/self-media/runtime";
 import { SelfMediaService, buildDataCaptureScheduleReliability, buildTrustedAutoCaptureScheduler, generateReview, readDailyPlatformOpsGateView, readDailySelfMediaOpsView, readPlatformDataHealthView, readTrustedDashboardAuditView } from "../src/domain/self-media/service";
@@ -1698,7 +1698,7 @@ test("video account personal provider maps sanitized post-list captures into int
         data: {
           list: [
             {
-              objectId: "export/video-account-own-1",
+              objectId: "export/UzFfBgAAxKWDHHsCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg",
               createTime: 1780314367,
               likeCount: 450,
               commentCount: 59,
@@ -1728,8 +1728,8 @@ test("video account personal provider maps sanitized post-list captures into int
       body: {
         data: {
           list: [
-            { objectId: "export/video-account-own-1", readCount: 257494, likeCount: 451, commentCount: 60, forwardAggregationCount: 595, favCount: 1750, followCount: 181, desc: { shortTitle: "视频号个人作品一互动更新" } },
-            { objectId: "export/public-or-unmatched", readCount: 999 }
+            { objectId: "export/UzFfBgAAxKWDHHsCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg", readCount: 257494, likeCount: 451, commentCount: 60, forwardAggregationCount: 595, favCount: 1750, followCount: 181, desc: { shortTitle: "视频号个人作品一互动更新" } },
+            { objectId: "export/UzFfBgAAxPublicUnmatchedCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg", readCount: 999 }
           ]
         }
       }
@@ -1738,7 +1738,7 @@ test("video account personal provider maps sanitized post-list captures into int
       file: "raw/bullet-chat.json",
       capturedAt: "2026-06-03T16:58:00.000Z",
       urlSanitized: "https://channels.weixin.qq.com/micro/interaction/cgi-bin/mmfinderassistant-bin/bullet-chat/feed-list",
-      body: { data: { list: [{ objectId: "export/video-account-own-1", readCount: 257495, likeCount: 452, commentCount: 61, forwardCount: 596, favCount: 1751, followCount: 182, commentList: [{ content: "不应导入评论正文" }] }] } }
+      body: { data: { list: [{ objectId: "export/UzFfBgAAxKWDHHsCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg", readCount: 257495, likeCount: 452, commentCount: 61, forwardCount: 596, favCount: 1751, followCount: 182, commentList: [{ content: "不应导入评论正文" }] }] } }
     },
     {
       file: "raw/private-msg.json",
@@ -1779,7 +1779,7 @@ test("video account personal provider refuses incomplete post-list rows as durab
         data: {
           list: [
             {
-              objectId: "export/video-account-no-title",
+              objectId: "export/UzFfBgAAxNoTitleCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg",
               createTime: 1780314367,
               readCount: 100,
               likeCount: 10,
@@ -1788,7 +1788,7 @@ test("video account personal provider refuses incomplete post-list rows as durab
               desc: {}
             },
             {
-              objectId: "export/video-account-no-time",
+              objectId: "export/UzFfBgAAxNoTimeCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg",
               readCount: 100,
               likeCount: 10,
               commentCount: 1,
@@ -1796,7 +1796,7 @@ test("video account personal provider refuses incomplete post-list rows as durab
               desc: { shortTitle: "缺少发布时间" }
             },
             {
-              objectId: "export/video-account-no-shares",
+              objectId: "export/UzFfBgAAxNoShareCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg",
               createTime: 1780314367,
               readCount: 100,
               likeCount: 10,
@@ -1813,7 +1813,7 @@ test("video account personal provider refuses incomplete post-list rows as durab
       urlSanitized: "https://channels.weixin.qq.com/micro/interaction/cgi-bin/mmfinderassistant-bin/post/post_list",
       body: {
         data: {
-          list: [{ objectId: "export/video-account-interaction-only", readCount: 999, likeCount: 99, commentCount: 9, forwardCount: 8, desc: { shortTitle: "互动孤行" } }]
+          list: [{ objectId: "export/UzFfBgAAxInteractionOnlyCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg", readCount: 999, likeCount: 99, commentCount: 9, forwardCount: 8, desc: { shortTitle: "互动孤行" } }]
         }
       }
     }
@@ -1828,6 +1828,70 @@ test("video account personal provider refuses incomplete post-list rows as durab
   assert.ok(payload.warnings?.some((item) => item.includes("shares=1")));
   assert.ok(payload.warnings?.some((item) => item.includes("interaction rows that did not match content post ids")));
   assert.ok(payload.warnings?.some((item) => item.includes("no personal post rows")));
+});
+
+test("video account assisted page scanner previews candidates and keeps recommendation out of saves", () => {
+  const rows = selectVideoAccountAssistantPageRows([
+    {
+      text: "原创AI短片《星落之后》 2026-06-10 12:30 播放量 407 点赞 1 评论 0 推荐 22 分享 3",
+      tagName: "tr",
+      role: "row",
+      className: "table-row",
+      idAttr: "row-1",
+      titleAttr: "原创AI短片《星落之后》",
+      hrefs: ["https://weixin.qq.com/sph/AH6eG1lD9"],
+      dataValues: ["export/UzFfBgAAxKWDHHsCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg"],
+      cells: ["原创AI短片《星落之后》", "2026-06-10 12:30", "407", "1", "0", "22", "3"],
+      columnNames: ["作品", "发布时间", "播放量", "点赞", "评论", "推荐", "分享"],
+      childCandidateCount: 0
+    }
+  ], "2026-06-11T09:00:00.000Z");
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].canSave, true);
+  assert.equal(rows[0].views, 407);
+  assert.equal(rows[0].likes, 1);
+  assert.equal(rows[0].comments, 0);
+  assert.equal(rows[0].saves, 0);
+  assert.equal(rows[0].shares, 3);
+  assert.equal(rows[0].nativeIdConfidence, "stable_platform_id");
+  assert.ok(rows[0].warnings.includes("video_account_recommendation_not_mapped_to_saves"));
+
+  const payload = new VideoAccountPersonalProvider().fromBrowserVisibleRows(rows);
+  assert.equal(payload.source, "video_account_creator_center");
+  assert.equal(payload.contents.length, 1);
+  assert.equal(payload.metrics.length, 1);
+  assert.equal(payload.metrics[0].saves, 0);
+  assert.equal(payload.metrics[0].shares, 3);
+  assert.ok(payload.contents[0].notes?.includes("video_account_assisted_page_scan:manual_confirmed"));
+  assert.ok(payload.contents[0].notes?.includes("recommendation_not_mapped_to_saves"));
+});
+
+test("video account assisted page scanner blocks rows without stable id or same-row metrics", () => {
+  const rows = selectVideoAccountAssistantPageRows([
+    {
+      text: "视频号作品 2026-06-10 播放量 407 点赞 1 评论 0",
+      tagName: "div",
+      role: "row",
+      className: "card",
+      idAttr: "short",
+      titleAttr: "视频号作品",
+      hrefs: [],
+      dataValues: ["AJ4t"],
+      cells: ["视频号作品", "2026-06-10", "407", "1", "0"],
+      columnNames: ["作品", "发布时间", "播放量", "点赞", "评论"],
+      childCandidateCount: 0
+    }
+  ], "2026-06-11T09:00:00.000Z");
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].canSave, false);
+  assert.ok(rows[0].missingFields.includes("stableIdOrLink"));
+  assert.ok(rows[0].missingFields.includes("shares"));
+  const payload = new VideoAccountPersonalProvider().fromBrowserVisibleRows(rows);
+  assert.equal(payload.contents.length, 0);
+  assert.equal(payload.metrics.length, 0);
+  assert.ok(payload.warnings?.some((item) => item.includes("skipped 1 blocked")));
 });
 
 test("video account personal captures import into metric snapshots without private or raw payload persistence", () => {
@@ -1845,7 +1909,7 @@ test("video account personal captures import into metric snapshots without priva
           data: {
             list: [
               {
-                objectId: "export/video-account-import-1",
+                objectId: "export/UzFfBgAAxImportOneCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg",
                 createTime: 1780314367,
                 readCount: 1024,
                 likeCount: 88,
@@ -2495,7 +2559,7 @@ test("platform import statuses summarize priority creator-center runs", async ()
       file: "raw/content-post-list.json",
       capturedAt: "2026-06-03T16:56:00.000Z",
       urlSanitized: "https://channels.weixin.qq.com/micro/content/cgi-bin/mmfinderassistant-bin/post/post_list",
-      body: { data: { list: [{ objectId: "export/video-status-1", createTime: 1780314367, readCount: 1024, likeCount: 88, commentCount: 6, forwardCount: 7, desc: { shortTitle: "视频号状态作品" } }] } }
+      body: { data: { list: [{ objectId: "export/UzFfBgAAxStatusOneCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg", createTime: 1780314367, readCount: 1024, likeCount: 88, commentCount: 6, forwardCount: 7, desc: { shortTitle: "视频号状态作品" } }] } }
     }
   ]);
   const snapshot = await service.dashboard();

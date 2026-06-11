@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AuthedBrowserAutoRefreshResult, AuthedBrowserPlatform, AuthedBrowserProfileStatus, AuthedBrowserProfileStatusView, CsvImportPreset, DashboardSnapshot, DouyinAuthedBrowserCaptureResult, DouyinBrowserVisibleRow, ImportPreviewResult, PlatformImportOperationAction, PlatformImportOperationCapability, PlatformImportOperationPlatform, PlatformImportOperationResult, PlatformImportStatus, RealImportPreviewRow, XiaohongshuAuthedBrowserCaptureResult, XiaohongshuBrowserVisibleRow } from "../../types";
+import type { AuthedBrowserAutoRefreshResult, AuthedBrowserPlatform, AuthedBrowserProfileStatus, AuthedBrowserProfileStatusView, CsvImportPreset, DashboardSnapshot, DouyinAuthedBrowserCaptureResult, DouyinBrowserVisibleRow, ImportPreviewResult, PlatformImportOperationAction, PlatformImportOperationCapability, PlatformImportOperationPlatform, PlatformImportOperationResult, PlatformImportStatus, RealImportPreviewRow, VideoAccountAuthedBrowserCaptureResult, VideoAccountBrowserVisibleRow, XiaohongshuAuthedBrowserCaptureResult, XiaohongshuBrowserVisibleRow } from "../../types";
 import { AppShell } from "../components/AppShell";
 import { PageHeader } from "../components/PageHeader";
 import { PlatformBadge } from "../components/PlatformBadge";
@@ -53,7 +53,12 @@ const warningLabels: Record<string, string> = {
   missing_native_id_or_url: "缺少原生 ID 或链接",
   fallback_id_from_visible_text: "ID 仅由页面文字生成，不能当作稳定平台 ID",
   not_creator_center_owned_works_page: "当前页未证明是本人作品管理页",
-  no_metric_number_detected: "未识别到指标数字"
+  no_metric_number_detected: "未识别到指标数字",
+  video_account_recommendation_not_mapped_to_saves: "已识别推荐字段，但不会当作收藏保存",
+  video_account_page_scan_blocked: "字段不完整，暂不保存",
+  video_account_assistant_not_opened: "需要先打开视频号助手页面",
+  wrong_video_account_page: "需要切到视频号助手作品/数据列表页",
+  no_visible_video_account_work_rows: "未识别到可靠作品行"
 };
 
 const normalizedMetricLabels: Record<string, string> = {
@@ -383,7 +388,7 @@ function summaryWarnings(summary: PlatformImportOperationResult["summaries"][num
   return summary.errorMessage ? [summary.errorMessage, ...summary.warnings] : summary.warnings;
 }
 
-function sourcePageKindLabel(value?: DouyinBrowserVisibleRow["sourcePageKind"] | XiaohongshuBrowserVisibleRow["sourcePageKind"]) {
+function sourcePageKindLabel(value?: DouyinBrowserVisibleRow["sourcePageKind"] | XiaohongshuBrowserVisibleRow["sourcePageKind"] | VideoAccountBrowserVisibleRow["sourcePageKind"]) {
   if (value === "creator_center_owned_works") return "本人后台作品页";
   if (value === "creator_center_owned_detail") return "本人后台详情页";
   if (value === "creator_center_data_analysis_table") return "内容分析表格";
@@ -392,14 +397,15 @@ function sourcePageKindLabel(value?: DouyinBrowserVisibleRow["sourcePageKind"] |
   return "后台页待确认";
 }
 
-function nativeIdConfidenceLabel(value?: DouyinBrowserVisibleRow["nativeIdConfidence"] | XiaohongshuBrowserVisibleRow["nativeIdConfidence"]) {
+function nativeIdConfidenceLabel(value?: DouyinBrowserVisibleRow["nativeIdConfidence"] | XiaohongshuBrowserVisibleRow["nativeIdConfidence"] | VideoAccountBrowserVisibleRow["nativeIdConfidence"]) {
   if (value === "stable_platform_id") return "平台 ID 可靠";
   if (value === "visible_platform_id") return "页面 ID 可见";
   if (value === "fallback_text_hash") return "文字 fallback ID";
   return "ID 缺失";
 }
 
-function canSaveAuthedBrowserRow(row: DouyinBrowserVisibleRow | XiaohongshuBrowserVisibleRow) {
+function canSaveAuthedBrowserRow(row: DouyinBrowserVisibleRow | XiaohongshuBrowserVisibleRow | VideoAccountBrowserVisibleRow) {
+  if ("canSave" in row) return row.canSave;
   const isXiaohongshuRow = "format" in row || "noteUrl" in row;
   const trustedContext = isXiaohongshuRow
     ? row.sourcePageKind === "creator_center_data_analysis_table" && row.confidence === "owned_creator_center_data_analysis_table"
@@ -409,6 +415,55 @@ function canSaveAuthedBrowserRow(row: DouyinBrowserVisibleRow | XiaohongshuBrows
     && (row.nativeIdConfidence === "stable_platform_id" || row.nativeIdConfidence === "visible_platform_id")
     && Boolean(row.nativeId)
     && row.views + row.likes + row.comments + row.saves + row.shares > 0;
+}
+
+function VideoAccountAuthedBrowserRows({ rows }: { rows: VideoAccountBrowserVisibleRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <div className="real-preview-empty" data-testid="video-account-assisted-page-scan-preview">
+        <strong>暂无视频号助手页面扫描预览</strong>
+        <span>请打开视频号助手并登录，切到作品或数据列表页；每行需要标题、发布时间、播放/曝光、点赞、评论、分享和稳定链接。</span>
+      </div>
+    );
+  }
+  return (
+    <div className="table-wrap video-account-assisted-page-scan-preview">
+      <table className="sm-table" data-testid="video-account-assisted-page-scan-preview">
+        <thead>
+          <tr>
+            <th>作品</th>
+            <th>播放/曝光</th>
+            <th>点赞</th>
+            <th>评论</th>
+            <th>收藏</th>
+            <th>分享/转发</th>
+            <th>确认状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>
+                <strong>{row.title}</strong>
+                <small>{row.publishedAt ? formatDateTime(row.publishedAt) : "发布时间未识别"} · {row.nativeId ?? row.id}</small>
+              </td>
+              <td>{formatNumber(row.views)}</td>
+              <td>{formatNumber(row.likes)}</td>
+              <td>{formatNumber(row.comments)}</td>
+              <td>{formatNumber(row.saves)}</td>
+              <td>{formatNumber(row.shares)}</td>
+              <td>
+                <Badge tone={row.canSave ? "success" : "warning"}>{row.canSave ? "可保存候选" : "阻止保存"}</Badge>
+                <small>{sourcePageKindLabel(row.sourcePageKind)} · {nativeIdConfidenceLabel(row.nativeIdConfidence)}</small>
+                {row.missingFields.length > 0 && <small>缺少：{row.missingFields.join(" / ")}</small>}
+                {row.warnings.length > 0 && <small>{operatorWarnings(row.warnings).join(" / ")}</small>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function DouyinAuthedBrowserRows({ rows }: { rows: DouyinBrowserVisibleRow[] }) {
@@ -1622,6 +1677,40 @@ function humanXiaohongshuBrowserMessage(message: string | undefined, action: Xia
   return "这次没有读到笔记数据。请确认小红书后台已打开，并切到笔记管理或数据表现页再抓。";
 }
 
+function videoAccountBrowserLoginStateLabel(state?: VideoAccountAuthedBrowserCaptureResult["loginState"]) {
+  const labels: Record<VideoAccountAuthedBrowserCaptureResult["loginState"], string> = {
+    not_opened: "未打开",
+    needs_login: "待登录",
+    user_confirmed: "已确认登录",
+    logged_in_or_accessible: "已登录",
+    wrong_page: "页面不对",
+    unknown: "待确认",
+    closed: "已关闭",
+    error: "异常"
+  };
+  return state ? labels[state] : "未打开";
+}
+
+function humanVideoAccountBrowserMessage(message: string | undefined, action: VideoAccountAuthedBrowserCaptureResult["action"]) {
+  const normalized = `${message ?? ""} ${action}`;
+  if (/cookie|token|password|header|headers|raw|request|storage|credential|sensitive/i.test(normalized)) {
+    return "这次输入包含登录材料，系统不会接收或保存；请只在视频号助手网页里完成登录。";
+  }
+  if (/wrong_page|不是视频号助手|切到视频号助手|作品\/数据列表页/i.test(normalized)) {
+    return "请切到视频号助手的作品或数据列表页；导航、账号总览和说明页不会保存。";
+  }
+  if (/not_opened|needs_login|login|登录|未打开|未登录|扫码/i.test(normalized) && action !== "capture_preview") {
+    return "请先打开视频号助手并完成扫码登录。";
+  }
+  if (/已从当前视频号助手页面识别|候选|保存前请确认/.test(message ?? "")) return message ?? "";
+  if (/未识别|作品行|列表|current page|capture_preview/i.test(normalized) || action === "capture_preview") {
+    return "请切到视频号助手作品/数据列表页，再扫描当前页面。";
+  }
+  return message && !/cookie|token|password|header|headers|raw|request|storage|credential/i.test(message)
+    ? message
+    : "这次没有读到视频号作品数据。请确认助手页已打开，并切到作品/数据列表。";
+}
+
 export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [currentSnapshot, setCurrentSnapshot] = useState(snapshot);
   const [preset, setPreset] = useState<CsvImportPreset>("douyin");
@@ -1657,6 +1746,10 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [videoAccountPreview, setVideoAccountPreview] = useState<ImportPreviewResult | null>(null);
   const [videoAccountConfirmed, setVideoAccountConfirmed] = useState(false);
   const [videoAccountMessage, setVideoAccountMessage] = useState("等待视频号手动更新表");
+  const [videoAccountBrowserResult, setVideoAccountBrowserResult] = useState<VideoAccountAuthedBrowserCaptureResult | null>(null);
+  const [videoAccountBrowserLoginConfirmed, setVideoAccountBrowserLoginConfirmed] = useState(false);
+  const [videoAccountBrowserMetricsConfirmed, setVideoAccountBrowserMetricsConfirmed] = useState(false);
+  const [videoAccountBrowserMessage, setVideoAccountBrowserMessage] = useState("等待扫描视频号助手页面");
   const [bilibiliCsv, setBilibiliCsv] = useState("");
   const [bilibiliFile, setBilibiliFile] = useState<File | null>(null);
   const [bilibiliPreview, setBilibiliPreview] = useState<ImportPreviewResult | null>(null);
@@ -1670,6 +1763,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [isXiaohongshuLoading, setIsXiaohongshuLoading] = useState(false);
   const [isXiaohongshuBrowserLoading, setIsXiaohongshuBrowserLoading] = useState(false);
   const [isVideoAccountLoading, setIsVideoAccountLoading] = useState(false);
+  const [isVideoAccountBrowserLoading, setIsVideoAccountBrowserLoading] = useState(false);
   const [isBilibiliLoading, setIsBilibiliLoading] = useState(false);
   const [expandedImportPanel, setExpandedImportPanel] = useState<ImportUpdatePanelKey | null>(null);
   const startupAutoRefreshStarted = useRef(false);
@@ -1690,6 +1784,9 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const xiaohongshuBrowserRows = xiaohongshuBrowserResult?.rows ?? [];
   const xiaohongshuBrowserSaveCandidateCount = xiaohongshuBrowserRows.filter(canSaveAuthedBrowserRow).length;
   const canSaveXiaohongshuBrowserCapture = xiaohongshuBrowserSaveCandidateCount > 0 && xiaohongshuBrowserLoginConfirmed && xiaohongshuBrowserMetricsConfirmed;
+  const videoAccountBrowserRows = videoAccountBrowserResult?.rows ?? [];
+  const videoAccountBrowserSaveCandidateCount = videoAccountBrowserRows.filter(canSaveAuthedBrowserRow).length;
+  const canSaveVideoAccountBrowserCapture = videoAccountBrowserSaveCandidateCount > 0 && videoAccountBrowserLoginConfirmed && videoAccountBrowserMetricsConfirmed;
   const importCaptureStates = useMemo<Partial<Record<ImportUpdatePanelKey, ImportPlatformFlowState>>>(() => {
     const douyinState: ImportPlatformFlowState = douyinBrowserSaveCandidateCount > 0
       ? {
@@ -1751,19 +1848,40 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
               detail: "页面不会自动打开平台窗口。"
             };
 
-    const videoAccountState: ImportPlatformFlowState = videoAccountStats.confirmable > 0
+    const videoAccountState: ImportPlatformFlowState = videoAccountBrowserSaveCandidateCount > 0
       ? {
           label: "已抓到预览，等待确认保存",
           tone: "success",
-          nextAction: `已识别 ${formatNumber(videoAccountStats.confirmable)} 条视频号可保存数据；展开后确认来源再保存。`,
-          detail: "视频号仍以手动更新为主。"
+          nextAction: `已识别 ${formatNumber(videoAccountBrowserSaveCandidateCount)} 条视频号页面扫描候选；展开后确认来源再保存。`,
+          detail: "保存仍需你勾选确认，不会自动写入看板。"
         }
-      : {
-          label: "当前平台暂不支持自动抓取",
-          tone: "info",
-          nextAction: "视频号主路径是手动录入或粘贴内容级数据；登录抓取需扫码，暂不作为每日自动流程。",
-          detail: "保存前仍会先预览字段。"
-        };
+      : videoAccountBrowserResult?.loginState === "needs_login" || videoAccountBrowserResult?.loginState === "not_opened"
+        ? {
+            label: "需要登录",
+            tone: "warning",
+            nextAction: "请先在视频号助手完成扫码登录，然后回到这里确认已登录并扫描当前页。",
+            detail: "系统不会在扫描动作里自动打开外部窗口。"
+          }
+        : videoAccountBrowserResult?.loginState === "wrong_page" || (videoAccountBrowserResult && videoAccountBrowserRows.length === 0)
+          ? {
+              label: "需要切到作品/数据页面",
+              tone: "warning",
+              nextAction: "请切到视频号助手作品或数据列表页；每行需能对应标题、发布时间和内容指标。",
+              detail: videoAccountBrowserMessage
+            }
+          : videoAccountStats.confirmable > 0
+            ? {
+                label: "手动表格待确认",
+                tone: "success",
+                nextAction: `已识别 ${formatNumber(videoAccountStats.confirmable)} 条视频号表格可保存数据；展开后确认来源再保存。`,
+                detail: "表格保存仍需你勾选确认。"
+              }
+            : {
+                label: "可扫描当前助手页",
+                tone: "info",
+                nextAction: "打开并登录视频号助手，切到作品/数据列表后，扫描当前页面生成预览。",
+                detail: "默认不会自动保存；表格粘贴仍作为兜底。"
+              };
 
     const bilibiliState: ImportPlatformFlowState = bilibiliStats.confirmable > 0
       ? {
@@ -1792,6 +1910,10 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
     douyinBrowserResult,
     douyinBrowserRows.length,
     douyinBrowserSaveCandidateCount,
+    videoAccountBrowserMessage,
+    videoAccountBrowserResult,
+    videoAccountBrowserRows.length,
+    videoAccountBrowserSaveCandidateCount,
     videoAccountStats.confirmable,
     xiaohongshuBrowserLoginConfirmed,
     xiaohongshuBrowserMessage,
@@ -1852,6 +1974,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       await refreshAuthedBrowserProfiles();
       if (platform === "douyin" && action === "confirm_login") setDouyinBrowserLoginConfirmed(true);
       if (platform === "xiaohongshu" && action === "confirm_login") setXiaohongshuBrowserLoginConfirmed(true);
+      if (platform === "video_account" && action === "confirm_login") setVideoAccountBrowserLoginConfirmed(true);
     } catch (error) {
       setBrowserProfileMessage(error instanceof Error ? error.message : "浏览器会话操作失败");
     } finally {
@@ -2075,6 +2198,49 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
       setXiaohongshuBrowserMessage(humanXiaohongshuBrowserMessage(error instanceof Error ? error.message : undefined, action));
     } finally {
       setIsXiaohongshuBrowserLoading(false);
+    }
+  }
+
+  async function runVideoAccountAuthedBrowserCapture(action: VideoAccountAuthedBrowserCaptureResult["action"], target: "default" | "works_page" = "default") {
+    setIsVideoAccountBrowserLoading(true);
+    const labels: Record<VideoAccountAuthedBrowserCaptureResult["action"], string> = {
+      open: "正在打开视频号助手",
+      status: "正在检查视频号助手页面",
+      capture_preview: "正在扫描当前视频号助手页面",
+      save: "正在保存视频号内容级指标",
+      close: "正在关闭视频号助手窗口"
+    };
+    setVideoAccountBrowserMessage(labels[action]);
+    try {
+      const response = await fetch("/api/self-media/platform-imports/browser-capture/video-account", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action,
+          target: action === "open" ? target : undefined,
+          userConfirmedLogin: videoAccountBrowserLoginConfirmed,
+          userConfirmedContentMetrics: videoAccountBrowserMetricsConfirmed
+        })
+      });
+      const body = await response.json() as VideoAccountAuthedBrowserCaptureResult;
+      setVideoAccountBrowserResult(body);
+      setVideoAccountBrowserMessage(humanVideoAccountBrowserMessage(body.message, action));
+      refreshAuthedBrowserProfiles().catch(() => undefined);
+      if (!response.ok) return;
+      if (action === "capture_preview") setVideoAccountBrowserMetricsConfirmed(false);
+      if (action === "save") {
+        const dashboardResponse = await fetch("/api/self-media/dashboard");
+        setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
+        setVideoAccountBrowserMetricsConfirmed(false);
+      }
+      if (action === "close") {
+        setVideoAccountBrowserLoginConfirmed(false);
+        setVideoAccountBrowserMetricsConfirmed(false);
+      }
+    } catch (error) {
+      setVideoAccountBrowserMessage(humanVideoAccountBrowserMessage(error instanceof Error ? error.message : undefined, action));
+    } finally {
+      setIsVideoAccountBrowserLoading(false);
     }
   }
 
@@ -2694,16 +2860,81 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         >
           <summary>
             <span>
-              <strong>视频号手动更新</strong>
-              <small>粘贴或上传本人内容级数据</small>
+              <strong>视频号助手页面扫描</strong>
+              <small>先扫描预览，再批量确认保存</small>
             </span>
             <i>展开</i>
           </summary>
         <Panel
+          className="video-account-assisted-page-scan-mvp"
+          data-testid="video-account-assisted-page-scan-mvp"
+          id="video-account-assisted-page-scan"
+          title="扫描当前视频号助手页面"
+          eyebrow="视频号"
+          action={<Badge tone={videoAccountBrowserRows.length > 0 ? "success" : videoAccountBrowserResult?.browserOpened ? "info" : "warning"}>{videoAccountBrowserRows.length > 0 ? `${videoAccountBrowserRows.length} 条候选` : videoAccountBrowserResult?.browserOpened ? "会话已开" : "待连接"}</Badge>}
+        >
+          <div className="import-guide-steps">
+            <article>
+              <strong>1. 打开并登录视频号助手</strong>
+              <p>系统默认不会自动打开外部窗口；如需使用专用本机窗口，请手动点击打开并完成扫码登录。</p>
+            </article>
+            <article>
+              <strong>2. 扫描当前作品列表</strong>
+              <p>只从当前可见作品行读取标题、发布时间、稳定链接或 export ID，以及同一行内容指标。</p>
+            </article>
+            <article>
+              <strong>3. 预览后批量确认</strong>
+              <p>缺字段或字段不能稳定对应的行会阻止保存；推荐不会被当作收藏写入。</p>
+            </article>
+          </div>
+          <div className="login-safety-box" data-testid="video-account-assisted-page-scan-safety">
+            <strong>安全边界</strong>
+            <p>本流程不接收、不保存账号密码或登录材料；扫描结果只在下方形成预览，勾选确认前不会写入看板。</p>
+          </div>
+          <div className="form-grid">
+            <label className="import-confirm-check">
+              <input
+                checked={videoAccountBrowserLoginConfirmed}
+                data-testid="video-account-assisted-page-login-confirm"
+                onChange={(event) => setVideoAccountBrowserLoginConfirmed(event.target.checked)}
+                type="checkbox"
+              />
+              <span>我已打开并登录视频号助手，当前页面是作品或数据列表页。</span>
+            </label>
+            <label className="import-confirm-check">
+              <input
+                checked={videoAccountBrowserMetricsConfirmed}
+                data-testid="video-account-assisted-page-save-confirm"
+                disabled={videoAccountBrowserSaveCandidateCount === 0 || isVideoAccountBrowserLoading}
+                onChange={(event) => setVideoAccountBrowserMetricsConfirmed(event.target.checked)}
+                type="checkbox"
+              />
+              <span>我确认下方可保存候选来自本人视频号助手当前页；推荐不作为收藏，保存后进入数据看板。</span>
+            </label>
+            <div className="import-preview-actions">
+              <Button data-testid="video-account-assisted-page-open" onClick={() => runVideoAccountAuthedBrowserCapture("open")} variant="secondary" disabled={isVideoAccountBrowserLoading}>{isVideoAccountBrowserLoading ? "处理中" : "打开视频号助手"}</Button>
+              <Button data-testid="video-account-assisted-page-status" onClick={() => runVideoAccountAuthedBrowserCapture("status")} variant="ghost" disabled={isVideoAccountBrowserLoading}>检查当前助手页</Button>
+              <Button data-testid="video-account-assisted-page-scan" onClick={() => runVideoAccountAuthedBrowserCapture("capture_preview")} variant="secondary" disabled={isVideoAccountBrowserLoading || !videoAccountBrowserLoginConfirmed}>扫描当前助手页面</Button>
+              <Button data-testid="video-account-assisted-page-save" onClick={() => runVideoAccountAuthedBrowserCapture("save")} variant="primary" disabled={isVideoAccountBrowserLoading || !canSaveVideoAccountBrowserCapture}>批量确认保存</Button>
+              <Button data-testid="video-account-assisted-page-close" onClick={() => runVideoAccountAuthedBrowserCapture("close")} variant="ghost" disabled={isVideoAccountBrowserLoading}>关闭扫描窗口</Button>
+              <a className="sm-button sm-button-secondary" data-testid="video-account-assisted-page-dashboard-link" href="/dashboard">查看数据看板</a>
+              <span>{videoAccountBrowserMessage}</span>
+            </div>
+          </div>
+          <div className="real-preview-summary">
+            <span><b>{videoAccountBrowserLoginStateLabel(videoAccountBrowserResult?.loginState)}</b> 登录状态</span>
+            <span><b>{formatNumber(videoAccountBrowserRows.length)}</b> 页面候选</span>
+            <span><b>{formatNumber(videoAccountBrowserSaveCandidateCount)}</b> 可保存候选</span>
+            <span><b>{formatNumber(videoAccountBrowserResult?.metricCount ?? 0)}</b> 内容指标</span>
+            <span><b>{videoAccountBrowserResult?.ok && videoAccountBrowserResult.action === "save" ? "已保存" : "未保存"}</b> 保存状态</span>
+          </div>
+          <VideoAccountAuthedBrowserRows rows={videoAccountBrowserRows} />
+        </Panel>
+        <Panel
           className="video-account-local-file-mvp"
           data-testid="video-account-local-file-mvp"
-          title="视频号手动更新"
-          eyebrow="手动更新为主"
+          title="视频号表格兜底"
+          eyebrow="粘贴 / 上传"
           action={<Badge tone={videoAccountStats.blocked > 0 ? "warning" : videoAccountStats.total > 0 ? "success" : "info"}>{videoAccountStats.confirmable} 行可保存</Badge>}
         >
           <div className="import-guide-steps">

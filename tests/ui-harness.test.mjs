@@ -481,14 +481,14 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importOverview, /key: "bilibili"/);
   assert.match(importOverview, /登录抓取可用/);
   assert.match(importOverview, /内容分析表格可用/);
-  assert.match(importOverview, /手动更新为主/);
+  assert.match(importOverview, /助手页面扫描/);
   assert.match(importOverview, /内容级导入可用/);
   assert.match(importOverview, /账号指标仍 preview-only/);
-  assert.match(importOverview, /视频号手动更新证据/);
+  assert.match(importOverview, /批量确认保存/);
   assert.match(importOverview, /B站内容级导入证据/);
   assert.match(importOverview, /打开抖音更新/);
   assert.match(importOverview, /打开小红书更新/);
-  assert.match(importOverview, /手动更新视频号/);
+  assert.match(importOverview, /扫描视频号助手/);
   assert.match(importOverview, /导入 B站数据/);
   assert.match(importOverview, /import-first-screen-boundary/);
   assert.match(importOverview, /ImportPlatformFlowState/);
@@ -500,7 +500,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importOverview, /暂无最近刷新记录，建议先补一次内容级数据/);
   assert.match(importOverview, /登录创作者中心后回到这里重新检查\/预览/);
   assert.match(importOverview, /切到内容分析表格页后读取/);
-  assert.match(importOverview, /准备作品级数据，手动粘贴或上传后预览/);
+  assert.match(importOverview, /打开视频号助手作品\/数据列表，扫描当前页生成预览/);
   assert.match(importOverview, /导入当前稿件级表格/);
   assert.match(importOverview, /24 小时内新鲜/);
   assert.match(importOverview, /24-72 小时建议刷新/);
@@ -510,7 +510,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importOverview, /需要刷新/);
   assert.match(importOverview, /可刷新/);
   assert.match(importOverview, /需要登录/);
-  assert.match(importOverview, /当前平台暂不支持自动抓取/);
+  assert.match(importOverview, /可扫描当前助手页/);
   assert.match(importOverview, /import-platform-next-step/);
   assert.match(importOverview, /import-platform-freshness/);
   assert.match(importOverview, /import-platform-check-status/);
@@ -533,7 +533,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /已抓到预览，等待确认保存/);
   assert.match(importPage, /请先在打开的抖音创作者中心登录/);
   assert.match(importPage, /请切到数据看板 \/ 内容分析 \/ 笔记数据表格/);
-  assert.match(importPage, /视频号主路径是手动录入或粘贴内容级数据/);
+  assert.match(importPage, /扫描当前视频号助手页面/);
   assert.match(importPage, /B站可导入稿件内容级表格/);
   assert.match(importPage, /切到作品管理页/);
   assert.match(importPage, /请切到作品管理页再抓/);
@@ -541,7 +541,7 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /连接平台：待官方能力确认/);
   assert.match(importPage, /未确认公开稳定个人创作者数据 API/);
   assert.match(importPage, /官方能力待确认，个人创作者不默认假设可用/);
-  assert.match(importPage, /视频号手动更新为主/);
+  assert.match(importPage, /视频号助手页面扫描/);
   assert.match(importPage, /账号指标 preview-only/);
   assert.match(importPage, /trustedAutoCaptureScheduler/);
   assert.match(importPage, /login-flow-primary/);
@@ -677,7 +677,11 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importPage, /xiaohongshu-local-file-save/);
   assert.match(importPage, /xiaohongshu-local-file-dashboard-link/);
   assert.match(importPage, /video-account-local-file-mvp/);
-  assert.match(importPage, /视频号手动更新/);
+  assert.match(importPage, /video-account-assisted-page-scan-mvp/);
+  assert.match(importPage, /video-account-assisted-page-scan/);
+  assert.match(importPage, /video-account-assisted-page-save-confirm/);
+  assert.match(importPage, /推荐不作为收藏/);
+  assert.match(importPage, /视频号表格兜底/);
   assert.match(importPage, /手动更新为主/);
   assert.match(importPage, /登录抓取需扫码，暂不作为每日自动流程/);
   assert.match(importPage, /官方能力待确认，个人创作者不默认假设可用/);

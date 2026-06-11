@@ -1035,7 +1035,7 @@ export interface AuthedBrowserAutoRefreshPlatformResult {
   contentCount: number;
   metricCount: number;
   profileState: AuthedBrowserProfileState;
-  preview?: DouyinAuthedBrowserCaptureResult | XiaohongshuAuthedBrowserCaptureResult;
+  preview?: DouyinAuthedBrowserCaptureResult | XiaohongshuAuthedBrowserCaptureResult | VideoAccountAuthedBrowserCaptureResult;
   warnings: string[];
 }
 
@@ -1184,6 +1184,65 @@ export interface XiaohongshuAuthedBrowserCaptureResult {
     noRawRequestSaved: true;
     contentLevelOnly: true;
     publicRecommendationExcluded: true;
+  };
+}
+
+export type VideoAccountAuthedBrowserCaptureAction = "open" | "status" | "capture_preview" | "save" | "close";
+
+export type VideoAccountAuthedBrowserLoginState = "not_opened" | "needs_login" | "user_confirmed" | "logged_in_or_accessible" | "wrong_page" | "unknown" | "closed" | "error";
+
+export interface VideoAccountBrowserVisibleRow {
+  id: string;
+  nativeId?: string;
+  title: string;
+  publishedAt?: string;
+  capturedAt: string;
+  views: number;
+  likes: number;
+  comments: number;
+  saves: number;
+  shares: number;
+  followersDelta: number;
+  itemUrl?: string;
+  extractionSource: "visible_dom";
+  sourcePageKind: AuthedBrowserSourcePageKind;
+  confidence: AuthedBrowserRowConfidence;
+  nativeIdConfidence: AuthedBrowserNativeIdConfidence;
+  canSave: boolean;
+  missingFields: string[];
+  blockReasons: string[];
+  warnings: string[];
+}
+
+export interface VideoAccountAuthedBrowserCaptureRequest {
+  action: VideoAccountAuthedBrowserCaptureAction;
+  target?: AuthedBrowserCaptureTarget;
+  userConfirmedLogin?: boolean;
+  userConfirmedContentMetrics?: boolean;
+}
+
+export interface VideoAccountAuthedBrowserCaptureResult {
+  action: VideoAccountAuthedBrowserCaptureAction;
+  ok: boolean;
+  loginState: VideoAccountAuthedBrowserLoginState;
+  browserOpened: boolean;
+  pageUrl?: string;
+  openedAt?: string;
+  capturedAt?: string;
+  rows: VideoAccountBrowserVisibleRow[];
+  contentCount: number;
+  metricCount: number;
+  saveCandidateCount?: number;
+  importRunId?: string;
+  dashboardUrl?: string;
+  message: string;
+  warnings: string[];
+  safety: {
+    noPasswordSaved: true;
+    noCookieTokenHeaderSaved: true;
+    noRawRequestSaved: true;
+    contentLevelOnly: true;
+    recommendationNotMappedToSaves: true;
   };
 }
 
