@@ -5,6 +5,9 @@
 - Elapsed: about 1h14m
 - Workload class: normal
 - Need main-session judgment: no
+- Submitted: yes
+- Primary commit: `daa13b5` (`feat(self-media): improve video account and bilibili import paths`)
+- Push: yes, pushed to `origin/main` (`github.com:Lonc2100/creator-fact-workbench.git`)
 
 ## Scope
 
