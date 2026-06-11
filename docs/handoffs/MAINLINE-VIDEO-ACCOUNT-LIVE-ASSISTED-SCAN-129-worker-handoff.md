@@ -165,3 +165,28 @@ Observed on `http://127.0.0.1:3200/api/self-media/dashboard` after the failed pr
   - `npm run typecheck`: PASS.
   - `npm run test:self-media`: PASS, 155 tests.
   - `npm run test:ui-harness`: PASS, 20 tests.
+
+## Follow-up Navigation Probe
+
+- Checked again on 2026-06-11T20:11:52+08:00 from current HEAD `851efd0005db477d6ead7f03c6a6612fd6a94961`.
+- The existing controlled route session was closed cleanly, then the same local persistent Video Account profile was reopened with Playwright for safe navigation probing.
+- No screenshot, platform DOM, raw response, storageState, cookie, token, header, or raw page text was saved.
+- Candidate paths probed with count/boolean signals only:
+  - `/platform/post/list`
+  - `/platform/data`
+  - `/platform/data/home`
+  - `/platform/data/overview`
+  - `/platform/data/content`
+  - `/platform/data/post`
+  - `/platform/data/post/list`
+  - `/platform/data/works`
+  - `/platform/analysis`
+  - `/platform/analysis/content`
+  - `/platform/statistics`
+  - `/platform/statistics/content`
+- Result:
+  - Some candidate paths redirected to `/platform/` and showed general assistant/metric words.
+  - Other candidate paths rendered no useful visible row signals.
+  - None exposed same-row metric plus publish-time rows.
+  - None exposed stable `weixin.qq.com/sph` anchors or `export/...` attributes.
+- Conclusion: the current accessible Video Account Assistant pages still do not provide the minimum durable scan contract: title, publish time, same-row views/likes/comments/shares, and stable link/export ID. No save was attempted.
