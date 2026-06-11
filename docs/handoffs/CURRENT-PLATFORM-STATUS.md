@@ -69,7 +69,7 @@ Authenticated browser capture is now the active data-import mainline, with a str
 - Douyin and Xiaohongshu have content-level authenticated browser capture MVPs: open the platform backend, user logs in, navigate to visible creator content rows, preview, explicitly confirm, then save trusted content-level metrics.
 - Douyin and Xiaohongshu routes use persistent browser contexts. Do not regress them back to temporary `browser.newContext()` sessions; that breaks the user's expected "I logged in, now help me capture" flow.
 - No route accepts or writes password, cookie, token, header, storage state, raw request, raw response, screenshot, HAR, or trace material into business data, docs, tests, or Git.
-- Video Account is still discovery-only for content-level browser capture. The 086 discovery did not prove a stable works table containing title, publish time, views/play count, likes, comments, and shares together, so do not create a trusted Video Account browser-save path yet.
+- Historical 086 note superseded by 128/129: Video Account now has a user-triggered assisted page scan path. It still requires the user to open/login the assistant page, scan visible/sanitized current works data, preview first, and explicitly confirm save.
 - Bilibili browser profile status is tracked, but authenticated content-level browser capture is not implemented yet. Existing Bilibili archive/work metrics remain the accepted content-level path; account metrics stay preview-only.
 - Current capture is user-triggered. Do not claim silent hourly automatic collection unless a future task adds an approved local scheduler/official API path with startup catch-up and the same sensitive-data boundaries.
 
@@ -81,7 +81,7 @@ The import/data refresh mainline has moved from "find a panel and manually read 
 - `POST /api/self-media/browser-capture/auto-refresh` is local-only and preview-only. It checks local browser profile state, attempts `capture_preview` for eligible platforms, and never calls `save`.
 - Auto-refresh currently attempts Douyin and Xiaohongshu only. If a browser window is not open but the profile is reusable, the route may open the platform backend once and retry preview.
 - Save remains a separate user confirmation in the existing platform preview panels. The app must not save rows silently after auto-refresh.
-- Video Account remains discovery-only for authenticated browser capture. 087 tightened the Video Account personal provider so durable rows require explicit title, publish time, views/play count, likes, comments, and shares together; incomplete rows and interaction-only rows are skipped.
+- Historical 087 note superseded by 128/129: Video Account durable rows still require explicit title, publish time, views/play count, likes, comments, shares, and a stable link/export ID; the current path is assisted page scan -> preview -> user-confirmed save.
 - Bilibili browser capture remains unsupported; Bilibili archive/work content metrics remain usable and Bilibili account metrics remain preview-only.
 - A live mouse walkthrough fixed immediate usability friction: import first-screen action visibility, content save selecting the newly persisted content/version, and stable `calendar-card` / `calendar-empty-slot` selectors.
 - 088 should continue from the live walkthrough friction list: scheduled-time validation before save, in-place calendar empty-slot creation, clearer publish handoff empty state, and auto-highlight/scroll to the first actionable import panel after login check.
@@ -94,7 +94,7 @@ The data-import mainline now prioritizes login-assisted automatic preview over l
 - Douyin and Xiaohongshu are the only platforms allowed to auto-open local backend windows. When a reusable profile or retryable last state exists, the route can open the platform window once and retry `capture_preview`.
 - Auto-open remains preview-only. The route never calls `save`, never marks `userConfirmedContentMetrics: true`, and never stores password, cookie, token, header, storage state, raw request, raw response, screenshot, HAR, or trace material.
 - Result states are business-facing: preview ready, needs login, needs content page, failed, or unsupported. Local paths, run ids, raw capture details, and implementation logs stay out of the default `/import` first screen.
-- Video Account remains discovery-only for authenticated browser capture. Bilibili browser capture remains unsupported; Bilibili account metrics remain preview-only.
+- Video Account is not part of automatic login-capture auto-open; it uses a separate user-triggered assisted scan panel. Bilibili browser capture remains unsupported; Bilibili account metrics remain preview-only.
 - Obsidian PRD-drift prevention note was written to `D:\codex work\codex-session-vault\20_Decisions\2026-06-07 PRD偏离复盘与防偏清单.md`. Future sessions should use it to keep PRD > CURRENT > main closure > worker handoff.
 
 ## 089 Login Capture Return-to-Preview Baseline
@@ -107,7 +107,7 @@ The `/import` login-capture flow now handles the realistic "I logged in or switc
 - The Douyin preview anchor now points to the actual Douyin capture panel, so "查看预览并确认保存" does not send the user to a missing section.
 - Default dashboard snapshot now filters calendar items, publish queue rows, platform versions, and publish records to `dataDomain=user_work` content. System-log/action-generated drafts remain available in the content workbench but do not pollute the default calendar or dashboard.
 - Acceptance/test text detection no longer treats bare `050`-`072` digit fragments inside generated IDs or timestamps as acceptance markers; those numbers must be delimited. This prevents real user ideas from being misclassified as `acceptance_run`.
-- Safety boundary is unchanged: return retry is still preview-only, no silent save, no automatic content-metric confirmation, no sensitive login material, no WeChat, Video Account discovery-only, Bilibili browser capture unsupported.
+- Safety boundary is unchanged: return retry is still preview-only, no silent save, no automatic content-metric confirmation, no sensitive login material, no WeChat, Video Account is user-triggered assisted scan only, and Bilibili browser capture unsupported.
 
 ## 090 Usable Creator Mainline Closure
 
@@ -118,7 +118,7 @@ The current mainline is closed as a usable creator workflow on fixed `http://loc
 - `/content` and `/calendar` isolation folds are now business-facing as "隔离数据" instead of exposing acceptance/test labels in default summaries.
 - `/import` first screen shows only four-platform login capture status and next actions. Local export, diagnostics, and technical profile paths remain outside the default first-screen path.
 - Douyin and Xiaohongshu authenticated browser capture remain persistent-profile, user-triggered, preview-before-save flows. Auto-open/return retry remains preview-only and must not silently save.
-- Video Account authenticated browser capture remains discovery-only until a stable content table with title, publish time, views/play count, likes, comments, and shares is proven. Bilibili browser capture remains unsupported; Bilibili archive/work content metrics remain the accepted content-level path.
+- Video Account is user-triggered assisted scan only: open/login the assistant page, scan current works/data list, preview, then explicitly confirm save. Bilibili browser capture remains unsupported; Bilibili archive/work content metrics remain the accepted content-level path.
 - Evidence screenshots for the 090 closure were written locally under `.local/mainline-usable-closure-090/` and are not committed.
 
 ## 091 Real Login Capture Acceptance Attempt
@@ -172,7 +172,7 @@ Current import reality:
 - Xiaohongshu detail-page capture remains a fallback preview path only.
 - Douyin's proven real path is assisted browser mouse clickthrough into a specific work detail/data page, then preview and explicit save.
 - All creator-center saves still require explicit user confirmation. Do not silently save, do not auto-set `userConfirmedContentMetrics: true`, and do not save password, cookie, token, header, storageState, raw request, raw response, screenshot, HAR, trace, or real platform DOM.
-- Video Account remains discovery-only for authenticated browser capture.
+- Video Account assisted page scan is now the accepted user-triggered path after 128/129; it is not automatic startup capture.
 - Bilibili account metrics remain preview-only; Bilibili archive/work content metrics remain the accepted content-level path.
 - WeChat Official Account / WeChat backend remains paused.
 
@@ -183,9 +183,9 @@ Current operator-data baseline as of 2026-06-09:
 - `/dashboard` defaults to recent works first and uses a published-work time-window scope. The visible switch supports `近 7 天` and `近 30 天`; both windows count works published in that window and show the latest metric snapshot per work.
 - Dashboard charts/list/ranking sort by real time order: trend buckets are ordered by date, content ranking and native metric preview put recently published works first, and duplicate old snapshots of the same work are collapsed to the latest snapshot by default.
 - Dashboard rows keep the operator-critical fields visible: publish time, latest capture/save time, platform, exposure/views, and engagement.
-- Video Account is no longer framed as a default automatic login-capture target. The current main path is manual update: paste or upload a content-level Video Account table, preview rows, explicitly confirm, and save into trusted `video_account_creator_center` content metrics.
-- Video Account login capture requires QR/scanning and remains a later exploration path. API capability is not assumed for individual creators.
-- `/import` startup/focus/auto-refresh must not open Video Account windows. Douyin and Xiaohongshu still use user-triggered login capture; Video Account uses the manual update panel unless a future task explicitly approves a login/API path.
+- Video Account is no longer framed as a default automatic login-capture target. The current main path is assisted page scan: open/login Video Account Assistant from `/import`, scan the current works/data list, preview rows, explicitly confirm, and save into trusted `video_account_creator_center` content metrics.
+- Video Account login still requires QR/scanning and user page control. API capability is not assumed for individual creators.
+- `/import` startup/focus/auto-refresh must not open Video Account windows. Douyin and Xiaohongshu still use user-triggered login capture; Video Account uses its explicit assisted scan panel plus paste/upload as a fallback.
 - Existing platform realities remain: Douyin detail/data-page capture has saved 1 real work; Xiaohongshu content-analysis table capture has saved 7 real notes; Bilibili content-level archive/import is usable while Bilibili account metrics remain preview-only; WeChat/Official Account remains paused.
 
 ## 115 Usable Creator Release Closure
@@ -204,7 +204,7 @@ Current usable creator release baseline as of 2026-06-09:
 Current daily creator path:
 
 - `/dashboard`: data-first operator view with recent-first `近 7 天` / `近 30 天` published-work windows, latest snapshot per work, and trusted content-level totals.
-- `/import`: creator-facing data update page. Douyin and Xiaohongshu are explicit manual login-capture/open-backend flows; Xiaohongshu main path is the creator `statistics/data-analysis` table; Video Account is manual paste/upload update; Bilibili content-level import remains available while account metrics are preview-only.
+- `/import`: creator-facing data update page. Douyin and Xiaohongshu are explicit manual login-capture/open-backend flows; Xiaohongshu main path is the creator `statistics/data-analysis` table; Video Account is assisted page scan with paste/upload fallback; Bilibili content-level import remains available while account metrics are preview-only.
 - `/content`: default `创作` mode for rough idea -> local discussion -> four-platform drafts -> save. `内容库` is the explicit secondary mode for saved content, platform versions, trusted-scope curation, and manual publish assistant.
 - `/content`: direct future-time entry is now durable. If a future time is entered before saving four-platform drafts, the page verifies content, platform versions, queue rows, and calendar schedule; otherwise it fails closed with a creator-facing message.
 - `/calendar`: default main grid is future real publishing schedules only, grouped by content/time so multi-platform schedules appear as one card with platform badges. History, publish ledger, isolated data, and unscheduled drafts are secondary collapsed sections.
@@ -223,7 +223,7 @@ Release boundaries:
 - The workbench does not call real platform publish APIs; publishing remains manual confirmation only.
 - All creator-center metric saves still require preview and explicit user confirmation; no silent save and no automatic `userConfirmedContentMetrics:true`.
 - Browser/login capture may require user login, QR scan, verification, or page switching. Do not store password, cookie, token, header, storageState, raw request/response, screenshot, HAR, trace, or real platform DOM.
-- Video Account defaults to manual update; login/API capture remains future exploration, not daily automatic flow.
+- Video Account defaults to user-triggered assisted scan on `/import`; paste/upload remains fallback, and API capture remains future exploration, not daily automatic flow.
 - Bilibili account metrics remain preview-only and must not enter durable content totals.
 - WeChat Official Account / WeChat backend remains paused.
 
@@ -239,7 +239,7 @@ Current freshness model as of 2026-06-09:
 - The 119 assisted real capture is now recognized by freshness:
   - Douyin: latest evidence comes from trusted browser capture, not the old raw timestamp.
   - Xiaohongshu: latest evidence comes from trusted browser capture, not the old raw timestamp.
-  - Video Account: freshness can come from the manual-update trusted content metric path; it remains manual-update-first, not automatic login capture.
+  - Video Account: freshness can come from user-confirmed assisted page scan or paste/upload fallback trusted content metrics; it remains user-triggered, not automatic login capture.
   - Bilibili: freshness can come from trusted content-level imports; account metrics remain preview-only and do not enter durable totals.
 - `npm run check:real-capture-freshness` is still read-only. It does not open a browser, collect new data, or write the operating DB.
 - `npm run health:platform-data` may still warn for old smoke/mapping/raw diagnostic files. That warning is separate from trusted real freshness and must not be hidden by fake capture data.
@@ -253,15 +253,15 @@ Current real refresh baseline as of 2026-06-11:
 | Xiaohongshu | Creator service `statistics/data-analysis` content-analysis table | 119 saved 7 creator-center table rows after explicit user confirmation | Fresh by trusted browser capture / content table evidence | Detail page remains fallback; no public explore scraping as trusted source |
 | Douyin | Creator center work detail/data page opened from assisted browser flow | 119 saved 1 creator-center detail row after explicit user confirmation | Fresh by trusted browser capture evidence | List page can fail closed; no silent save |
 | Bilibili | User-provided creator-center/current manuscript-level table with stable BV/manuscript id | 123 saved 1 current Bilibili content-level row after explicit user confirmation | Fresh by `trusted_content_import`; latest evidence `2026-06-11T04:58:03.798Z` | Account metrics remain preview-only |
-| Video Account | Manual content-level paste/upload | No new data saved in 119-123 | Manual update remains available but pending current user-provided row | No automatic login capture promise |
+| Video Account | Assisted Video Account Assistant page scan; paste/upload fallback | 129 saved 6 assistant-scan rows after explicit user confirmation | Fresh by `trusted_assisted_page_scan`; trusted contents reached 34, metric snapshots 46, Video Account snapshots 15 | No startup auto-open or silent save |
 
 Current dashboard trusted scope:
 
-- Trusted contents: 23.
-- Trusted metric snapshots: 32.
+- Trusted contents: 34 after the 129 Video Account save.
+- Trusted metric snapshots: 46 after the 129 Video Account save.
 - Calendar default main grid is not polluted by imported historical/content metric rows.
 - Bilibili 123 imported row `BV1Wp7k6uEn4` appears in trusted metrics, not in the future publish calendar.
-- Daily gate exits 0 and `passed: true`; current status can still be `warn` because old raw/health diagnostic evidence is stale. That warn is not a business freshness failure after the 123 `trusted_content_import` save.
+- Daily gate exits 0 and `passed: true`; current status can still be `warn` because old raw/health diagnostic evidence is stale. That warn is not a business freshness failure after the 123 `trusted_content_import` save and 129 `trusted_assisted_page_scan` save.
 
 Current daily refresh order:
 
@@ -270,21 +270,21 @@ Current daily refresh order:
 3. For Douyin: open the creator center only from the explicit manual button, complete login if needed, switch/open a work detail/data page, preview, then save only after user confirmation.
 4. For Xiaohongshu: open the creator service platform only from the explicit manual button, use the content-analysis table, preview rows, then save only after user confirmation.
 5. For Bilibili: paste/upload a current manuscript-level table that includes stable BV/manuscript IDs; preview must fail closed for rows without stable IDs; save only after user confirmation.
-6. For Video Account: prepare owned content-level data and use manual paste/upload; no automatic login capture is promised.
+6. For Video Account: open Video Account Assistant from `/import`, complete QR login if needed, stay on a works/data list page, scan the current page, inspect preview rows, then save only after explicit confirmation. Paste/upload remains the fallback.
 
 Still not promised:
 
 - No real platform publish API calls.
 - No WeChat/Official Account / backend restoration.
-- No automatic Video Account capture commitment.
+- No automatic Video Account startup capture or silent save commitment.
 - No durable Bilibili account-level metric totals.
 - No password, cookie, token, header, storageState, raw request/response, screenshot, HAR, trace, or real platform DOM storage.
 
 ## Current Facts
 
 - Four content-level platform loops are closed: Douyin, Xiaohongshu, Video Account, and Bilibili.
-- Data recovery mainline is platform-specific: Douyin uses assisted authenticated browser detail/data-page capture, Xiaohongshu uses creator-service content-analysis table capture, Video Account uses manual update by paste/upload, and Bilibili uses content-level archive/import. Preview comes before save and saved rows enter trusted content metrics only after explicit confirmation.
-- Local CSV/XLSX export remains available for platform risk blocks, unstable browser capture, user preference, and the current Video Account manual-update path.
+- Data recovery mainline is platform-specific: Douyin uses assisted authenticated browser detail/data-page capture, Xiaohongshu uses creator-service content-analysis table capture, Video Account uses assisted page scan with paste/upload fallback, and Bilibili uses content-level archive/import. Preview comes before save and saved rows enter trusted content metrics only after explicit confirmation.
+- Local CSV/XLSX export remains available for platform risk blocks, unstable browser capture, user preference, and Video Account/Bilibili fallback import.
 - Douyin has a proven real authenticated browser capture path on `/import`: open controlled browser, AI mouse-clicks a visible creator-center work into a detail/data page, preview, explicit user confirm save, and write `douyin_creator_center` trusted content-level metrics without saving password, cookie, token, header, storage state, raw request, or raw response records.
 - Xiaohongshu has a proven real authenticated browser capture path on `/import`: open the creator service platform with the local profile, read the `statistics/data-analysis` content-analysis `笔记数据` table, capture one row per note, preview, explicit user confirm save, and write `xiaohongshu_creator_center` trusted content-level metrics.
 - 091 real assisted login acceptance did not save data: Douyin and Xiaohongshu opened and were accessible, but both were on account/operation overview pages rather than visible content-level metric tables.
@@ -292,7 +292,7 @@ Still not promised:
 - `/import` also has user-triggered auto-refresh preview for Douyin and Xiaohongshu via the login-capture refresh route; this is not silent background collection and not an automatic save.
 - `/import` page-load and focus-return checks refresh local profile status only; they must not automatically open platform windows. Manual buttons can still open Douyin/Xiaohongshu backend windows for preview. Save still requires explicit user confirmation in the platform preview panel.
 - `/import` now prompts the operator to manually refresh when returning from a platform login/content page window, and the first auto-refresh result card explains the next business action.
-- `/import` has a Video Account manual-update panel for paste/upload -> preview -> explicit confirmation -> trusted content-level save. It is not a default automatic login-capture path.
+- `/import` has a Video Account assisted scan panel for open/login -> scan preview -> explicit confirmation -> trusted content-level save, plus paste/upload fallback. It is not a default automatic login-capture path.
 - `/import` first screen is now status-and-next-action only: four platform login state, check action, and next-step links. Local export and diagnostics remain below/folded.
 - Default dashboard/calendar/publish ledger data is now service-filtered to user-owned work instead of relying only on page-level filtering.
 - Default publish calendar main-grid items are stricter than content-library visibility: they require user-owned `user_work`, explicit `scheduledAt`, unpublished status, and no acceptance/demo/archive/published traces.

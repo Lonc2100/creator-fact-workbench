@@ -769,8 +769,13 @@ function closedLoopPlatformHealthKey(platform: ClosedLoopContentPlatform): Platf
   return platform === "video_account" ? "video-account" : platform;
 }
 
-function freshnessEvidenceSourceForSnapshot(snapshot: MetricSnapshot) {
-  if (snapshot.platform === "video_account") return "trusted_manual_update";
+function freshnessEvidenceSourceForSnapshot(snapshot: MetricSnapshot, contentsById?: Map<string, ContentItem>) {
+  if (snapshot.platform === "video_account") {
+    const content = contentsById?.get(snapshot.contentId);
+    return content?.notes?.includes("video_account_assisted_page_scan")
+      ? "trusted_assisted_page_scan"
+      : "trusted_manual_update";
+  }
   if (snapshot.platform === "bilibili") return "trusted_content_import";
   return "trusted_browser_capture";
 }
@@ -794,8 +799,9 @@ function ageHoursFrom(nowIso: string, value?: string | null) {
   return Math.max(0, Math.round(((nowTime - valueTime) / 36_000) / 10));
 }
 
-function overlayTrustedSnapshotFreshness(input: { generatedAt: string; health: PlatformDataHealthView; metricSnapshots: MetricSnapshot[] }): PlatformDataHealthView {
+function overlayTrustedSnapshotFreshness(input: { generatedAt: string; health: PlatformDataHealthView; metricSnapshots: MetricSnapshot[]; contents?: ContentItem[] }): PlatformDataHealthView {
   const latestByPlatform = new Map<PlatformDataHealthView["platforms"][number]["platform"], { latestAt: string; source: string; rowCount: number }>();
+  const contentsById = input.contents ? new Map(input.contents.map((content) => [content.id, content])) : undefined;
   for (const platform of closedLoopContentPlatforms) {
     const snapshots = input.metricSnapshots.filter((snapshot) => snapshot.platform === platform);
     if (snapshots.length === 0) continue;
@@ -806,7 +812,7 @@ function overlayTrustedSnapshotFreshness(input: { generatedAt: string; health: P
     if (!latest) continue;
     latestByPlatform.set(closedLoopPlatformHealthKey(platform), {
       latestAt: latest.latestAt,
-      source: freshnessEvidenceSourceForSnapshot(latest.snapshot),
+      source: freshnessEvidenceSourceForSnapshot(latest.snapshot, contentsById),
       rowCount: snapshots.length
     });
   }
@@ -999,9 +1005,9 @@ const assistedRefreshCommandDefaults: Record<PlatformDataHealthView["platforms"]
     gate: "npm run gate:daily-platform-ops -- --dashboard-url=http://127.0.0.1:3200/api/self-media/dashboard"
   },
   "video-account": {
-    manualStep: "人工登录视频号助手，完成真实采集；本检查不会自动打开平台。",
-    preview: "npm run import:video-account",
-    save: "npm run import:video-account -- --save",
+    manualStep: "在 /import 手动打开视频号助手，扫码登录后扫描当前作品/数据列表；先预览，再确认保存。",
+    preview: "打开 /import 的视频号助手扫描预览",
+    save: "在 /import 勾选确认后批量保存视频号预览",
     health: "npm run health:platform-data",
     freshness: "npm run check:real-capture-freshness",
     audit: "npm run audit:trusted-dashboard -- --dashboard-url=http://127.0.0.1:3200/api/self-media/dashboard",
@@ -4520,7 +4526,7 @@ export class SelfMediaService {
     const accountMetricSnapshots = this.repo.listAccountMetricSnapshots();
     const accountMetricGroups = buildAccountMetricGroups(accountMetricSnapshots);
     const generatedAt = new Date().toISOString();
-    const platformDataHealth = overlayTrustedSnapshotFreshness({ generatedAt, health: readPlatformDataHealthView(), metricSnapshots });
+    const platformDataHealth = overlayTrustedSnapshotFreshness({ generatedAt, health: readPlatformDataHealthView(), metricSnapshots, contents: allContents });
     const dailyPlatformOpsGate = readDailyPlatformOpsGateView();
     const dailySelfMediaOps = readDailySelfMediaOpsView();
     const platformImportStatuses = this.platformImportStatuses();

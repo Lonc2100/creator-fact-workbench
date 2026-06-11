@@ -53,7 +53,7 @@ function statusLabel(status: AuthedBrowserAutoRefreshPlatformResult["status"]) {
 function platformPageAction(platform: AuthedBrowserPlatform) {
   if (platform === "douyin") return "请在抖音创作者中心进入“作品管理”，确认能看到单条作品标题和播放/点赞/评论等指标，再点一次刷新。";
   if (platform === "xiaohongshu") return "请在小红书创作服务平台进入“笔记管理”，确认能看到本人笔记标题和浏览/点赞/评论/收藏等指标，再点一次刷新。";
-  if (platform === "video_account") return "视频号手动更新为主；登录抓取需扫码，暂不作为每日自动流程。API 能力待确认，个人创作者不默认假设可用。";
+  if (platform === "video_account") return "视频号可在导入页手动打开助手页扫描：扫码登录后扫描当前作品/数据列表，先预览，再确认保存；不会随启动自动开窗或静默保存。";
   return "B站登录抓取暂未接入；现有 B站 archive/work 内容级路径可用，账号指标仍 preview-only。";
 }
 
@@ -64,14 +64,14 @@ function unsupportedResult(profile: AuthedBrowserProfileStatus): AuthedBrowserAu
     label: profile.label,
     status: "unsupported",
     statusLabel: statusLabel("unsupported"),
-    message: profile.platform === "video_account" ? "视频号默认手动更新；登录抓取/API 能力作为后续探索。" : "该平台暂未接入登录后自动预览。",
+    message: profile.platform === "video_account" ? "视频号助手页扫描可用，但不纳入自动状态检查；请在导入页手动打开、扫描预览、确认保存。" : "该平台暂未接入登录后自动预览。",
     nextAction: platformPageAction(profile.platform),
     attemptedPreview: false,
     openedWindow: false,
     contentCount: 0,
     metricCount: 0,
     profileState: profile.state,
-    warnings: profile.platform === "video_account" ? ["video_account_manual_update_primary"] : profile.platform === "bilibili" ? ["bilibili_account_metrics_preview_only"] : ["browser_capture_not_implemented"]
+    warnings: profile.platform === "video_account" ? ["video_account_assisted_scan_user_triggered"] : profile.platform === "bilibili" ? ["bilibili_account_metrics_preview_only"] : ["browser_capture_not_implemented"]
   };
 }
 

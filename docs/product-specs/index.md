@@ -64,7 +64,10 @@ This index separates active release scope from paused or diagnostic-only work. D
   [Video Account and Bilibili import paths 121](../handoffs/MAINLINE-VIDEO-ACCOUNT-AND-BILIBILI-IMPORT-PATH-121-worker-handoff.md),
   [Startup refresh guidance 122](../handoffs/MAINLINE-STARTUP-REFRESH-CHECK-AND-REMINDER-122-worker-handoff.md),
   [Today refresh execution 123](../handoffs/MAINLINE-TODAY-REFRESH-EXECUTION-CYCLE-123-worker-handoff.md),
-  [Real refresh cycle closure 124](../handoffs/MAINLINE-REAL-REFRESH-CYCLE-CLOSURE-124-worker-handoff.md).
+  [Real refresh cycle closure 124](../handoffs/MAINLINE-REAL-REFRESH-CYCLE-CLOSURE-124-worker-handoff.md),
+  [Video Account assisted page scan 128](../handoffs/MAINLINE-VIDEO-ACCOUNT-ASSISTED-PAGE-SCAN-128-worker-handoff.md),
+  [Video Account live assisted scan 129](../handoffs/MAINLINE-VIDEO-ACCOUNT-LIVE-ASSISTED-SCAN-129-worker-handoff.md),
+  [Four-platform refresh workflow 130](../handoffs/MAINLINE-FOUR-PLATFORM-REFRESH-WORKFLOW-130-worker-handoff.md).
 
 ## Paused / Diagnostic-Only
 

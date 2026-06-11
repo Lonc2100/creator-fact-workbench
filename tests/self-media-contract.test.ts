@@ -1867,6 +1867,53 @@ test("video account assisted page scanner previews candidates and keeps recommen
   assert.ok(payload.contents[0].notes?.includes("recommendation_not_mapped_to_saves"));
 });
 
+test("video account assisted page scan save enters trusted dashboard without polluting default calendar", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-video-account-assisted-save-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const rows = selectVideoAccountAssistantPageRows([
+      {
+        text: "原创AI短片《星落之后》 2026-06-10 12:30 播放量 407 点赞 1 评论 0 推荐 22 分享 3",
+        tagName: "tr",
+        role: "row",
+        className: "table-row",
+        idAttr: "row-1",
+        titleAttr: "原创AI短片《星落之后》",
+        hrefs: ["https://weixin.qq.com/sph/AH6eG1lD9"],
+        dataValues: ["export/UzFfBgAAxKWDHHsCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg"],
+        cells: ["原创AI短片《星落之后》", "2026-06-10 12:30", "407", "1", "0", "22", "3"],
+        columnNames: ["作品", "发布时间", "播放量", "点赞", "评论", "推荐", "分享"],
+        childCandidateCount: 0
+      }
+    ], "2026-06-11T09:00:00.000Z");
+
+    assert.equal(rows[0].canSave, true);
+    const result = service.importVideoAccountBrowserVisibleRows(rows);
+    assert.equal(result.run.status, "success");
+    const savedSnapshot = repo.listMetricSnapshots().find((item) => item.contentId === rows[0].id);
+    const savedContent = repo.getEntity("contents", rows[0].id);
+    const dashboard = await service.dashboard();
+    const videoAccountHealth = dashboard.platformDataHealth.platforms.find((item) => item.platform === "video-account");
+
+    assert.ok(savedSnapshot);
+    assert.equal(savedSnapshot?.source, "video_account_creator_center");
+    assert.equal(savedSnapshot?.likes, 1);
+    assert.equal(savedSnapshot?.saves, 0);
+    assert.equal(savedSnapshot?.shares, 3);
+    assert.ok(savedContent?.notes?.includes("video_account_assisted_page_scan:manual_confirmed"));
+    assert.ok(dashboard.contents.some((item) => item.id === rows[0].id));
+    assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === rows[0].id && item.source === "video_account_creator_center"));
+    assert.equal(videoAccountHealth?.freshness.realCaptureEvidenceSource, "trusted_assisted_page_scan");
+    assert.equal(dashboard.calendarItems.some((item) => item.contentId === rows[0].id), false);
+    assert.doesNotMatch(JSON.stringify(savedSnapshot), /password|cookie|token|header|storageState|raw request|raw response|screenshot|"har"|"trace"/i);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("video account assisted page scanner maps unlabeled icon metric rows", () => {
   const rows = selectVideoAccountAssistantPageRows([
     {
@@ -3326,17 +3373,18 @@ test("platform data health accepts confirmed trusted browser capture rows as rea
   assert.doesNotMatch(serialized, /do-not-leak-cookie|do-not-leak-token|do-not-leak-payload|authorization/i);
 });
 
-test("platform data health treats Video Account manual updates and Bilibili content imports as freshness evidence", async () => {
+test("platform data health treats Video Account assisted scans and Bilibili content imports as freshness evidence", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-platform-health-manual-and-bili-"));
   const savedAt = "2026-06-04T07:45:00.000Z";
   const rows = [
     {
       id: "video-account-manual-fresh-1",
-      title: "视频号真人表达复盘",
+      title: "视频号助手扫描复盘",
       platform: "video_account" as const,
       source: "video_account_creator_center" as const,
       importRunId: "import-video-account-manual-fresh",
-      expectedEvidence: "trusted_manual_update"
+      expectedEvidence: "trusted_assisted_page_scan",
+      notes: "video_account_assisted_page_scan:manual_confirmed; recommendation_not_mapped_to_saves"
     },
     {
       id: "bilibili-content-import-fresh-1",
@@ -3344,7 +3392,8 @@ test("platform data health treats Video Account manual updates and Bilibili cont
       platform: "bilibili" as const,
       source: "bilibili_creator_center" as const,
       importRunId: "import-bilibili-content-import-fresh",
-      expectedEvidence: "trusted_content_import"
+      expectedEvidence: "trusted_content_import",
+      notes: undefined
     }
   ];
   const repo = new SqliteSelfMediaRepo(path.join(dir, ".local", "self-media.sqlite"));
@@ -3358,7 +3407,8 @@ test("platform data health treats Video Account manual updates and Bilibili cont
       createdAt: savedAt,
       updatedAt: savedAt,
       dataDomain: "user_work",
-      workOwnership: "user_owned_work"
+      workOwnership: "user_owned_work",
+      notes: row.notes
     });
     repo.upsertEntity("metricSnapshots", `snapshot-${row.id}`, {
       id: `snapshot-${row.id}`,
@@ -3399,8 +3449,8 @@ test("platform data health treats Video Account manual updates and Bilibili cont
   const serialized = JSON.stringify(report);
 
   assert.equal(videoAccount?.realCaptureStatus, "fresh");
-  assert.equal(videoAccount?.freshness?.realCaptureEvidenceSource, "trusted_manual_update");
-  assert.equal(videoAccount?.trustedBrowserCapture?.sourceType, "trusted_manual_update");
+  assert.equal(videoAccount?.freshness?.realCaptureEvidenceSource, "trusted_assisted_page_scan");
+  assert.equal(videoAccount?.trustedBrowserCapture?.sourceType, "trusted_assisted_page_scan");
   assert.equal(videoAccount?.trustedBrowserCapture?.rowCount, 1);
   assert.equal(bilibili?.realCaptureStatus, "fresh");
   assert.equal(bilibili?.freshness?.realCaptureEvidenceSource, "trusted_content_import");

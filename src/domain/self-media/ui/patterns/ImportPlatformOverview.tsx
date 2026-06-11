@@ -46,7 +46,7 @@ const platformCards: PlatformUpdateCard[] = [
     key: "video_account",
     platform: "video_account",
     headline: "助手页面扫描",
-    detail: "扫描当前视频号助手作品/数据列表，先预览候选，再批量确认保存。",
+    detail: "扫描视频号助手当前作品/数据列表，先看预览，再勾选批量确认保存。",
     actionLabel: "扫描视频号助手"
   },
   {
@@ -112,10 +112,10 @@ function freshnessPolicyFor(snapshot: DashboardSnapshot, key: ImportUpdatePanelK
 function defaultFlowState(snapshot: DashboardSnapshot, key: ImportUpdatePanelKey): ImportPlatformFlowState {
   if (key === "video_account") {
     return {
-      label: "可扫描当前助手页",
+      label: "可扫描预览",
       tone: "info",
-      nextAction: "打开并登录视频号助手，切到作品/数据列表后扫描当前页面；保存前仍需人工确认。",
-      detail: "默认不会自动开窗或自动保存；粘贴/上传表格仍作为兜底。"
+      nextAction: "打开并登录视频号助手，切到作品/数据列表后扫描当前页；预览通过后再确认保存。",
+      detail: "不会随启动自动开窗或保存；粘贴/上传表格仍作为兜底。"
     };
   }
   if (key === "bilibili") {
@@ -186,7 +186,7 @@ function refreshChecklistNextAction(key: ImportUpdatePanelKey, freshness: Import
     return isFresh ? "可先看数据；需要补抓时展开小红书更新。" : "打开小红书更新，切到内容分析表格页后读取。";
   }
   if (key === "video_account") {
-    return isFresh ? "可先看数据；有新作品时扫描视频号助手当前页。" : "打开视频号助手作品/数据列表，扫描当前页生成预览。";
+    return isFresh ? "可先看数据；有新作品时扫描视频号助手当前页。" : "打开视频号助手作品/数据列表，扫描当前页生成预览，再确认保存。";
   }
   return isFresh ? "可先看数据；有新稿件时导入 B站内容级表格。" : "导入当前稿件级表格；账号指标仍 preview-only。";
 }
@@ -299,7 +299,7 @@ export function ImportPlatformOverview({
       <div className="real-preview-summary" data-testid="import-first-screen-boundary">
         <span><b>保存前人工确认</b> 保存规则</span>
         <span><b>不会自动打开平台窗口</b> 页面加载</span>
-        <span><b>视频号手动更新为主</b> 当前边界</span>
+        <span><b>视频号扫描预览再保存</b> 当前边界</span>
         <span><b>B站账号指标 preview-only</b> 数据边界</span>
       </div>
     </Panel>

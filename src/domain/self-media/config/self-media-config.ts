@@ -84,13 +84,13 @@ export const platformReadinessDefinitions: Array<
     label: "视频号",
     stage: "closed_loop",
     source: "video_account_creator_center",
-    discoveryStatus: "手动更新为主；登录抓取需扫码后续探索",
-    mappingStatus: "手动表格字段 mapping 已接入",
-    saveStatus: "手动确认后保存入库",
-    dashboardReviewStatus: "手动更新进入 dashboard/review",
-    operationsStatus: "不参与默认自动登录抓取",
-    evidenceFile: "PLATFORM-OPS-019-orchestrator-review.md",
-    nextStep: "先稳定手动更新；API/扫码登录抓取后续探索。"
+    discoveryStatus: "助手页扫描已验证；用户触发预览后确认保存",
+    mappingStatus: "助手页扫描与表格兜底 mapping 已接入",
+    saveStatus: "预览后用户确认保存入库",
+    dashboardReviewStatus: "可信保存进入 dashboard/review",
+    operationsStatus: "不参与启动自动开窗或静默保存",
+    evidenceFile: "MAINLINE-VIDEO-ACCOUNT-LIVE-ASSISTED-SCAN-129-worker-handoff.md",
+    nextStep: "日常从 /import 打开视频号助手扫描，预览后确认保存；官方 API 仍待确认。"
   },
   {
     platform: "bilibili",

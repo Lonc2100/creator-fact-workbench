@@ -208,12 +208,12 @@ const captureRealityCapabilities: CaptureRealityCapability[] = [
     officialApi: "官方能力待确认，个人创作者不默认假设可用",
     appReview: "微信开放能力需按具体场景申请",
     oauth: "本产品未接入视频号授权",
-    contentData: "手动更新为主：粘贴/导入本人内容级数据",
+    contentData: "助手页扫描可用：扫描当前作品/数据列表，预览后确认保存",
     publishDraft: "不写成官方草稿箱/API 发布",
-    scheduledAutoCapture: "登录抓取需扫码，暂不作为每日自动流程",
-    implemented: "当前最小可用为手动录入/粘贴后预览保存",
-    browserAssisted: "后续探索：尝试登录抓取",
-    manualImport: "可手动导入",
+    scheduledAutoCapture: "登录需扫码，启动和状态检查不会自动打开或静默保存",
+    implemented: "当前可用为助手页扫描预览 + 用户确认批量保存",
+    browserAssisted: "可用户触发扫描",
+    manualImport: "表格兜底可用",
     futureConnection: "连接平台：待官方能力确认"
   },
   {
@@ -757,7 +757,7 @@ function loginCapturePrimaryAction(result: AuthedBrowserAutoRefreshResult) {
   }
   return {
     title: "当前没有可自动抓取的平台",
-    detail: "抖音和小红书支持登录后预览；视频号手动更新为主，登录抓取需扫码且暂不作为每日自动流程；B站浏览器抓取暂未接入。",
+    detail: "抖音和小红书支持登录后预览；视频号可由你打开助手页后扫描预览并确认保存；B站浏览器抓取暂未接入。",
     badge: "边界",
     tone: "info" as const,
     href: "",
@@ -1749,7 +1749,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [videoAccountFile, setVideoAccountFile] = useState<File | null>(null);
   const [videoAccountPreview, setVideoAccountPreview] = useState<ImportPreviewResult | null>(null);
   const [videoAccountConfirmed, setVideoAccountConfirmed] = useState(false);
-  const [videoAccountMessage, setVideoAccountMessage] = useState("等待视频号手动更新表");
+  const [videoAccountMessage, setVideoAccountMessage] = useState("等待视频号助手扫描或兜底表格");
   const [videoAccountBrowserResult, setVideoAccountBrowserResult] = useState<VideoAccountAuthedBrowserCaptureResult | null>(null);
   const [videoAccountBrowserLoginConfirmed, setVideoAccountBrowserLoginConfirmed] = useState(false);
   const [videoAccountBrowserMetricsConfirmed, setVideoAccountBrowserMetricsConfirmed] = useState(false);
@@ -1883,8 +1883,8 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             : {
                 label: "可扫描当前助手页",
                 tone: "info",
-                nextAction: "打开并登录视频号助手，切到作品/数据列表后，扫描当前页面生成预览。",
-                detail: "默认不会自动保存；表格粘贴仍作为兜底。"
+                nextAction: "打开并登录视频号助手，切到作品/数据列表后扫描当前页面，预览通过再确认保存。",
+                detail: "启动检查不会自动打开视频号窗口，也不会静默保存；表格粘贴仍作为兜底。"
               };
 
     const bilibiliState: ImportPlatformFlowState = bilibiliStats.confirmable > 0
@@ -2312,7 +2312,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
 
   async function runVideoAccountLocalFile(action: "preview" | "save") {
     setIsVideoAccountLoading(true);
-    setVideoAccountMessage(action === "preview" ? "视频号手动更新表预览中" : "正在保存视频号内容级指标");
+    setVideoAccountMessage(action === "preview" ? "视频号兜底表格预览中" : "正在保存视频号内容级指标");
     try {
       const request = await buildPlatformLocalFileRequest("video_account", videoAccountFile, videoAccountCsv);
       const response = await fetch(action === "preview" ? "/api/self-media/import/preview" : "/api/self-media/import", {
@@ -2321,20 +2321,20 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         body: JSON.stringify(request)
       });
       const body = await response.json() as (ImportPreviewResult & { errorMessage?: string }) | { run?: { importedCount?: number; status?: string }; errorMessage?: string };
-      if (!response.ok) throw new Error(body.errorMessage ?? "视频号手动更新处理失败");
+      if (!response.ok) throw new Error(body.errorMessage ?? "视频号兜底表格处理失败");
       if (action === "preview") {
         const result = body as ImportPreviewResult;
         setVideoAccountPreview(result);
         setVideoAccountConfirmed(false);
-        setVideoAccountMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后将按视频号手动更新保存。`);
+        setVideoAccountMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后将按视频号兜底表格保存。`);
       } else {
         const dashboardResponse = await fetch("/api/self-media/dashboard");
         setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
-        setVideoAccountMessage(`已保存视频号手动更新指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入数据看板，视频号新鲜度已按手动更新证据刷新。`);
+        setVideoAccountMessage(`已保存视频号兜底表格指标；${(body as { run?: { importedCount?: number } }).run?.importedCount ?? 0} 条记录进入数据看板，视频号新鲜度已按可信保存证据刷新。`);
         setVideoAccountConfirmed(false);
       }
     } catch (error) {
-      setVideoAccountMessage(error instanceof Error ? error.message : "视频号手动更新处理失败");
+      setVideoAccountMessage(error instanceof Error ? error.message : "视频号兜底表格处理失败");
     } finally {
       setIsVideoAccountLoading(false);
     }
@@ -2943,20 +2943,20 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         >
           <div className="import-guide-steps">
             <article>
-              <strong>1. 手动更新为主</strong>
-              <p>从视频号助手复制或导出今天确认过的本人内容级数据；默认页面加载、切回页面和自动刷新都不会打开视频号窗口。</p>
+              <strong>1. 表格兜底</strong>
+              <p>扫描助手页不可用时，再从视频号助手复制或导出今天确认过的本人内容级数据；默认页面加载、切回页面和自动刷新都不会打开视频号窗口。</p>
             </article>
             <article>
               <strong>2. 先预览再确认</strong>
               <p>至少确认作品标题、发布时间、播放/曝光、点赞、评论、收藏、分享等字段，缺稳定视频 ID 的行不会进入可信保存。</p>
             </article>
             <article>
-              <strong>3. 后续探索：尝试登录抓取</strong>
-              <p>登录抓取需扫码，暂不作为每日自动流程；官方能力待确认，个人创作者不默认假设可用。</p>
+              <strong>3. 优先使用助手页扫描</strong>
+              <p>上方“扫描当前视频号助手页面”是已验证路径：打开专用窗口、扫码登录、扫描当前作品/数据列表，预览后再批量确认保存。</p>
             </article>
             <article>
               <strong>4. 保存后刷新状态</strong>
-              <p>确认保存后会作为视频号手动更新证据刷新数据状态；不会保存登录凭证、网页请求内容或截图。</p>
+              <p>确认保存后会作为视频号可信内容级证据刷新数据状态；不会保存登录凭证、网页请求内容或截图。</p>
             </article>
           </div>
           <div className="form-grid">
@@ -2969,7 +2969,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                 onChange={(event) => {
                   const nextFile = event.target.files?.[0] ?? null;
                   setVideoAccountFile(nextFile);
-                  resetVideoAccountPreview(nextFile ? `已选择 ${nextFile.name}，请先预览字段。` : "等待视频号手动更新表");
+                  resetVideoAccountPreview(nextFile ? `已选择 ${nextFile.name}，请先预览字段。` : "等待视频号兜底表格");
                 }}
               />
             </Field>
@@ -2992,14 +2992,14 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                 onChange={(event) => setVideoAccountConfirmed(event.target.checked)}
                 type="checkbox"
               />
-              <span>我确认这是本人从视频号助手手动更新的内容级表格；保存后进入数据看板，且不保存登录凭证、网页请求内容或截图。</span>
+              <span>我确认这是本人从视频号助手导出的内容级兜底表格；保存后进入数据看板，且不保存登录凭证、网页请求内容或截图。</span>
             </label>
             <div className="capture-reality-box" data-testid="video-account-manual-field-guide">
               <strong>建议粘贴字段</strong>
-              <p>作品标题、发布时间、播放/曝光、点赞、评论、收藏、分享；有视频 ID 或作品链接时优先带上。没有今天确认过的数据时先不要保存，保存后会刷新视频号数据状态。</p>
+              <p>作品标题、发布时间、播放/曝光、点赞、评论、收藏、分享；有视频 ID 或作品链接时优先带上。能使用助手页扫描时优先扫描预览，没有今天确认过的数据时先不要保存。</p>
             </div>
             <div className="import-preview-actions">
-              <Button data-testid="video-account-local-file-preview" onClick={() => runVideoAccountLocalFile("preview")} variant="secondary" disabled={isVideoAccountLoading}>{isVideoAccountLoading ? "处理中" : "预览视频号手动更新"}</Button>
+              <Button data-testid="video-account-local-file-preview" onClick={() => runVideoAccountLocalFile("preview")} variant="secondary" disabled={isVideoAccountLoading}>{isVideoAccountLoading ? "处理中" : "预览视频号兜底表格"}</Button>
               <Button data-testid="video-account-local-file-save" onClick={() => runVideoAccountLocalFile("save")} variant="primary" disabled={isVideoAccountLoading || !canSaveVideoAccountLocalFile}>{isVideoAccountLoading ? "保存中" : "确认保存到看板"}</Button>
               <a className="sm-button sm-button-secondary" data-testid="video-account-local-file-dashboard-link" href="/dashboard">查看数据看板</a>
               <span>{videoAccountMessage}</span>

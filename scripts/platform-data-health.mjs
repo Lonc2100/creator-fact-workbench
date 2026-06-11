@@ -28,7 +28,7 @@ export const PLATFORM_HEALTH_CONFIG = [
     key: "video-account",
     label: "Video Account assistant",
     expectedSource: "video_account_creator_center",
-    trustedEvidenceSourceType: "trusted_manual_update",
+    trustedEvidenceSourceType: "trusted_video_account_update",
     rawDir: ".local/video-account-personal-v0/raw",
     mappingPreview: ".local/video-account-personal-v1/mapping-preview.json",
     saveSmokeReport: ".local/video-account-personal-v1/save-smoke-report.json"
@@ -70,9 +70,9 @@ export const PLATFORM_ASSISTED_REFRESH_COMMANDS = {
     gate: "npm run gate:daily-platform-ops -- --dashboard-url=http://127.0.0.1:3200/api/self-media/dashboard"
   },
   "video-account": {
-    manualStep: "人工登录视频号助手，完成真实采集；本检查不会自动打开平台。",
-    preview: "npm run import:video-account",
-    save: "npm run import:video-account -- --save",
+    manualStep: "在 /import 手动打开视频号助手，扫码登录后扫描当前作品/数据列表；先预览，再确认保存。",
+    preview: "打开 /import 的视频号助手扫描预览",
+    save: "在 /import 勾选确认后批量保存视频号预览",
     health: "npm run health:platform-data",
     freshness: "npm run check:real-capture-freshness",
     audit: "npm run audit:trusted-dashboard -- --dashboard-url=http://127.0.0.1:3200/api/self-media/dashboard",
@@ -154,6 +154,14 @@ function isTrustedBrowserCaptureSnapshot(snapshot, contentsById, expectedSource)
   return content?.dataDomain === "user_work" || snapshot?.dataDomain === "user_work" || content?.trustedScopeOverride === "include";
 }
 
+function trustedEvidenceSourceType(config, snapshot, contentsById) {
+  if (config.key !== "video-account") return config.trustedEvidenceSourceType;
+  const content = contentsById.get(snapshot.contentId);
+  return content?.notes?.includes("video_account_assisted_page_scan")
+    ? "trusted_assisted_page_scan"
+    : "trusted_manual_update";
+}
+
 function trustedBrowserCaptureSummary(cwd, config, now) {
   const dbPath = resolveDbPath(cwd);
   if (!existsSync(dbPath)) {
@@ -201,12 +209,13 @@ function trustedBrowserCaptureSummary(cwd, config, now) {
         };
       });
       const latestCapturedAt = latestIso(snapshotEvidence.map((item) => item.latestAt));
-      const latestRunId = snapshotEvidence.find((item) => item.latestAt === latestCapturedAt)?.snapshot.importRunId
+      const latestEvidence = snapshotEvidence.find((item) => item.latestAt === latestCapturedAt);
+      const latestRunId = latestEvidence?.snapshot.importRunId
         ?? importRuns.find((run) => run.finishedAt === latestCapturedAt || run.startedAt === latestCapturedAt)?.id
         ?? null;
       const captureAge = ageHours(latestCapturedAt, now);
       return {
-        sourceType: config.trustedEvidenceSourceType,
+        sourceType: latestEvidence ? trustedEvidenceSourceType(config, latestEvidence.snapshot, contentsById) : config.trustedEvidenceSourceType,
         dbExists: true,
         rowCount: snapshots.length,
         importRunCount: importRunIds.size,
