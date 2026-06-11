@@ -403,7 +403,7 @@ function isTrustedRealCreatorCenterSource(source: ImportSource | "manual" | "rev
   return trustedRealCreatorCenterSources.includes(source as typeof trustedRealCreatorCenterSources[number]);
 }
 
-const acceptanceRunTextPattern = /(^|[\s:/._-])(mainline|human-mouse|calendar-real|creator day workflow|workflow|05[0-9]|06[0-9]|07[0-2])([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI短片复盘|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估/i;
+const acceptanceRunTextPattern = /(^|[\s:/._-])(mainline|human-mouse|calendar-real|creator day workflow|workflow|05[0-9]|06[0-9]|07[0-2])([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估/i;
 const demoSeedTextPattern = /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|op-save)([\s:/._-]|$)|O2|烟测|浏览器烟测|BiliOpSave/i;
 const calendarHygieneTextPattern = /默认日历只显示\s*user_work|用来确认默认日历|确认默认日历|默认日历主网格|日历验收|日历测试/i;
 const defaultPublishCalendarStatuses = new Set<ContentPlatformVersion["status"]>(["draft", "needs_review", "scheduled"]);

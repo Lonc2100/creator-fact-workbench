@@ -103,7 +103,7 @@ function isDiagnosticCalendarText(value: string) {
 }
 
 function isAcceptanceOrTestCalendarText(value: string) {
-  return /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI选题计划|AI短片复盘|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估|05[0-9]|06[0-9]|07[0-2]/i.test(value);
+  return /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI选题计划|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估|05[0-9]|06[0-9]|07[0-2]/i.test(value);
 }
 
 function calendarClassificationText(

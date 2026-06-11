@@ -7187,6 +7187,30 @@ test("creator video idea creates four platform drafts and optional schedule", as
   }
 });
 
+test("creator day topic named AI short film recap remains user work in default calendar", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-creator-day-ai-recap-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const result = service.createCreatorVideoDraft({
+      title: "AI短片复盘：从选题到发布踩坑",
+      topic: "AI短片复盘",
+      brief: "明天要发一个 AI 短片复盘，讲从选题到发布踩坑。",
+      scheduledAt: "2026-06-12T12:00:00.000Z"
+    });
+
+    assert.equal(result.content.dataDomain, "user_work");
+    assert.equal(result.content.workOwnership, "user_owned_work");
+    const dashboard = await service.dashboard();
+    assert.equal(dashboard.calendarItems.filter((item) => item.contentId === result.content.id).length, 4);
+    assert.equal(dashboard.metricSnapshots.some((item) => item.contentId === result.content.id), false);
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("production defaults isolate acceptance titles even when they look like real works", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-data-domain-isolation-"));
   let repo: SqliteSelfMediaRepo | undefined;

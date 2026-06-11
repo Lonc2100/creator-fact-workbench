@@ -93,8 +93,12 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentComposerLibrary, /内容库/);
   assert.match(contentComposerLibrary, /先把今天的新内容写出来/);
   assert.match(contentComposerLibrary, /管理已保存的内容资产/);
-  assert.match(contentScreen, /requestedContentModeFromUrl/);
+  assert.match(contentRoute, /initialRequestFromSearchParams/);
+  assert.match(contentRoute, /searchParams/);
+  assert.match(contentRoute, /contentId \|\| versionId \? "library" : "composer"/);
+  assert.match(contentScreen, /ContentPageInitialRequest/);
   assert.match(contentScreen, /const \[mode, setMode\] = useState<ContentPageMode>/);
+  assert.doesNotMatch(contentScreen, /requestedContentModeFromUrl/);
   assert.match(contentScreen, /<ContentModeSwitch/);
   assert.match(contentScreen, /mode === "composer"/);
   assert.match(contentScreen, /<ContentComposerPanel>/);
@@ -131,7 +135,7 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /分析并生成讨论稿/);
   assert.match(contentScreen, /按调整重新生成/);
   assert.match(contentScreen, /生成并保存四平台版本/);
-  assert.match(contentScreen, /requestedScheduledAtFromUrl/);
+  assert.match(contentScreen, /initialRequest\?\.scheduledAt/);
   assert.match(contentScreen, /useRef/);
   assert.match(contentScreen, /scheduleInputRef\.current\?\.value \?\? scheduledAt/);
   assert.match(contentScreen, /onInput=\{\(event\) => syncScheduledAt\(event\.currentTarget\.value\)\}/);
@@ -142,7 +146,7 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /已填写未来发布时间，但发布日历没有完整生成四个平台排期/);
   assert.match(contentScreen, /四平台版本已保存，并已加入发布日历/);
   assert.match(contentScreen, /新视频已保存并加入发布日历/);
-  assert.match(contentScreen, /new URLSearchParams\(window\.location\.search\)\.get\("scheduledAt"\)/);
+  assert.match(contentRoute, /firstParam\(params, "scheduledAt"\)/);
   assert.match(contentScreen, /localDateTimeInputValue/);
   assert.match(contentScreen, /保存后校验失败/);
   assert.match(contentScreen, /persistedVersions\.length !== body\.platformVersions\.length/);
@@ -167,7 +171,7 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /dataDomain === "user_work"/);
   assert.match(contentScreen, /content-acceptance-data-pool/);
   assert.match(contentScreen, /隔离数据/);
-  assert.match(contentScreen, /requestedAcceptanceRunIdFromUrl/);
+  assert.match(contentRoute, /firstParam\(params, "acceptanceRunId"\)/);
   assert.match(contentScreen, /acceptanceRunId/);
   assert.match(contentScreen, /不进运营看板/);
   assert.match(contentScreen, /行动项草稿仍可在本地内容筛选里查看/);
@@ -287,7 +291,8 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(calendarScreen, /隔离数据/);
   assert.match(calendarScreen, /calendar-acceptance-data-pool/);
   assert.match(calendarScreen, /072|测试|验收|creator day workflow|MAINLINE/i);
-  assert.match(calendarScreen, /真实作品：六月内容计划|我的真实作品070测试|AI选题计划|AI短片复盘|小雏菊|想拍一条短视频/);
+  assert.match(calendarScreen, /真实作品：六月内容计划|我的真实作品070测试|AI选题计划|小雏菊|想拍一条短视频/);
+  assert.doesNotMatch(calendarScreen, /AI短片复盘/);
   assert.doesNotMatch(calendarScreen, /我的真实作品\/i/);
   assert.match(calendarPattern, /点击空白时间格创建作品排期/);
   assert.match(calendarRoute, /getSelfMediaContentWorkbench/);

@@ -17,6 +17,15 @@ type StatusFilter = "all" | `content:${ContentStatus}` | `version:${PlatformVers
 type SortKey = "operating_desc" | "updated_desc" | "published_desc" | "platform_asc" | "trusted_desc" | "trusted_asc";
 type DensityMode = "comfortable" | "compact";
 
+export interface ContentPageInitialRequest {
+  scheduledAt?: string;
+  acceptanceRunId?: string;
+  dataDomain?: "acceptance_run" | "user_work";
+  contentId?: string;
+  versionId?: string;
+  mode?: ContentPageMode;
+}
+
 const platformFilters: Array<Platform | "all"> = ["all", "douyin", "xiaohongshu", "video_account", "bilibili", "other"];
 
 const sourceFilters: Array<{ value: SourceFilter; label: string }> = [
@@ -135,33 +144,11 @@ function filterRows(rows: ContentWorkbenchContentRow[], filters: { query: string
     });
 }
 
-function requestedScheduledAtFromUrl() {
-  if (typeof window === "undefined") return "";
-  return localDateTimeInputValue(new URLSearchParams(window.location.search).get("scheduledAt") ?? undefined);
-}
-
-function requestedAcceptanceRunIdFromUrl() {
-  if (typeof window === "undefined") return undefined;
-  const params = new URLSearchParams(window.location.search);
-  return params.get("acceptanceRunId") ?? params.get("acceptance_run_id") ?? undefined;
-}
-
-function requestedDataDomainFromUrl() {
-  if (typeof window === "undefined") return undefined;
-  const value = new URLSearchParams(window.location.search).get("dataDomain");
-  return value === "acceptance_run" || value === "user_work" ? value : undefined;
-}
-
-function requestedContentModeFromUrl(): ContentPageMode {
-  if (typeof window === "undefined") return "composer";
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("contentId") || params.get("versionId")) return "library";
-  return "composer";
-}
-
 function CreatorVideoPanel({
+  initialRequest,
   onCreated
 }: {
+  initialRequest?: ContentPageInitialRequest;
   onCreated: (result: CreatorVideoDraftResult) => Promise<void>;
 }) {
   const [title, setTitle] = useState("");
@@ -169,9 +156,9 @@ function CreatorVideoPanel({
   const [brief, setBrief] = useState("");
   const [scriptNotes, setScriptNotes] = useState("");
   const [materialNotes, setMaterialNotes] = useState("");
-  const [scheduledAt, setScheduledAt] = useState(() => requestedScheduledAtFromUrl());
-  const [acceptanceRunId] = useState(() => requestedAcceptanceRunIdFromUrl());
-  const [requestedDataDomain] = useState(() => requestedDataDomainFromUrl());
+  const [scheduledAt, setScheduledAt] = useState(() => localDateTimeInputValue(initialRequest?.scheduledAt) || "");
+  const [acceptanceRunId] = useState(() => initialRequest?.acceptanceRunId);
+  const [requestedDataDomain] = useState(() => initialRequest?.dataDomain);
   const scheduleInputRef = useRef<HTMLInputElement | null>(null);
   const [revisionPrompt, setRevisionPrompt] = useState("");
   const [discussion, setDiscussion] = useState<CreatorVideoDiscussionResult | null>(null);
@@ -724,9 +711,9 @@ function LocalAcceptanceContentPanel({ rows }: { rows: ContentWorkbenchContentRo
   );
 }
 
-export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }) {
+export function ContentPage({ initialRequest, snapshot }: { initialRequest?: ContentPageInitialRequest; snapshot: ContentWorkbenchSnapshot }) {
   const [current, setCurrent] = useState(snapshot);
-  const [mode, setMode] = useState<ContentPageMode>(() => requestedContentModeFromUrl());
+  const [mode, setMode] = useState<ContentPageMode>(() => initialRequest?.mode ?? "composer");
   const [query, setQuery] = useState("");
   const [platformFilter, setPlatformFilter] = useState<Platform | "all">("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("operating_default");
@@ -737,12 +724,10 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
   const [density, setDensity] = useState<DensityMode>("comfortable");
   const [selectedContentId, setSelectedContentId] = useState<string | undefined>(() => {
     const defaultContentId = snapshot.contentRows.find(isOperatingContentRow)?.content.id ?? snapshot.contents[0]?.id;
-    if (typeof window === "undefined") return defaultContentId;
-    return new URLSearchParams(window.location.search).get("contentId") ?? defaultContentId;
+    return initialRequest?.contentId ?? defaultContentId;
   });
   const [selectedVersionId, setSelectedVersionId] = useState<string | undefined>(() => {
-    if (typeof window === "undefined") return snapshot.platformVersions[0]?.id;
-    return new URLSearchParams(window.location.search).get("versionId") ?? snapshot.platformVersions[0]?.id;
+    return initialRequest?.versionId ?? snapshot.platformVersions[0]?.id;
   });
   const [message, setMessage] = useState("选择内容后编辑平台版本。");
 
@@ -947,7 +932,7 @@ export function ContentPage({ snapshot }: { snapshot: ContentWorkbenchSnapshot }
       <ContentModeSwitch activeMode={mode} libraryCount={operatingDefaultCount} onModeChange={setMode} scheduledCount={scheduledCount} />
       {mode === "composer" ? (
         <ContentComposerPanel>
-          <CreatorVideoPanel onCreated={handleCreatorDraftCreated} />
+          <CreatorVideoPanel initialRequest={initialRequest} onCreated={handleCreatorDraftCreated} />
         </ContentComposerPanel>
       ) : (
         <ContentLibraryPanel>
