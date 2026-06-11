@@ -1,5 +1,6 @@
 import type { DashboardSnapshot, Platform } from "../../types";
 import { PlatformBadge } from "../components/PlatformBadge";
+import { formatDateTime, formatNumber } from "../foundations/format";
 import { platformLabels } from "../foundations/labels";
 import { Badge } from "../primitives/Badge";
 import { Button } from "../primitives/Button";
@@ -167,6 +168,43 @@ function freshnessSummary(snapshot: DashboardSnapshot) {
   return `建议刷新：${stalePlatforms.join("、")}。24 小时内新鲜，24-72 小时建议刷新，超过 72 小时需要刷新；这些提示只提醒你补抓，不会制造假数据。`;
 }
 
+function refreshReason(snapshot: DashboardSnapshot, key: ImportUpdatePanelKey) {
+  const health = snapshot.platformDataHealth.platforms.find((item) => item.platform === healthPlatformKey(key));
+  const age = health?.freshness.realCaptureAgeHours;
+  if (!health?.freshness.latestRealCaptureAt || health.realCaptureStatus === "missing") return "暂无最近刷新记录，建议先补一次内容级数据。";
+  if (typeof age === "number" && age < freshWithinHours) return `最近约 ${formatNumber(Math.max(0, Math.round(age)))} 小时内更新，今天可以先看数据。`;
+  if (typeof age === "number" && age <= refreshNeededAfterHours) return `距上次更新约 ${formatNumber(Math.round(age))} 小时，建议今天补一次。`;
+  return "距上次更新已超过 72 小时，请优先刷新。";
+}
+
+function refreshChecklistNextAction(key: ImportUpdatePanelKey, freshness: ImportPlatformFlowState) {
+  const isFresh = freshness.label === "数据新鲜";
+  if (key === "douyin") {
+    return isFresh ? "可先看数据；需要补抓时展开抖音更新。" : "打开抖音更新，登录创作者中心后回到这里重新检查/预览。";
+  }
+  if (key === "xiaohongshu") {
+    return isFresh ? "可先看数据；需要补抓时展开小红书更新。" : "打开小红书更新，切到内容分析表格页后读取。";
+  }
+  if (key === "video_account") {
+    return isFresh ? "可先看数据；有新作品时手动更新视频号。" : "准备作品级数据，手动粘贴或上传后预览。";
+  }
+  return isFresh ? "可先看数据；有新稿件时导入 B站内容级表格。" : "导入当前稿件级表格；账号指标仍 preview-only。";
+}
+
+function todayRefreshChecklist(snapshot: DashboardSnapshot) {
+  return platformCards.map((card) => {
+    const health = snapshot.platformDataHealth.platforms.find((item) => item.platform === healthPlatformKey(card.key));
+    const freshness = freshnessPolicyFor(snapshot, card.key);
+    return {
+      ...card,
+      freshness,
+      latestAt: health?.freshness.latestRealCaptureAt ?? null,
+      reason: refreshReason(snapshot, card.key),
+      nextAction: refreshChecklistNextAction(card.key, freshness)
+    };
+  });
+}
+
 export function ImportPlatformOverview({
   activePanel,
   captureStates,
@@ -183,6 +221,7 @@ export function ImportPlatformOverview({
   snapshot: DashboardSnapshot;
 }) {
   const freshness = freshnessSummary(snapshot);
+  const refreshRows = todayRefreshChecklist(snapshot);
   return (
     <Panel
       className="import-platform-overview"
@@ -204,6 +243,31 @@ export function ImportPlatformOverview({
           <p>{freshness}</p>
         </div>
       )}
+      <div data-testid="today-refresh-checklist">
+        <div className="trusted-weekly-summary-foot">
+          <span><b>今日建议刷新</b> 本地服务启动后，首次进入看板或导入页会只读检查这些状态。</span>
+          <span>不会自动开窗，也不会静默保存。</span>
+        </div>
+        <div className="platform-operation-grid">
+          {refreshRows.map((row) => (
+            <article className="platform-operation-card" data-testid={`today-refresh-row-${row.key}`} key={`today-refresh-${row.key}`}>
+              <div className="platform-operation-card-head">
+                <PlatformBadge platform={row.platform} />
+                <Badge tone={row.freshness.tone}>{row.freshness.label}</Badge>
+              </div>
+              <strong>{platformLabels[row.platform]}</strong>
+              <p>{row.reason}</p>
+              <small>最近更新：{formatDateTime(row.latestAt ?? undefined)}</small>
+              <small>{row.nextAction}</small>
+              <div className="import-preview-actions">
+                <Button data-testid={`today-refresh-open-${row.key}`} onClick={() => onOpenPanel(row.key)} variant={row.freshness.label === "数据新鲜" ? "secondary" : "primary"}>
+                  {row.actionLabel}
+                </Button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </div>
       <div className="login-platform-status-grid import-platform-overview-grid" data-testid="import-platform-overview-grid">
         {platformCards.map((card) => {
           const status = statusFor(snapshot, card.key);

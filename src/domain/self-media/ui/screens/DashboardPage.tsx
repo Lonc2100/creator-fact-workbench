@@ -98,6 +98,22 @@ function realCaptureFreshnessWindowLabel(ageHours?: number | null) {
   return "真实抓取超过 72 小时，需要刷新。";
 }
 
+function platformFreshnessBand(platform: DashboardSnapshot["platformDataHealth"]["platforms"][number]) {
+  const ageHours = platform.freshness.realCaptureAgeHours;
+  if (!platform.freshness.latestRealCaptureAt || platform.realCaptureStatus === "missing") return "needs";
+  if (typeof ageHours === "number" && ageHours < 24) return "fresh";
+  if (typeof ageHours === "number" && ageHours <= 72) return "suggested";
+  return "needs";
+}
+
+function dashboardStartupFreshnessSummary(snapshot: DashboardSnapshot) {
+  const groups = snapshot.platformDataHealth.platforms.reduce((acc, platform) => {
+    acc[platformFreshnessBand(platform)].push(platform);
+    return acc;
+  }, { fresh: [] as DashboardSnapshot["platformDataHealth"]["platforms"], suggested: [] as DashboardSnapshot["platformDataHealth"]["platforms"], needs: [] as DashboardSnapshot["platformDataHealth"]["platforms"] });
+  return groups;
+}
+
 function dailyOpsLabel(status: DashboardSnapshot["dailySelfMediaOps"]["status"]) {
   if (status === "pass") return "闭环正常";
   if (status === "warn") return "有提醒";
@@ -339,12 +355,26 @@ function DashboardFreshnessNotice({ snapshot }: { snapshot: DashboardSnapshot })
   const staleCount = snapshot.platformDataHealth.summary.realCaptureStaleCount;
   const latestRealCaptureAt = freshness.latestRealCaptureAt;
   const detail = realCaptureFreshnessWindowLabel(freshness.realCaptureAgeHours);
+  const startupSummary = dashboardStartupFreshnessSummary(snapshot);
   const tone: DailyChecklistTone = staleCount > 0 ? "warning" : typeof freshness.realCaptureAgeHours === "number" && freshness.realCaptureAgeHours < 24 ? "success" : "info";
   return (
-    <div className="trusted-weekly-summary-foot" data-testid="dashboard-freshness-notice">
-      <span><b>{detail}</b> 最近更新：{formatDateTime(latestRealCaptureAt ?? undefined)}；需要刷新平台 {formatNumber(staleCount)} 个。</span>
-      <Badge tone={tone}>{staleCount > 0 ? "需要刷新" : "数据状态"}</Badge>
+    <div className="dashboard-startup-freshness trusted-weekly-summary-foot" data-testid="dashboard-freshness-notice">
+      <span><b>开场只读检查：</b>{detail} 最近更新：{formatDateTime(latestRealCaptureAt ?? undefined)}；新鲜 {formatNumber(startupSummary.fresh.length)} 个，建议刷新 {formatNumber(startupSummary.suggested.length)} 个，需要刷新 {formatNumber(startupSummary.needs.length)} 个。</span>
+      <Badge tone={tone}>{staleCount > 0 ? "需要刷新" : "今天可以先看数据"}</Badge>
       <a className="sm-button sm-button-secondary" href="/import">去导入页刷新</a>
+      <small>本地服务启动后，首次进入看板或导入页会检查数据新鲜度；不会打开平台窗口，也不会静默保存。</small>
+      <div className="trusted-weekly-platforms" data-testid="dashboard-freshness-platform-summary">
+        {snapshot.platformDataHealth.platforms.map((platform) => {
+          const band = platformFreshnessBand(platform);
+          return (
+            <div className="trusted-weekly-platform" key={`dashboard-freshness-${platform.platform}`}>
+              <PlatformBadge platform={platform.platform === "video-account" ? "video_account" : platform.platform} />
+              <span>{band === "fresh" ? "今天可先看" : band === "suggested" ? "建议刷新" : "需要刷新"}</span>
+              <small>{formatDateTime(platform.freshness.latestRealCaptureAt ?? undefined)}</small>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

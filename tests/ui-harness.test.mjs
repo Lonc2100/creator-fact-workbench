@@ -494,6 +494,14 @@ test("import page default view is data-only and folds diagnostics", () => {
   assert.match(importOverview, /ImportPlatformFlowState/);
   assert.match(importOverview, /import-platform-freshness-warning/);
   assert.match(importOverview, /哪些数据建议刷新/);
+  assert.match(importOverview, /today-refresh-checklist/);
+  assert.match(importOverview, /today-refresh-row/);
+  assert.match(importOverview, /今日建议刷新/);
+  assert.match(importOverview, /暂无最近刷新记录，建议先补一次内容级数据/);
+  assert.match(importOverview, /登录创作者中心后回到这里重新检查\/预览/);
+  assert.match(importOverview, /切到内容分析表格页后读取/);
+  assert.match(importOverview, /准备作品级数据，手动粘贴或上传后预览/);
+  assert.match(importOverview, /导入当前稿件级表格/);
   assert.match(importOverview, /24 小时内新鲜/);
   assert.match(importOverview, /24-72 小时建议刷新/);
   assert.match(importOverview, /超过 72 小时需要刷新/);
@@ -899,6 +907,12 @@ test("dashboard default view is data-only and folds internal diagnostics", () =>
   assert.match(dashboardScreen, /realCaptureFreshnessWindowLabel/);
   assert.match(dashboardScreen, /DashboardFreshnessNotice/);
   assert.match(dashboardScreen, /dashboard-freshness-notice/);
+  assert.match(dashboardScreen, /开场只读检查/);
+  assert.match(dashboardScreen, /dashboardStartupFreshnessSummary/);
+  assert.match(dashboardScreen, /dashboard-freshness-platform-summary/);
+  assert.match(dashboardScreen, /首次进入看板或导入页会检查数据新鲜度/);
+  assert.match(dashboardScreen, /不会打开平台窗口，也不会静默保存/);
+  assert.match(dashboardScreen, /今天可以先看数据/);
   assert.match(dashboardScreen, /去导入页刷新/);
   assert.match(dashboardScreen, /24 小时内有真实抓取，数据新鲜/);
   assert.match(dashboardScreen, /真实抓取超过 24 小时，建议刷新/);
