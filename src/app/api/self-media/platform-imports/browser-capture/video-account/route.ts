@@ -212,6 +212,38 @@ async function extractVisibleRows(page: Page): Promise<VideoAccountBrowserVisibl
   return selectVideoAccountAssistantPageRows(candidates, capturedAt);
 }
 
+async function extractVisiblePageWarnings(page: Page) {
+  return page.evaluate(() => {
+    const clean = (value: string | null | undefined) => (value ?? "").replace(/\s+/g, " ").trim();
+    const visible = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return rect.width >= 8
+        && rect.height >= 8
+        && rect.bottom > 0
+        && rect.right > 0
+        && rect.top < window.innerHeight
+        && rect.left < window.innerWidth
+        && style.visibility !== "hidden"
+        && style.display !== "none";
+    };
+    const rowSelector = "tr,[role='row'],article,li,[class*='table-row'],[class*='TableRow'],[class*='card'],[class*='item'],[class*='list-item'],[class*='ListItem']";
+    const bodyText = clean(document.body?.textContent);
+    const rows = Array.from(document.querySelectorAll(rowSelector)).filter(visible);
+    const metricPattern = /(播放|曝光|浏览|观看|阅读|点赞|评论|收藏|分享|转发|推荐)/;
+    const datePattern = /(20\d{2}[-/.年]\d{1,2}|(?:^|\D)\d{1,2}月\d{1,2}日)/;
+    const stableAnchors = document.querySelectorAll("a[href*='weixin.qq.com/sph'],a[href*='export/']");
+    const exportLikeAttributes = Array.from(document.querySelectorAll("[data-id],[data-object-id],[data-feed-id],[data-export-id],[id]"))
+      .filter((element) => Array.from(element.attributes).some((attribute) => /export\//.test(attribute.value)));
+    const warnings: string[] = [];
+    if (metricPattern.test(bodyText) && rows.length > 0) warnings.push("video_account_page_has_metric_words_without_work_rows");
+    if (!datePattern.test(bodyText)) warnings.push("video_account_no_visible_publish_time");
+    if (stableAnchors.length === 0 && exportLikeAttributes.length === 0) warnings.push("video_account_no_visible_stable_link_or_export_id");
+    if (rows.filter((row) => metricPattern.test(clean(row.textContent)) && datePattern.test(clean(row.textContent))).length === 0) warnings.push("video_account_no_same_row_metric_publish_time");
+    return warnings;
+  }).catch(() => ["video_account_visible_page_hint_unavailable"]);
+}
+
 function summarizeRows(rows: VideoAccountBrowserVisibleRow[]) {
   return {
     contentCount: rows.length,
@@ -282,6 +314,7 @@ export async function POST(request: Request) {
     if (action !== "save") session.lastRows = rows;
     const summary = summarizeRows(rows);
     if (action === "capture_preview") {
+      const pageWarnings = rows.length > 0 ? [] : await extractVisiblePageWarnings(session.page);
       return Response.json(emptyResult(action, {
         ...base,
         ok: rows.length > 0,
@@ -291,7 +324,7 @@ export async function POST(request: Request) {
         message: rows.length > 0
           ? `已从当前视频号助手页面识别 ${rows.length} 条候选；请先预览，可保存候选仍需你确认。`
           : "当前页面未识别到可靠作品行；请切到视频号助手作品/数据列表页，确认每行有标题、发布时间、观看/点赞/评论/分享和稳定链接后重试。",
-        warnings: rows.length > 0 ? rows.flatMap((row) => row.warnings) : ["no_visible_video_account_work_rows"]
+        warnings: rows.length > 0 ? rows.flatMap((row) => row.warnings) : ["no_visible_video_account_work_rows", ...pageWarnings]
       }), { status: rows.length > 0 ? 200 : 400 });
     }
 

@@ -58,7 +58,11 @@ const warningLabels: Record<string, string> = {
   video_account_page_scan_blocked: "字段不完整，暂不保存",
   video_account_assistant_not_opened: "需要先打开视频号助手页面",
   wrong_video_account_page: "需要切到视频号助手作品/数据列表页",
-  no_visible_video_account_work_rows: "未识别到可靠作品行"
+  no_visible_video_account_work_rows: "未识别到可靠作品行",
+  video_account_page_has_metric_words_without_work_rows: "当前页有指标词，但不像一行一条作品",
+  video_account_no_visible_publish_time: "当前页未看到发布时间",
+  video_account_no_visible_stable_link_or_export_id: "当前页未看到稳定链接或 export ID",
+  video_account_no_same_row_metric_publish_time: "未看到指标和发布时间在同一行"
 };
 
 const normalizedMetricLabels: Record<string, string> = {

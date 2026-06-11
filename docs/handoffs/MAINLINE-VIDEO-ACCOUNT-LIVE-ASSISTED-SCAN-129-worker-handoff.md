@@ -134,3 +134,34 @@ Observed on `http://127.0.0.1:3200/api/self-media/dashboard` after the failed pr
 - Route status remains `needs_login`; preview/save were not attempted beyond status because the login-page blocker is unchanged.
 - Dashboard totals remain unchanged: trusted contents `28`, trusted metric snapshots `37`, Video Account snapshots `6`, default calendar items `12`.
 - No data was saved and no sensitive login material was persisted.
+
+## Login Continuation Check
+
+- Checked again after the user indicated login on 2026-06-11T20:09:34+08:00.
+- Current HEAD before this addendum patch: `94c08016e88294b3966b086eac861b861e0d4113`.
+- Controlled Video Account Assistant session reached `https://channels.weixin.qq.com/platform/post/list`.
+- `capture_preview` was attempted with user login confirmation.
+- Result: still failed closed with `0` rows, `0` content candidates, `0` metric candidates, `0` save candidates.
+- Safe page-hint warnings returned by the route:
+  - `no_visible_video_account_work_rows`
+  - `video_account_no_visible_publish_time`
+  - `video_account_no_visible_stable_link_or_export_id`
+  - `video_account_no_same_row_metric_publish_time`
+- A no-DOM/no-screenshot local diagnostic confirmed the page was no longer a login page and did have Video Account/metric words, but the visible page did not expose publish-time text or stable `weixin.qq.com/sph` / `export/...` identifiers.
+- A safe navigation attempt clicked the visible `数据中心` entry, but the page still did not expose a same-row work/data table with publish time plus stable ID/link.
+- No save was performed because the preview had no `canSave` candidates and no user save confirmation was requested.
+- Dashboard totals stayed unchanged from the baseline: trusted contents `28`, trusted metric snapshots `37`, Video Account snapshots `6`.
+
+## Additional Hardening After Login Check
+
+- Added safe no-DOM page-hint warnings to the Video Account assisted scan route for failed preview cases:
+  - visible metric words without reliable work rows;
+  - no visible publish time;
+  - no visible stable link or export ID;
+  - no same-row metric plus publish-time structure.
+- Added UI warning labels for these cases so the next user step is clearer.
+- Verified:
+  - `git diff --check`: PASS.
+  - `npm run typecheck`: PASS.
+  - `npm run test:self-media`: PASS, 155 tests.
+  - `npm run test:ui-harness`: PASS, 20 tests.
