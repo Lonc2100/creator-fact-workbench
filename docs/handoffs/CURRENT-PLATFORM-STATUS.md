@@ -2,6 +2,49 @@
 
 This is the compact entrypoint for future sessions. Use it before opening dozens of historical handoffs.
 
+## 132 Usable Creator V1 Freeze
+
+Current daily-usable v1 baseline as of 2026-06-11:
+
+| Bundle | Commit | Status | Handoff |
+| --- | --- | --- | --- |
+| Video Account live assisted scan | `9e1e68b feat(self-media): verify video account assisted scan` | Done | `MAINLINE-VIDEO-ACCOUNT-LIVE-ASSISTED-SCAN-129-worker-handoff.md` |
+| Four-platform refresh workflow | `988377d feat(self-media): consolidate four-platform refresh workflow` | Done | `MAINLINE-FOUR-PLATFORM-REFRESH-WORKFLOW-130-worker-handoff.md` |
+| Creator-day usability acceptance | `3c683f6 fix(self-media): close creator day usability gaps` | Done | `MAINLINE-USABLE-CREATOR-DAY-ACCEPTANCE-131-worker-handoff.md` |
+| Usable v1 freeze and delivery | `docs(self-media): freeze usable creator v1` | Done | `MAINLINE-USABLE-V1-FREEZE-AND-DELIVERY-132-worker-handoff.md` |
+
+Usable v1 conclusion:
+
+- The system can support the daily creator loop tomorrow: open `/dashboard`, review trusted performance, create content in `/content`, generate four-platform drafts, schedule in `/calendar`, refresh platform data in `/import`, and return to `/dashboard` for review.
+- 129 proved the Video Account Assistant assisted page-scan path with 6 saved content-level rows after user login and explicit save confirmation. Older "manual-only" or "discovery-only" Video Account statements are historical and superseded by 128/129/130.
+- 130 consolidated `/import` as the four-platform refresh workbench: Douyin, Xiaohongshu, Video Account, and Bilibili each show their own refresh path, preview boundary, save boundary, and next action.
+- 131 proved a realistic creator day by creating the local draft/schedule `AI短片复盘：从选题到发布踩坑`, generating four platform versions, showing one merged calendar card, and keeping trusted metrics unchanged.
+- User-facing daily instructions now live at `docs/runbooks/self-media-daily-use-v1.md`.
+
+Daily user path:
+
+1. Open `http://localhost:3200/dashboard`.
+2. Review the trusted data snapshot, freshness suggestions, trend/ranking signals, and platform contribution.
+3. Use `/content` to write the next video idea, generate four platform drafts, save the content, and keep the content library as the secondary lookup path.
+4. Use `/calendar` to confirm or adjust future user-owned schedules. Multi-platform schedules for one content item should appear as one understandable merged card.
+5. After manual platform publishing or after new platform data is available, use `/import` to refresh Douyin, Xiaohongshu, Video Account, and Bilibili through preview first, then explicit save confirmation.
+6. Return to `/dashboard` to review updated trusted metrics. Imported metric rows must not become default future calendar cards.
+
+Still requires user action:
+
+- Platform login, QR scan, risk-control, or switching to the correct creator-center page when the platform asks for it.
+- Preview review and explicit confirmation before any real platform metric save.
+- Manual publishing and manual publish-result confirmation; no real platform publish API is called.
+- Bilibili content-level data must still come from a stable manuscript/work table or archive path; Bilibili account metrics stay preview-only.
+
+Not promised in usable v1:
+
+- No silent automatic publishing.
+- No fully silent background scraping.
+- No WeChat Official Account / backend restoration.
+- No durable Bilibili account-level totals.
+- No saved password, cookie, token, header, storageState, raw request, raw response, screenshot, HAR, trace, or platform DOM.
+
 ## 053 Release / Status Closure Snapshot
 
 Current mainline release baseline as of 2026-06-05:

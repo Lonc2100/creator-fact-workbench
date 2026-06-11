@@ -14,6 +14,7 @@ This index separates active release scope from paused or diagnostic-only work. D
 - [BILIBILI-PERSONAL-V0](./bilibili-personal-v0.md)
 - [Authenticated Browser Capture 085](./authenticated-browser-capture-085.md)
 - Daily operator runbook: [self-media-daily-ops](../runbooks/self-media-daily-ops.md)
+- Daily user runbook: [self-media-daily-use-v1](../runbooks/self-media-daily-use-v1.md)
 - Current release/status entrypoint: [CURRENT-PLATFORM-STATUS](../handoffs/CURRENT-PLATFORM-STATUS.md)
 - Creator business loop baseline: [055 operating loop](../handoffs/MAINLINE-CREATOR-OPERATING-LOOP-V2-055-worker-handoff.md), [056 live hardening](../handoffs/MAINLINE-CREATOR-LOOP-LIVE-WALKTHROUGH-056-worker-handoff.md), [057 copilot discussion](../handoffs/MAINLINE-CREATOR-COPILOT-DISCUSSION-057-worker-handoff.md), [058 acceptance](../handoffs/MAINLINE-CREATOR-BUSINESS-LOOP-ACCEPTANCE-058-worker-handoff.md)
 
@@ -67,7 +68,9 @@ This index separates active release scope from paused or diagnostic-only work. D
   [Real refresh cycle closure 124](../handoffs/MAINLINE-REAL-REFRESH-CYCLE-CLOSURE-124-worker-handoff.md),
   [Video Account assisted page scan 128](../handoffs/MAINLINE-VIDEO-ACCOUNT-ASSISTED-PAGE-SCAN-128-worker-handoff.md),
   [Video Account live assisted scan 129](../handoffs/MAINLINE-VIDEO-ACCOUNT-LIVE-ASSISTED-SCAN-129-worker-handoff.md),
-  [Four-platform refresh workflow 130](../handoffs/MAINLINE-FOUR-PLATFORM-REFRESH-WORKFLOW-130-worker-handoff.md).
+  [Four-platform refresh workflow 130](../handoffs/MAINLINE-FOUR-PLATFORM-REFRESH-WORKFLOW-130-worker-handoff.md),
+  [Creator day acceptance 131](../handoffs/MAINLINE-USABLE-CREATOR-DAY-ACCEPTANCE-131-worker-handoff.md),
+  [Usable creator v1 freeze 132](../handoffs/MAINLINE-USABLE-V1-FREEZE-AND-DELIVERY-132-worker-handoff.md).
 
 ## Paused / Diagnostic-Only
 
