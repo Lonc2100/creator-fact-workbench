@@ -155,6 +155,42 @@ No TypeScript/business-code validation was required because this task changed on
 - A future real dispatched thread should record the actual thread id in a follow-up ledger update.
 - Level 3 remains out of scope until active-worker locks and user-gate enforcement are proven.
 
+## Post-Handoff User Gate Unlock Addendum
+
+After the original 127 closure, the user provided Video Account work links / stable export IDs in chat and explicitly confirmed saves. No Codex child thread was created; the main session handled the real-data save path directly because the user gate was satisfied in the same conversation.
+
+User-provided Video Account rows saved:
+
+| Work | Link | Stable ID | Saved metrics |
+| --- | --- | --- | --- |
+| `原创AI短片《星落之后》...` | `https://weixin.qq.com/sph/AH6eG1lD9` | `export/UzFfBgAAxKWDHHsCWQrMjMzT4DCao9aQjeiyfVb_tNj2HS6rbg` | views 407, likes 1, comments 0, saves 0, shares 0 |
+| `真以为我到此为止了吗 #AIGC #ai短片 #变身 #机甲` | `https://weixin.qq.com/sph/AJ4tOWCKv` | `export/UzFfBgAAxLuDUAk9ACnAjMzT4DCarAKQYo8bFstbMDJZ4yjH0g` | views 654, likes 6, comments 1, saves 0, shares 1 |
+| `以为是末日，没想到是...... #aigc #末日 #打工人精神状态 #职场 #ai短片` | `https://weixin.qq.com/sph/ARokxCJS5` | `export/UzFfBgAAxMCCUB4-ejrFjMzT4DCakJTvG3K-ewwdef-rPe1fGQ` | views 307000, likes 2162, comments 68, saves 0, shares 718 |
+| `《玻璃》｜当年暗恋的人，现在在哪？ #ai短片 #校园恋爱 #玻璃 #AI创作` | `https://weixin.qq.com/sph/AlxKbKaVn` | `export/UzFfBgAAxN-CQHMOUX3ojMzT4DCaC4mbJKtM9uvJFqKx3dQeJg` | views 1604, likes 9, comments 0, saves 0, shares 1 |
+| `用AI体验独居老人的一天，看完想给爸妈打个电话 #AI短片 #独居老人 #回家看看` | `https://weixin.qq.com/sph/AkB6ojdLS` | `export/UzFfBgAAxN2CDA8EUVb3jMzT4DCa1ZydVdtAgHCTRkTXxsqsqA` | views 841, likes 10, comments 0, saves 0, shares 0 |
+
+Metric mapping correction:
+
+- The Video Account heart icon in the screenshot was clarified by the user as `推荐`, not `收藏`.
+- The final thumbs-up icon is `点赞`.
+- Because the current trusted metric schema has no independent recommendation field, recommendation counts were not forced into `saves`; `saves` stayed `0` for these rows.
+
+Final observed local state after the save and correction:
+
+- Trusted contents: `28`.
+- Trusted metric snapshots: `37`.
+- Video Account trusted contents / snapshots: `6 / 6`.
+- Calendar count: `203`; the saved Video Account metric imports did not enter the main future scheduling calendar.
+- A one-character-short mistaken ID for the second 2-row save was immediately excluded from trusted scope with `actor=codex_manual_correction`, then the correct ID row was saved. The wrong ID no longer appears in trusted dashboard output.
+
+Product lesson for the next main-session task:
+
+- The user explicitly rejected the long-term workflow of manually sending links/IDs row by row.
+- Next recommended task: `MAINLINE-VIDEO-ACCOUNT-ASSISTED-PAGE-SCAN-128`.
+- Goal: AI should scan the current Video Account Assistant page, extract per-row title, publish time, same-row metrics, and stable link/export ID, then present a preview for batch confirmation.
+- Near-term rule: automatic scan + batch user confirmation.
+- Later rule, only after selector stability is proven: optional trusted auto-save with an explicit switch, dedupe, sanity checks, and non-destructive exclusion/rollback controls.
+
 ## Worklog
 
 - Started: 2026-06-11T17:02:23+08:00.
