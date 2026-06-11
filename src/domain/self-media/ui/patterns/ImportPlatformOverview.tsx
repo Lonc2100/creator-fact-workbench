@@ -45,7 +45,7 @@ const platformCards: PlatformUpdateCard[] = [
     key: "video_account",
     platform: "video_account",
     headline: "手动更新为主",
-    detail: "粘贴或上传视频号内容级数据；登录抓取需扫码，暂不作为每日自动流程。",
+    detail: "粘贴或上传视频号内容级数据；确认保存后作为手动更新证据刷新状态。",
     actionLabel: "手动更新视频号"
   },
   {
@@ -114,7 +114,7 @@ function defaultFlowState(snapshot: DashboardSnapshot, key: ImportUpdatePanelKey
       label: "当前平台暂不支持自动抓取",
       tone: "info",
       nextAction: "视频号以手动更新为主：粘贴或上传内容级数据，预览后再确认保存。",
-      detail: "登录抓取需要扫码，暂不作为每日自动流程。"
+      detail: "确认保存会作为视频号手动更新证据；登录抓取需要扫码，暂不作为每日自动流程。"
     };
   }
   if (key === "bilibili") {
@@ -122,7 +122,7 @@ function defaultFlowState(snapshot: DashboardSnapshot, key: ImportUpdatePanelKey
       label: "可刷新",
       tone: "info",
       nextAction: "导入 B站稿件内容级数据；账号总览指标只预览，不写入可信总量。",
-      detail: "适合上传或粘贴创作中心导出的稿件表。"
+      detail: "确认保存会作为 B站内容级导入证据；适合上传或粘贴创作中心导出的稿件表。"
     };
   }
 

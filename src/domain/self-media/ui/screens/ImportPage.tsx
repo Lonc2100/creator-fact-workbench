@@ -31,14 +31,14 @@ const sampleXiaohongshuLocalExportCsv = [
   "xhs-local-001,AI工具复盘清单,2026-06-01T09:00:00.000Z,900,66,11,80,12,5,2000,169,18%,搜索,AI工具,AI工具"
 ].join("\n");
 
-const sampleBilibiliLocalExportCsv = [
-  "稿件ID,BV号,标题,发布时间,播放量,点赞数,评论数,弹幕数,收藏数,分享数,投币数,涨粉,完播率,平均播放时长,选题",
-  "bili-local-001,BV1local001,AI短片工作流拆解,2026-06-01T09:00:00.000Z,1600,88,22,12,61,19,30,9,45%,32s,AI短片"
+const videoAccountLocalExportPlaceholder = [
+  "视频ID,标题,发布时间,播放量,点赞数,评论数,收藏数,分享数,朋友圈转发,涨粉,完播率,平均播放时长,公众号阅读转化,流量来源,选题",
+  "请粘贴你从视频号助手复制的本人内容级数据，每行一条作品"
 ].join("\n");
 
-const sampleVideoAccountLocalExportCsv = [
-  "视频ID,标题,发布时间,播放量,点赞数,评论数,收藏数,分享数,朋友圈转发,涨粉,完播率,平均播放时长,公众号阅读转化,流量来源,选题",
-  "va-local-001,视频号真人表达复盘,2026-06-08T09:00:00.000Z,700,24,5,10,8,2,4,36%,16s,12,推荐,真人表达"
+const bilibiliLocalExportPlaceholder = [
+  "稿件ID,BV号,标题,发布时间,播放量,点赞数,评论数,弹幕数,收藏数,分享数,投币数,涨粉,完播率,平均播放时长,选题",
+  "请粘贴你从 B站创作中心导出的本人稿件数据，每行一条稿件"
 ].join("\n");
 
 const confidenceLabels: Record<RealImportPreviewRow["mappingConfidence"], string> = {
@@ -54,6 +54,17 @@ const warningLabels: Record<string, string> = {
   fallback_id_from_visible_text: "ID 仅由页面文字生成，不能当作稳定平台 ID",
   not_creator_center_owned_works_page: "当前页未证明是本人作品管理页",
   no_metric_number_detected: "未识别到指标数字"
+};
+
+const normalizedMetricLabels: Record<string, string> = {
+  publishedAt: "发布时间",
+  capturedAt: "抓取时间",
+  views: "播放/观看",
+  likes: "点赞",
+  comments: "评论",
+  saves: "收藏",
+  shares: "分享",
+  followersDelta: "涨粉"
 };
 
 const importStatusLabels: Record<PlatformImportStatus["latestStatus"], string> = {
@@ -315,6 +326,7 @@ function freshnessStaleLabel(value?: boolean | null) {
 }
 
 function normalizeWarning(value: string) {
+  if (value.includes("draft_realistic_headers_need_real_export_confirmation")) return "字段格式需要按真实导出表人工确认";
   return warningLabels[value] ?? value.replace(/^preset:/, "");
 }
 
@@ -346,7 +358,9 @@ function isPausedWechatRecoveryText(value: string) {
 }
 
 function metricEntries(row: RealImportPreviewRow) {
-  return Object.entries(row.normalized).filter(([key, value]) => key !== "id" && key !== "title" && value !== undefined && value !== "");
+  return Object.entries(row.normalized)
+    .filter(([key, value]) => key !== "id" && key !== "title" && value !== undefined && value !== "")
+    .map(([key, value]) => [normalizedMetricLabels[key] ?? key, value] as const);
 }
 
 function objectEntries(value: Record<string, unknown>, limit = 4) {
@@ -920,7 +934,7 @@ function RealPreviewRows({ rows }: { rows: RealImportPreviewRow[] }) {
                 </div>
               </section>
               <section>
-                <span>Native metrics</span>
+                <span>平台原生字段</span>
                 <div className="preview-chip-grid">
                   {nativeEntries.length > 0 ? nativeEntries.map(([key, value]) => (
                     <span className="preview-chip native-chip" key={key}>
@@ -936,7 +950,7 @@ function RealPreviewRows({ rows }: { rows: RealImportPreviewRow[] }) {
                 <summary>
                   <span>
                     <strong>字段诊断</strong>
-                    <small>本地原始字段仅供排查映射</small>
+                    <small>上传表字段仅供排查映射</small>
                   </span>
                   <i>展开</i>
                 </summary>
@@ -1638,12 +1652,12 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const [xiaohongshuBrowserLoginConfirmed, setXiaohongshuBrowserLoginConfirmed] = useState(false);
   const [xiaohongshuBrowserMetricsConfirmed, setXiaohongshuBrowserMetricsConfirmed] = useState(false);
   const [xiaohongshuBrowserMessage, setXiaohongshuBrowserMessage] = useState("等待打开小红书后台");
-  const [videoAccountCsv, setVideoAccountCsv] = useState(sampleVideoAccountLocalExportCsv);
+  const [videoAccountCsv, setVideoAccountCsv] = useState("");
   const [videoAccountFile, setVideoAccountFile] = useState<File | null>(null);
   const [videoAccountPreview, setVideoAccountPreview] = useState<ImportPreviewResult | null>(null);
   const [videoAccountConfirmed, setVideoAccountConfirmed] = useState(false);
   const [videoAccountMessage, setVideoAccountMessage] = useState("等待视频号手动更新表");
-  const [bilibiliCsv, setBilibiliCsv] = useState(sampleBilibiliLocalExportCsv);
+  const [bilibiliCsv, setBilibiliCsv] = useState("");
   const [bilibiliFile, setBilibiliFile] = useState<File | null>(null);
   const [bilibiliPreview, setBilibiliPreview] = useState<ImportPreviewResult | null>(null);
   const [bilibiliConfirmed, setBilibiliConfirmed] = useState(false);
@@ -1959,7 +1973,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         const result = body as ImportPreviewResult;
         setDouyinPreview(result);
         setDouyinConfirmed(false);
-        setDouyinMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后来源将保存为 douyin_creator_center。`);
+        setDouyinMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后将按抖音内容级导入保存。`);
       } else {
         const dashboardResponse = await fetch("/api/self-media/dashboard");
         setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
@@ -2112,7 +2126,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         const result = body as ImportPreviewResult;
         setXiaohongshuPreview(result);
         setXiaohongshuConfirmed(false);
-        setXiaohongshuMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后来源将保存为 xiaohongshu_creator_center。`);
+        setXiaohongshuMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后将按小红书内容级导入保存。`);
       } else {
         const dashboardResponse = await fetch("/api/self-media/dashboard");
         setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
@@ -2142,7 +2156,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         const result = body as ImportPreviewResult;
         setVideoAccountPreview(result);
         setVideoAccountConfirmed(false);
-        setVideoAccountMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后来源将保存为 video_account_creator_center。`);
+        setVideoAccountMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后将按视频号手动更新保存。`);
       } else {
         const dashboardResponse = await fetch("/api/self-media/dashboard");
         setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
@@ -2172,7 +2186,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         const result = body as ImportPreviewResult;
         setBilibiliPreview(result);
         setBilibiliConfirmed(false);
-        setBilibiliMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后来源将保存为 bilibili_creator_center。`);
+        setBilibiliMessage(`已识别 ${result.realPreviewRows?.length ?? 0} 行；确认后将按 B站内容级导入保存。`);
       } else {
         const dashboardResponse = await fetch("/api/self-media/dashboard");
         setCurrentSnapshot((await dashboardResponse.json()) as DashboardSnapshot);
@@ -2699,11 +2713,15 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </article>
             <article>
               <strong>2. 先预览再确认</strong>
-              <p>至少确认标题、发布时间、播放/观看、点赞、评论、转发/分享等字段，缺稳定视频 ID 的行不会进入可信保存。</p>
+              <p>至少确认作品标题、发布时间、播放/曝光、点赞、评论、收藏、分享等字段，缺稳定视频 ID 的行不会进入可信保存。</p>
             </article>
             <article>
               <strong>3. 后续探索：尝试登录抓取</strong>
               <p>登录抓取需扫码，暂不作为每日自动流程；API 能力待确认，个人创作者不默认假设可用。</p>
+            </article>
+            <article>
+              <strong>4. 保存后刷新状态</strong>
+              <p>确认保存后会作为视频号手动更新证据刷新数据状态；不会保存登录凭证、网页请求内容或截图。</p>
             </article>
           </div>
           <div className="form-grid">
@@ -2723,6 +2741,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             <Field label="或粘贴视频号数据 CSV">
               <TextArea
                 data-testid="video-account-local-file-csv"
+                placeholder={videoAccountLocalExportPlaceholder}
                 value={videoAccountCsv}
                 onChange={(event) => {
                   setVideoAccountCsv(event.target.value);
@@ -2738,8 +2757,12 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                 onChange={(event) => setVideoAccountConfirmed(event.target.checked)}
                 type="checkbox"
               />
-              <span>我确认这是本人从视频号助手手动更新的内容级表格；保存后进入数据看板，且不保存登录凭证、请求头、原始请求或截图。</span>
+              <span>我确认这是本人从视频号助手手动更新的内容级表格；保存后进入数据看板，且不保存登录凭证、网页请求内容或截图。</span>
             </label>
+            <div className="capture-reality-box" data-testid="video-account-manual-field-guide">
+              <strong>建议粘贴字段</strong>
+              <p>作品标题、发布时间、播放/曝光、点赞、评论、收藏、分享；有视频 ID 或作品链接时优先带上，保存后会刷新视频号数据状态。</p>
+            </div>
             <div className="import-preview-actions">
               <Button data-testid="video-account-local-file-preview" onClick={() => runVideoAccountLocalFile("preview")} variant="secondary" disabled={isVideoAccountLoading}>{isVideoAccountLoading ? "处理中" : "预览视频号手动更新"}</Button>
               <Button data-testid="video-account-local-file-save" onClick={() => runVideoAccountLocalFile("save")} variant="primary" disabled={isVideoAccountLoading || !canSaveVideoAccountLocalFile}>{isVideoAccountLoading ? "保存中" : "确认保存到看板"}</Button>
@@ -2775,8 +2798,8 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
         <Panel
           className="bilibili-local-file-mvp"
           data-testid="bilibili-local-file-mvp"
-          title="B站本地导出回收 MVP"
-          eyebrow="真实闭环"
+          title="B站内容级导入"
+          eyebrow="预览后确认"
           action={<Badge tone={bilibiliStats.blocked > 0 ? "warning" : bilibiliStats.total > 0 ? "success" : "info"}>{bilibiliStats.confirmable} 行可保存</Badge>}
         >
           <div className="import-guide-steps">
@@ -2786,11 +2809,11 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             </article>
             <article>
               <strong>2. 本地预览字段</strong>
-              <p>确认稿件 ID、标题、发布时间、播放、点赞、评论、收藏、分享等字段后再保存。</p>
+              <p>确认稿件 ID/BV 号、标题、发布时间、播放、点赞、评论、收藏、分享等字段后再保存。</p>
             </article>
             <article>
               <strong>3. 保存到可信指标</strong>
-              <p>保存来源固定为 bilibili_creator_center；账号总览仍然 preview-only，不进入 durable totals。</p>
+              <p>保存来源固定为 B站内容级导入，并刷新 B站数据状态；账号总览仍然 preview-only，不进入 durable totals。</p>
             </article>
           </div>
           <div className="form-grid">
@@ -2810,6 +2833,7 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
             <Field label="或粘贴 B站导出 CSV">
               <TextArea
                 data-testid="bilibili-local-file-csv"
+                placeholder={bilibiliLocalExportPlaceholder}
                 value={bilibiliCsv}
                 onChange={(event) => {
                   setBilibiliCsv(event.target.value);
@@ -2825,8 +2849,12 @@ export function ImportPage({ snapshot }: { snapshot: DashboardSnapshot }) {
                 onChange={(event) => setBilibiliConfirmed(event.target.checked)}
                 type="checkbox"
               />
-              <span>我确认这是本人从 B站创作中心导出的内容级表格；保存后进入数据看板，且不保存登录凭证、请求头或原始请求。</span>
+              <span>我确认这是本人从 B站创作中心导出的内容级表格；保存后进入数据看板，且不保存登录凭证或网页请求内容。</span>
             </label>
+            <div className="capture-reality-box" data-testid="bilibili-content-import-field-guide">
+              <strong>建议导入字段</strong>
+              <p>稿件 ID/BV 号、标题、发布时间、播放、点赞、评论、弹幕、收藏、分享、投币；账号总览数据只预览，不写入内容级可信总量。</p>
+            </div>
             <div className="import-preview-actions">
               <Button data-testid="bilibili-local-file-preview" onClick={() => runBilibiliLocalFile("preview")} variant="secondary" disabled={isBilibiliLoading}>{isBilibiliLoading ? "处理中" : "预览 B站导出"}</Button>
               <Button data-testid="bilibili-local-file-save" onClick={() => runBilibiliLocalFile("save")} variant="primary" disabled={isBilibiliLoading || !canSaveBilibiliLocalFile}>{isBilibiliLoading ? "保存中" : "确认保存到看板"}</Button>

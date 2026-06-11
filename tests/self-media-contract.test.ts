@@ -3206,6 +3206,89 @@ test("platform data health accepts confirmed trusted browser capture rows as rea
   assert.doesNotMatch(serialized, /do-not-leak-cookie|do-not-leak-token|do-not-leak-payload|authorization/i);
 });
 
+test("platform data health treats Video Account manual updates and Bilibili content imports as freshness evidence", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-platform-health-manual-and-bili-"));
+  const savedAt = "2026-06-04T07:45:00.000Z";
+  const rows = [
+    {
+      id: "video-account-manual-fresh-1",
+      title: "视频号真人表达复盘",
+      platform: "video_account" as const,
+      source: "video_account_creator_center" as const,
+      importRunId: "import-video-account-manual-fresh",
+      expectedEvidence: "trusted_manual_update"
+    },
+    {
+      id: "bilibili-content-import-fresh-1",
+      title: "B站 AI 短片工作流拆解",
+      platform: "bilibili" as const,
+      source: "bilibili_creator_center" as const,
+      importRunId: "import-bilibili-content-import-fresh",
+      expectedEvidence: "trusted_content_import"
+    }
+  ];
+  const repo = new SqliteSelfMediaRepo(path.join(dir, ".local", "self-media.sqlite"));
+  for (const row of rows) {
+    repo.upsertEntity("contents", row.id, {
+      id: row.id,
+      title: row.title,
+      platform: row.platform,
+      topic: "内容级数据回收",
+      status: "published",
+      createdAt: savedAt,
+      updatedAt: savedAt,
+      dataDomain: "user_work",
+      workOwnership: "user_owned_work"
+    });
+    repo.upsertEntity("metricSnapshots", `snapshot-${row.id}`, {
+      id: `snapshot-${row.id}`,
+      platformVersionId: `version-${row.id}`,
+      contentId: row.id,
+      platform: row.platform,
+      snapshotDate: savedAt,
+      views: 700,
+      likes: 24,
+      comments: 5,
+      saves: 10,
+      shares: 8,
+      followersDelta: 2,
+      source: row.source,
+      importRunId: row.importRunId,
+      provenance: { trustedScopeEligible: true },
+      updatedAt: savedAt,
+      dataDomain: "user_work"
+    });
+    repo.recordImport({
+      id: row.importRunId,
+      source: row.source,
+      status: "success",
+      importedCount: 1,
+      startedAt: savedAt,
+      finishedAt: savedAt,
+      provenance: { trustedScopeEligible: true },
+      dataDomain: "user_work"
+    });
+  }
+  repo.close();
+
+  const { buildPlatformDataHealthReport } = await loadPlatformDataHealthModule();
+  const report = buildPlatformDataHealthReport({ cwd: dir, now: new Date("2026-06-04T08:00:00.000Z"), platforms: ["video-account", "bilibili"] });
+  const byPlatform = new Map(report.platforms.map((platform) => [platform.platform, platform]));
+  const videoAccount = byPlatform.get("video-account");
+  const bilibili = byPlatform.get("bilibili");
+  const serialized = JSON.stringify(report);
+
+  assert.equal(videoAccount?.realCaptureStatus, "fresh");
+  assert.equal(videoAccount?.freshness?.realCaptureEvidenceSource, "trusted_manual_update");
+  assert.equal(videoAccount?.trustedBrowserCapture?.sourceType, "trusted_manual_update");
+  assert.equal(videoAccount?.trustedBrowserCapture?.rowCount, 1);
+  assert.equal(bilibili?.realCaptureStatus, "fresh");
+  assert.equal(bilibili?.freshness?.realCaptureEvidenceSource, "trusted_content_import");
+  assert.equal(bilibili?.trustedBrowserCapture?.sourceType, "trusted_content_import");
+  assert.equal(bilibili?.trustedBrowserCapture?.rowCount, 1);
+  assert.doesNotMatch(serialized, /password|cookie|token|header|storageState|raw request|raw response|screenshot|har|trace/i);
+});
+
 test("real capture freshness check reports stale real captures separately from fresh smoke", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-real-capture-freshness-"));
   const now = new Date("2026-06-04T08:00:00.000Z");
