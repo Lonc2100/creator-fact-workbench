@@ -5,8 +5,8 @@
 - Task ID: `MAINLINE-VIDEO-ACCOUNT-LIVE-ASSISTED-SCAN-129`.
 - Goal: run the Video Account Assistant assisted page-scan path from `/import`, scan the logged-in current works/data list page, preview candidates, and save only after explicit user confirmation.
 - Result: completed after user-assisted login. The controlled Video Account Assistant browser window was opened/reused from the local 3200 flow, the logged-in works list was scanned, 6 can-save Video Account content rows were previewed, the user confirmed saving, and 6 rows were saved to trusted dashboard metrics.
-- Commit: pending for the final live completion patch at the time this addendum was written.
-- Push: pending for the final live completion patch at the time this addendum was written.
+- Commit: yes, final code/docs commit `9e1e68b` plus this post-push status correction.
+- Push: yes, final code/docs commit `9e1e68b` was pushed to `origin main`; this status correction is committed separately.
 - Need main-session/user action: no for this task. Future scans still require the user to be logged into the controlled Video Account Assistant profile and to confirm before saving.
 
 ## Worklog
@@ -320,5 +320,6 @@ Observed from `http://127.0.0.1:3200/api/self-media/dashboard` after save:
 
 ### Final Commit / Push
 
-- Final commit/push: pending when this section was written; expected narrow commit message:
-  - `feat(self-media): verify video account assisted scan`
+- Final code/docs commit: `9e1e68b feat(self-media): verify video account assisted scan`.
+- Push: yes, `9e1e68b` pushed to `origin main`.
+- This handoff status correction is committed separately because the final commit/push lines were written before the actual push completed.
