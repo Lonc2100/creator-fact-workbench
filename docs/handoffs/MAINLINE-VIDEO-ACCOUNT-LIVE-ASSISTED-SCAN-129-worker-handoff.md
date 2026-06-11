@@ -125,3 +125,12 @@ Observed on `http://127.0.0.1:3200/api/self-media/dashboard` after the failed pr
 
 - Commit: yes, using narrow staging.
 - Push: yes, pushed to `origin main` after validation.
+
+## Continuation Check
+
+- Checked again on 2026-06-11T20:03:58+08:00.
+- Current HEAD: `6dda8aaa4219025feea1d1fa6da9077588513838`.
+- Controlled Video Account Assistant session still exists, but remains on `https://channels.weixin.qq.com/login.html`.
+- Route status remains `needs_login`; preview/save were not attempted beyond status because the login-page blocker is unchanged.
+- Dashboard totals remain unchanged: trusted contents `28`, trusted metric snapshots `37`, Video Account snapshots `6`, default calendar items `12`.
+- No data was saved and no sensitive login material was persisted.
