@@ -764,6 +764,110 @@ function enrichPostImportActionSuggestions(suggestions: PostImportActionSuggesti
   });
 }
 
+function closedLoopPlatformHealthKey(platform: ClosedLoopContentPlatform): PlatformDataHealthView["platforms"][number]["platform"] {
+  return platform === "video_account" ? "video-account" : platform;
+}
+
+function freshnessEvidenceSourceForSnapshot(snapshot: MetricSnapshot) {
+  if (snapshot.platform === "video_account") return "trusted_manual_update";
+  if (snapshot.platform === "bilibili") return "trusted_content_import";
+  return "trusted_browser_capture";
+}
+
+function safeIsoDateTime(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function captureEvidenceAt(snapshot: MetricSnapshot) {
+  return safeIsoDateTime(snapshot.updatedAt) ?? safeIsoDateTime(snapshot.snapshotDate);
+}
+
+function ageHoursFrom(nowIso: string, value?: string | null) {
+  if (!value) return null;
+  const nowTime = new Date(nowIso).getTime();
+  const valueTime = new Date(value).getTime();
+  if (!Number.isFinite(nowTime) || !Number.isFinite(valueTime)) return null;
+  return Math.max(0, Math.round(((nowTime - valueTime) / 36_000) / 10));
+}
+
+function overlayTrustedSnapshotFreshness(input: { generatedAt: string; health: PlatformDataHealthView; metricSnapshots: MetricSnapshot[] }): PlatformDataHealthView {
+  const latestByPlatform = new Map<PlatformDataHealthView["platforms"][number]["platform"], { latestAt: string; source: string; rowCount: number }>();
+  for (const platform of closedLoopContentPlatforms) {
+    const snapshots = input.metricSnapshots.filter((snapshot) => snapshot.platform === platform);
+    if (snapshots.length === 0) continue;
+    const latest = snapshots
+      .map((snapshot) => ({ snapshot, latestAt: captureEvidenceAt(snapshot) }))
+      .filter((item): item is { snapshot: MetricSnapshot; latestAt: string } => Boolean(item.latestAt))
+      .sort((a, b) => new Date(b.latestAt).getTime() - new Date(a.latestAt).getTime())[0];
+    if (!latest) continue;
+    latestByPlatform.set(closedLoopPlatformHealthKey(platform), {
+      latestAt: latest.latestAt,
+      source: freshnessEvidenceSourceForSnapshot(latest.snapshot),
+      rowCount: snapshots.length
+    });
+  }
+  if (latestByPlatform.size === 0) return input.health;
+  const staleAfterHours = input.health.staleAfterHours ?? input.health.summary.freshness.staleAfterHours ?? 72;
+  const platforms = input.health.platforms.map((platform) => {
+    const trusted = latestByPlatform.get(platform.platform);
+    if (!trusted) return platform;
+    const existingAt = platform.freshness.latestRealCaptureAt;
+    const existingTime = existingAt ? new Date(existingAt).getTime() : 0;
+    const trustedTime = new Date(trusted.latestAt).getTime();
+    if (!Number.isFinite(trustedTime) || trustedTime <= existingTime) return platform;
+    const realCaptureAgeHours = ageHoursFrom(input.generatedAt, trusted.latestAt);
+    const realCaptureIsStale = typeof realCaptureAgeHours === "number" ? realCaptureAgeHours > staleAfterHours : null;
+    const freshness = {
+      ...platform.freshness,
+      latestRealCaptureAt: trusted.latestAt,
+      latestTrustedBrowserCaptureAt: trusted.latestAt,
+      realCaptureAgeHours,
+      realCaptureIsStale,
+      staleAfterHours,
+      realCaptureEvidenceSource: trusted.source,
+      trustedBrowserCaptureRowCount: trusted.rowCount
+    };
+    return {
+      ...platform,
+      realCaptureStatus: realCaptureIsStale === true ? "stale" as const : realCaptureIsStale === false ? "fresh" as const : platform.realCaptureStatus,
+      latestGeneratedAt: trusted.latestAt,
+      freshness,
+      warnings: realCaptureIsStale === false ? platform.warnings.filter((warning) => warning !== "real capture is older than 72 hours") : platform.warnings
+    };
+  });
+  const latestCandidates: Array<{ platform: PlatformDataHealthView["platforms"][number]; latestAt: string; time: number }> = platforms
+    .map((platform) => platform.freshness.latestRealCaptureAt ? {
+      platform,
+      latestAt: platform.freshness.latestRealCaptureAt,
+      time: new Date(platform.freshness.latestRealCaptureAt).getTime()
+    } : null)
+    .filter((item): item is { platform: PlatformDataHealthView["platforms"][number]; latestAt: string; time: number } => item !== null && Number.isFinite(item.time));
+  const latest = latestCandidates.sort((a, b) => b.time - a.time)[0];
+  const realCaptureStaleCount = platforms.filter((platform) => platform.realCaptureStatus === "stale" || platform.realCaptureStatus === "missing").length;
+  const summaryFreshness = latest ? {
+    ...input.health.summary.freshness,
+    latestRealCaptureAt: latest.latestAt,
+    latestTrustedBrowserCaptureAt: latest.latestAt,
+    realCaptureAgeHours: ageHoursFrom(input.generatedAt, latest.latestAt),
+    realCaptureIsStale: realCaptureStaleCount > 0,
+    staleAfterHours,
+    realCaptureEvidenceSource: latest.platform.freshness.realCaptureEvidenceSource,
+    trustedBrowserCaptureRowCount: platforms.reduce((total, platform) => total + (platform.freshness.trustedBrowserCaptureRowCount ?? 0), 0)
+  } : input.health.summary.freshness;
+  return {
+    ...input.health,
+    summary: {
+      ...input.health.summary,
+      realCaptureStaleCount,
+      freshness: summaryFreshness
+    },
+    platforms
+  };
+}
+
 function relatedEvidence(evidence: PostImportActionEvidence[]) {
   const snapshotEvidenceItem = evidence.find((item) => item.metricSnapshotId);
   if (snapshotEvidenceItem?.metricSnapshotId) return { relatedType: "metric_snapshot" as const, relatedId: snapshotEvidenceItem.metricSnapshotId };
@@ -3123,9 +3227,11 @@ export class SelfMediaService {
     const meta = platformLocalFileImportMeta[platform];
     const fileName = input.fileName ?? "";
     const contentType = input.contentType ?? "";
+    const defaultCapturedAt = new Date().toISOString();
+    const parseOptions = { ...options, defaultCapturedAt };
     const payload = input.fileBase64 && (fileName.toLowerCase().endsWith(".xlsx") || contentType.includes("spreadsheetml"))
-      ? this.csvPresetProvider.fromXlsxBase64(input.fileBase64, platform, options)
-      : this.csvPresetProvider.fromCsv(input.csv ?? "", platform, options);
+      ? this.csvPresetProvider.fromXlsxBase64(input.fileBase64, platform, parseOptions)
+      : this.csvPresetProvider.fromCsv(input.csv ?? "", platform, parseOptions);
     const complianceWarning = `${meta.tag}: 用户主动从 ${meta.label} 导出或复制内容级表格后本地导入；不读取网页登录态，不保存 cookie/token/header/raw request。`;
     payload.source = meta.source;
     payload.provenance = {
@@ -4405,7 +4511,7 @@ export class SelfMediaService {
     const accountMetricSnapshots = this.repo.listAccountMetricSnapshots();
     const accountMetricGroups = buildAccountMetricGroups(accountMetricSnapshots);
     const generatedAt = new Date().toISOString();
-    const platformDataHealth = readPlatformDataHealthView();
+    const platformDataHealth = overlayTrustedSnapshotFreshness({ generatedAt, health: readPlatformDataHealthView(), metricSnapshots });
     const dailyPlatformOpsGate = readDailyPlatformOpsGateView();
     const dailySelfMediaOps = readDailySelfMediaOpsView();
     const platformImportStatuses = this.platformImportStatuses();

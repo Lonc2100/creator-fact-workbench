@@ -1,163 +1,191 @@
 # MAINLINE-TODAY-REFRESH-EXECUTION-CYCLE-123 Worker Handoff
 
 - Started: 2026-06-11T12:00:00+08:00
-- Finished: 2026-06-11T12:18:00+08:00
-- Elapsed: about 18m
+- Finished: 2026-06-11T13:08:25+08:00
+- Elapsed: about 68m
 - Workload class: normal
-- Need main-session judgment: yes
+- Need main-session judgment: no
 - Submitted: yes
-- Commit message: `fix(self-media): complete today refresh execution cycle`
 - Push: yes
 
 ## Scope
 
-Advance the 122 "today refresh" guidance toward the real execution loop for stale Bilibili and the secondary Video Account manual path, without dashboard visual redesign and without pretending old data is a new refresh.
+Advance the 122 "today refresh" guidance into a real execution cycle for Bilibili content-level import:
 
-The task reached the point where the UI correctly guides the user into Bilibili/Video Account preview-save flows and fails closed when no current trusted row is provided. It did not save Bilibili or Video Account rows because no current user-provided platform data was available in this turn.
+1. User opens the system and sees Bilibili needs refresh.
+2. User provides current Bilibili manuscript-level evidence.
+3. System previews rows fail-closed.
+4. User explicitly confirms the one saveable row.
+5. System saves content-level metrics.
+6. Dashboard/freshness update.
+7. Calendar remains clean.
 
-## Changes
+No dashboard visual redesign was done.
 
-- `src/domain/self-media/ui/screens/ImportPage.tsx`
-  - Bilibili and Video Account placeholders now ask for data confirmed today/currently, not generic copied data.
-  - Bilibili field guide now says not to save when there is no current confirmed manuscript data.
-  - Video Account field guide now says not to save when there is no data confirmed today.
-  - Save success copy now tells the user which freshness evidence would be refreshed:
-    - Video Account: manual update evidence.
-    - Bilibili: content-level import evidence.
-  - Video Account user-facing copy no longer uses the technical term `API`; it says official capability instead.
+## User Data And Confirmation
 
-- `tests/ui-harness.test.mjs`
-  - Locked the current-data requirement for Bilibili and Video Account.
-  - Locked the freshness-success copy.
-  - Locked the non-technical Video Account capability wording.
+- User-provided file: `C:/Users/Administrator/Downloads/近期稿件对比.csv`.
+- CSV encoding observed: GB18030/GB2312.
+- CSV last modified: 2026-06-11T12:40:54+08:00.
+- User-provided screenshots showed:
+  - Public Bilibili video URL containing `BV1Wp7k6uEn4`.
+  - Creator-center manuscript list with the matching title and content metrics.
+- User explicitly confirmed: `确认保存 B站这 1 条`.
+
+The screenshots and CSV were used as local evidence only. They were not committed.
 
 ## Bilibili Preview / Save Result
 
-- Current platform state before and after this task:
-  - Bilibili status: stale.
-  - Latest trusted content import: `2026-06-06T17:35:40.901Z`.
-  - Age: about 106.68h.
-  - Evidence source: `trusted_content_import`.
-  - Row count: 8.
-- Live `/import` result:
-  - `今日建议刷新` shows Bilibili as `需要刷新`.
-  - Bilibili panel opens from the recommended action.
-  - Textarea is empty by default.
-  - Confirm checkbox and save button stay disabled with 0 preview rows.
-  - Field guide says not to save without current confirmed manuscript data.
-- Preview generated: no.
-- Saved: no.
-- Reason not saved: no current user-provided Bilibili manuscript-level table or screenshot was available. Re-saving old local rows as today's refresh would be false freshness.
+Preview source:
 
-## Video Account Preview / Save Result
+- Manual/import data from the user-provided Bilibili CSV.
+- The screenshot supplied the stable BV id for the matching row.
+- Source type: manual content-level import, not platform auto-capture.
 
-- Current platform state before and after this task:
-  - Video Account status: fresh by the 72h policy but suggested refresh by the 24h daily guidance.
-  - Latest trusted manual update: `2026-06-09T06:58:57.211Z`.
-  - Age: about 45.29h.
-  - Evidence source: `trusted_manual_update`.
-  - Row count: 1.
-- Live `/import` result:
-  - Video Account remains manual-update-first.
-  - Textarea is empty by default.
-  - Confirm checkbox and save button stay disabled with 0 preview rows.
-  - Expanded panel has no visible `API`, `raw`, `path`, `run id`, `cookie`, `token`, `header`, or `storageState` terms after the copy cleanup.
-- Preview generated: no.
-- Saved: no.
-- Reason not saved: no current user-provided Video Account content-level data was available.
+Preview result:
 
-## Data Source
+- Total rows parsed: 5.
+- Saveable rows: 1.
+- Saved row:
+  - Platform: Bilibili.
+  - Native ID: `BV1Wp7k6uEn4`.
+  - Title: `残破机甲重装启动｜AI科幻短片片段`.
+  - Published at: 2026-06-05T19:58:35Z.
+  - Views: 150.
+  - Likes: 7.
+  - Comments: 0.
+  - Danmaku: 0.
+  - Saves/favorites: 1.
+  - Shares: 0.
+  - Coins: 0.
+- Blocked rows: 4.
+- Block reason: missing stable native id / BV id.
 
-- Source used for live acceptance: existing local dashboard and health state only.
-- No platform auto capture was run.
-- No external platform window was opened.
-- No user-provided current Bilibili or Video Account data was received.
-- No old Bilibili/Video Account values were replayed as current data.
+Save result:
 
-## Dashboard / Freshness / Calendar
+- Saved: yes.
+- Saved count: 1 content-level row.
+- Content already existed after the first confirmed save attempt, so trusted content count stayed stable after the final freshness-aligned save.
+- A new metric snapshot for 2026-06-11 was written for `BV1Wp7k6uEn4`.
 
-Dashboard counts before/after this task stayed unchanged:
+## Code Fixes
 
-- Trusted contents: 22.
-- Trusted metric snapshots: 30.
+- `src/domain/self-media/providers/csv-preset-provider.ts`
+  - Fixed CSV parsing so quoted empty fields like `""` are treated as empty, not as a literal quote.
+  - This keeps rows without BV/manuscript ID from becoming save candidates.
+  - Added `defaultCapturedAt` parse option so platform local imports can use the confirmation/import time when the source table lacks a statistics date.
 
-Final freshness states:
+- `src/domain/self-media/service/self-media-service.ts`
+  - Platform local file imports now pass a safe default captured-at timestamp.
+  - Dashboard platform health now overlays trusted metric snapshots as freshness evidence.
+  - Bilibili confirmed content imports count as `trusted_content_import` freshness evidence.
+  - Video Account manual updates still count as `trusted_manual_update`.
+  - Douyin/Xiaohongshu browser captures remain `trusted_browser_capture`.
+  - No raw DOM, request, response, cookie, token, header, storageState, screenshot, HAR, or trace is stored.
 
-- Douyin: fresh, `trusted_browser_capture`, latest `2026-06-09T14:42:35.213Z`, row count 6.
-- Xiaohongshu: fresh, `trusted_browser_capture`, latest `2026-06-09T14:34:57.489Z`, row count 15.
-- Video Account: fresh by 72h policy / suggested refresh by 24h guidance, `trusted_manual_update`, latest `2026-06-09T06:58:57.211Z`, row count 1.
-- Bilibili: stale, `trusted_content_import`, latest `2026-06-06T17:35:40.901Z`, row count 8.
+- `tests/self-media-contract.test.ts`
+  - Added coverage for quoted empty Bilibili ids being rejected.
+  - Updated Bilibili local import test to assert trusted content import freshness overlay.
+  - Updated weekly report expectation to the aligned freshness model.
 
-Calendar:
+## Dashboard / Freshness / Calendar Changes
 
-- No new content, schedule, metric, or calendar row was added.
-- `/api/self-media/calendar` total remained existing local state; no new Bilibili or Video Account import was saved in this task.
-- Because no save occurred, there was no new calendar pollution.
+Before the final freshness-aligned save:
 
-## Live 3200 Acceptance
+- Trusted contents: 23.
+- Metric snapshots: 31.
+- Calendar matches for `BV1Wp7k6uEn4`: 0.
 
-- Fixed entry used: `http://localhost:3200/dashboard`.
-- Dashboard showed the read-only startup freshness summary:
-  - `新鲜 0 个，建议刷新 3 个，需要刷新 1 个`.
-  - Bilibili shown as `需要刷新`.
-  - No default visible technical terms found: `raw`, `API`, `path`, `run id`, `runId`, `cookie`, `token`, `header`, `storageState`.
-- Entered `/import`.
-- Import first screen showed `今日建议刷新`.
-- Bilibili recommended row opened the Bilibili import panel.
-- Video Account recommended row opened the Video Account manual update panel.
-- Default page did not open external platform windows.
-- Browser tabs observed: local `/import` only.
-- Empty Bilibili/Video Account state kept save disabled.
+After save and freshness alignment:
+
+- Trusted contents: 23.
+- Metric snapshots: 32.
+- Bilibili real capture status: fresh.
+- Bilibili latest real capture: 2026-06-11T04:58:03.798Z.
+- Bilibili age: about 1 hour at live check.
+- Bilibili evidence source: `trusted_content_import`.
+- Bilibili trusted row count in freshness summary: 10.
+- Platform real-capture stale count: 0.
+- Calendar matches for `BV1Wp7k6uEn4`: 0.
+
+Dashboard live UI:
+
+- `http://localhost:3200/dashboard` showed:
+  - Trusted contents: 23.
+  - Metric snapshots: 32.
+  - Bilibili: today can be viewed first.
+  - Latest refresh: 06/11 12:58.
+  - No default visible `raw`, `API`, `path`, `run id`, `runId`, `cookie`, `token`, `header`, or `storageState`.
+
+Import live UI:
+
+- `http://localhost:3200/import` showed:
+  - `今日建议刷新` present.
+  - Bilibili card: `数据新鲜`.
+  - Bilibili text: recently refreshed within 24h and today can be viewed first.
+  - No external platform window opened.
+  - No default visible sensitive/technical terms listed above.
+
+## Video Account Result
+
+- Video Account was not saved in this resumed cycle.
+- Reason: no new current Video Account content-level data was provided.
+- Current boundary remains: manual update first; no auto login capture promise.
+
+## Data Source Boundary
+
+- Bilibili source was user-provided manual/import content-level data with screenshot-confirmed BV id.
+- This was not a platform automatic browser capture.
+- Bilibili account metrics remain preview-only and were not written to durable totals.
+- No fake freshness was created: freshness came from the user-confirmed trusted content import save.
 
 ## Verification
 
 - `git diff --check`: PASS.
 - `npm run typecheck`: PASS.
-- `npm run test:self-media`: PASS, 152 tests.
+- `npm run test:self-media`: PASS, 153 tests.
 - `npm run test:ui-harness`: PASS, 19 tests.
 - `NEXT_DIST_DIR=.next-build-123-main npm run build`: PASS.
 - `npm run check:local-server-health -- --ports=3200 --strict --require-trusted-data --check-page`: PASS.
-- `npm run gate:daily-platform-ops -- --dashboard-url=http://127.0.0.1:3200/api/self-media/dashboard`: exit 0, passed true, status `warn`.
+- `npm run gate:daily-platform-ops -- --dashboard-url=http://127.0.0.1:3200/api/self-media/dashboard`: exit 0, `passed: true`, status `warn`.
 
 Daily gate warning:
 
-- `health staleCount=14`; stale is warning-only under the current 72h threshold.
-- `health realCaptureStaleCount=1`; next real collection should refresh raw capture evidence.
-- Trusted audit passed:
-  - trusted contents 22.
-  - trusted metric snapshots 30.
-  - Bilibili contentCount 8, metricSnapshotCount 8.
-  - Video Account contentCount 1, metricSnapshotCount 1.
+- `health staleCount=14; stale is warning-only under the current 72h threshold`.
+- Latest real capture in gate summary is now `2026-06-11T04:58:03.798Z`.
+- Real capture evidence source is `trusted_content_import`.
+- `realCaptureIsStale: false`.
+- `realCaptureAgeHours: 0.15`.
 
 Build/gate side effect:
 
-- Next.js temporarily rewrote `next-env.d.ts` and `tsconfig.json` to isolated `.next-build-*` / `.next-platform-*` type paths.
+- Next.js temporarily rewrote `next-env.d.ts` and `tsconfig.json` to `.next-build-*` / `.next-platform-*` type paths.
 - Both files were restored before staging.
 
 ## Business Data
 
-- Added content: no.
+- Added content: no new unique content after final save; `BV1Wp7k6uEn4` was already present from the confirmed first save attempt.
+- Added metric snapshots: yes, one new Bilibili snapshot for 2026-06-11.
 - Deleted content: no.
 - Added schedule: no.
-- Added metrics/import rows: no.
-- Bilibili save: no.
-- Video Account save: no.
+- Added calendar item: no.
+- External platform windows opened: no.
 
 ## Sensitive Boundary Check
 
 - No password, cookie, token, header, storageState, raw request, raw response, screenshot, HAR, trace, or platform DOM was saved.
-- No external platform window was opened.
+- User-provided screenshots and CSV were not committed.
 - No platform publishing API was called.
-- No preview was automatically saved.
+- No preview was automatically saved; save happened only after explicit user confirmation.
 - WeChat/Official Account remains paused.
 - Video Account remains manual-update-first.
 - Bilibili account metrics remain preview-only.
 
 ## Remaining Risks / Next Step
 
-- Bilibili is still stale until the user provides a current manuscript-level table or screenshot from Bilibili creator center.
-- Video Account was not saved because no current manual content-level data was provided.
-- Next concrete step: user provides current Bilibili rows with BV/manuscript ID, title, publish time, views, likes, comments, danmaku, saves, shares, coins. Then run `/import` preview, inspect rows, ask for explicit save confirmation, save, and re-check dashboard/freshness/calendar.
+- Bilibili creator-center raw health artifacts are still old, so daily gate keeps warning on `health staleCount=14`; this is warning-only and no longer blocks the business freshness summary.
+- If future Bilibili CSV exports omit BV/manuscript IDs, those rows will preview but remain unsaveable until the user supplies stable IDs.
+- Video Account still needs a fresh manual content-level update if the user wants that path refreshed today.
 
 ## Remaining Dirty Files
 

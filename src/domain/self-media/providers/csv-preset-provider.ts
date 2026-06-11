@@ -29,6 +29,7 @@ export interface RealImportPreviewRow {
 
 interface ParseOptions {
   allowInvalidPreviewRows?: boolean;
+  defaultCapturedAt?: string;
 }
 
 interface AliasPreset {
@@ -196,7 +197,7 @@ function parseCsvLine(line: string) {
   let quoted = false;
   for (let index = 0; index < line.length; index += 1) {
     const char = line[index];
-    if (char === '"' && line[index + 1] === '"') {
+    if (char === '"' && quoted && line[index + 1] === '"') {
       current += '"';
       index += 1;
     } else if (char === '"') {
@@ -394,7 +395,7 @@ export class CsvPresetProvider {
       const url = read(row, ...alias.url);
       const id = nativeId || (url ? `${platform}-${stableHash(url)}` : "");
       const publishedAt = normalizeDateValue(read(row, ...alias.publishedAt));
-      const capturedAt = normalizeDateValue(read(row, ...alias.capturedAt)) || publishedAt;
+      const capturedAt = normalizeDateValue(read(row, ...alias.capturedAt)) || options.defaultCapturedAt || publishedAt;
       const nativeMetrics = nativeMetricsFor(row, alias.nativeMetrics);
       const normalized = {
         id: id || undefined,

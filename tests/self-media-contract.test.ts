@@ -764,6 +764,35 @@ test("real import preview flags rows missing title or native id/url as not confi
   }
 });
 
+test("bilibili local export preview treats quoted empty ids as missing native ids", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-bilibili-empty-id-preview-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const csv = [
+      "稿件ID,BV号,标题,发布时间,播放量,点赞数,评论数,弹幕数,收藏数,分享数,投币数",
+      "\"\",\"\",\"缺少 BV 的 B站行\",2026-06-08T17:08:41.000Z,90,1,0,0,0,0,0",
+      "\"\",\"BV1quotedOk\",\"有 BV 的 B站行\",2026-06-05T19:58:35.000Z,150,7,0,0,1,0,0"
+    ].join("\n");
+
+    const preview = service.previewImportRequest({
+      mode: "platform_local_file",
+      platformLocalFile: { platform: "bilibili", csv }
+    });
+    assert.equal(preview.contentCount, 1);
+    assert.equal(preview.realPreviewRows?.length, 2);
+    assert.equal(preview.realPreviewRows?.[0]?.canConfirmSave, false);
+    assert.equal(preview.realPreviewRows?.[0]?.normalized.id, undefined);
+    assert.ok(preview.realPreviewRows?.[0]?.warnings.includes("missing_native_id_or_url"));
+    assert.equal(preview.realPreviewRows?.[1]?.canConfirmSave, true);
+    assert.equal(preview.realPreviewRows?.[1]?.normalized.id, "BV1quotedOk");
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("mediacrawler json provider creates content, metrics, and idea signals", () => {
   const payload = new MediaCrawlerImportProvider().fromJson({
     platform: "xhs",
@@ -5154,7 +5183,7 @@ test("trusted weekly report uses only trusted dashboard and review totals", asyn
     assert.equal(report.topContents[0].contentId, "weekly-report-dy-top");
     assert.equal(report.lowInteractionContents[0].contentId, "weekly-report-xhs-low");
     assert.equal(report.excluded.userExcludedContentCount, 1);
-    assert.equal(report.freshness.realCaptureStaleCount, 1);
+    assert.equal(report.freshness.realCaptureStaleCount, 0);
     assert.ok(report.recommendations.length > 0);
     assert.ok(Object.values(report.consistencyChecks).every(Boolean));
     assert.equal(markdown.includes("## 四平台概览"), true);
@@ -6022,11 +6051,19 @@ test("bilibili local export file import enters trusted content metrics without c
     assert.equal(savedSnapshot?.source, "bilibili_creator_center");
     assert.equal(savedSnapshot?.dataDomain, "user_work");
     assert.equal(savedSnapshot?.provenance?.trustedScopeEligible, true);
+    assert.equal(savedSnapshot?.snapshotDate, new Date().toISOString().slice(0, 10));
     assert.equal(repo.getEntity("contents", "bili-local-080")?.dataDomain, "user_work");
     assert.ok(dashboard.contents.some((item) => item.id === "bili-local-080"));
     assert.ok(dashboard.metricSnapshots.some((item) => item.contentId === "bili-local-080" && item.source === "bilibili_creator_center"));
     assert.equal(dashboard.weeklyReview.metrics.totalViews, 1600);
     assert.equal(dashboard.trustedAutoCaptureScheduler.schedulerEnabledCount, 0);
+    const bilibiliHealth = dashboard.platformDataHealth.platforms.find((item) => item.platform === "bilibili");
+    if (bilibiliHealth) {
+      assert.equal(bilibiliHealth.realCaptureStatus, "fresh");
+      assert.equal(bilibiliHealth.freshness.realCaptureEvidenceSource, "trusted_content_import");
+      assert.equal(bilibiliHealth.freshness.latestRealCaptureAt, savedSnapshot?.updatedAt);
+      assert.equal(bilibiliHealth.freshness.trustedBrowserCaptureRowCount, 1);
+    }
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });
