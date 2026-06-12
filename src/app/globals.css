@@ -3842,6 +3842,14 @@ button:disabled {
   padding-top: 10px;
 }
 
+.advanced-diagnostics {
+  grid-column: 1 / -1;
+  border: 1px solid var(--sm-border-subtle);
+  border-radius: var(--sm-radius-md);
+  background: rgba(255, 255, 255, 0.58);
+  padding: 10px 12px;
+}
+
 .dashboard-secondary-operations,
 .calendar-draft-pool,
 .calendar-acceptance-data-pool,
@@ -3855,6 +3863,17 @@ button:disabled {
   color: var(--sm-text-muted);
   font-size: 12px;
   list-style-position: inside;
+}
+
+.advanced-diagnostics > summary {
+  cursor: pointer;
+  color: var(--sm-text-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.advanced-diagnostics .form-grid {
+  margin-top: 10px;
 }
 
 .dashboard-secondary-operations > summary,

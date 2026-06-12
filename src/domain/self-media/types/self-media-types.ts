@@ -1647,6 +1647,17 @@ export interface CreatorPlatformDifference {
   manualCheck: string;
 }
 
+export interface CreatorTopicStrategy {
+  coreAngle: string;
+  audiencePain: string;
+  promise: string;
+  conflict: string;
+  proof: string;
+  openingHook: string;
+  titleOptions: string[];
+  tagStrategy: string[];
+}
+
 export interface CreatorPublishPlan {
   scheduledAt?: string;
   planSummary: string;
@@ -1660,6 +1671,7 @@ export interface CreatorVideoDiscussionResult {
     audience: string;
     tone: string;
     duration: string;
+    topicStrategy: CreatorTopicStrategy;
     structure: string[];
     risks: string[];
   };

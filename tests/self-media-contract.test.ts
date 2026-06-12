@@ -7378,6 +7378,10 @@ test("creator copilot discusses rough idea, regenerates, and saves scheduled fou
     assert.equal(first.drafts.length, 4);
     assert.ok(first.idea.title);
     assert.ok(first.analysis.direction.includes(first.idea.topic));
+    assert.ok(first.analysis.topicStrategy.coreAngle.includes(first.idea.topic));
+    assert.ok(first.analysis.topicStrategy.openingHook);
+    assert.ok(first.analysis.topicStrategy.titleOptions.length >= 3);
+    assert.ok(first.drafts.every((draft) => draft.body.includes("选题策略：")));
     assert.ok(first.platformDifferences.every((item) => /人工确认/.test(item.manualCheck)));
     assert.ok(first.drafts.every((draft) => /需.*人工确认/.test(draft.incentiveTagAdvice)));
     assert.equal(repo.listContents().length, 0);
@@ -7397,6 +7401,40 @@ test("creator copilot discusses rough idea, regenerates, and saves scheduled fou
     assert.ok(saved.content.notes.includes("creator_copilot_discussion:local_rule_v1"));
     assert.ok(repo.listPlatformVersions().every((item) => item.contentId !== saved.content.id || item.status === "scheduled"));
     assert.ok(service.calendar().some((item) => item.contentId === saved.content.id && item.scheduledAt === "2026-06-09T12:30:00.000Z"));
+  } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("creator composer can infer topic strategy from context-only video summary", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-context-composer-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    const discussion = service.createCreatorVideoDiscussion({
+      brief: "我刚做完一条视频，讲用 AI 把成片素材整理成三条选题，里面有前后对比、失败过程和最终发布结果。",
+      materialNotes: "有成片画面、排期截图和数据对比。"
+    });
+    assert.equal(discussion.drafts.length, 4);
+    assert.equal(discussion.idea.topic, "AI创作工作流");
+    assert.ok(discussion.idea.title.length > 0);
+    assert.ok(discussion.analysis.topicStrategy.promise.includes(discussion.idea.title) || discussion.analysis.topicStrategy.promise.includes("真实结果"));
+    assert.ok(discussion.analysis.topicStrategy.proof.includes("成片画面"));
+    assert.ok(discussion.analysis.topicStrategy.titleOptions.length >= 3);
+    assert.ok(discussion.analysis.structure.some((item) => item.includes(discussion.analysis.topicStrategy.openingHook)));
+    assert.ok(discussion.drafts.every((draft) => draft.tags.includes("AI创作工作流")));
+    assert.equal(repo.listContents().length, 0);
+
+    const saved = service.createCreatorVideoDraft({
+      brief: "我刚做完一条视频，讲用 AI 把成片素材整理成三条选题，里面有前后对比、失败过程和最终发布结果。",
+      scheduledAt: "2026-06-12T13:30:00.000Z"
+    });
+    assert.equal(saved.platformVersions.length, 4);
+    assert.equal(saved.content.dataDomain, "user_work");
+    assert.equal(saved.content.scheduledAt, "2026-06-12T13:30:00.000Z");
+    assert.ok(repo.listPlatformVersions().every((item) => item.contentId !== saved.content.id || item.status === "scheduled"));
   } finally {
     repo?.close();
     rmSync(dir, { recursive: true, force: true });

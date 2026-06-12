@@ -2,6 +2,19 @@
 
 This is the compact entrypoint for future sessions. Use it before opening dozens of historical handoffs.
 
+## 133 Context-First Creator Composer
+
+Current `/content` default creation path as of 2026-06-12:
+
+- The creator composer is now context-first: paste the video context or a short summary, then click `生成选题策略与四平台标题`.
+- Title, topic, script notes, and material notes are no longer required first-screen inputs. They are folded under `高级补充：手动改标题、选题、脚本和素材`.
+- The local service infers a topic strategy from the summary: core angle, audience pain, promise, conflict, proof point, opening hook, title candidates, and tag strategy.
+- The generated four-platform drafts include platform-specific title/body/tags/cover/advice, with platform incentive and creative-tag suggestions still marked as requiring human confirmation.
+- The publish date defaults to today, rounded to the next usable future slot. The user only changes it when they want a different schedule.
+- Saving still creates one user-owned content item plus four platform versions/queue rows. It does not auto-publish and does not save platform metrics.
+
+Handoff: `MAINLINE-CONTEXT-FIRST-CREATOR-COMPOSER-133-worker-handoff.md`.
+
 ## 132 Usable Creator V1 Freeze
 
 Current daily-usable v1 baseline as of 2026-06-11:
@@ -25,7 +38,7 @@ Daily user path:
 
 1. Open `http://localhost:3200/dashboard`.
 2. Review the trusted data snapshot, freshness suggestions, trend/ranking signals, and platform contribution.
-3. Use `/content` to write the next video idea, generate four platform drafts, save the content, and keep the content library as the secondary lookup path.
+3. Use `/content` to paste video context or a short summary, generate a topic strategy plus four platform drafts, save the content, and keep the content library as the secondary lookup path.
 4. Use `/calendar` to confirm or adjust future user-owned schedules. Multi-platform schedules for one content item should appear as one understandable merged card.
 5. After manual platform publishing or after new platform data is available, use `/import` to refresh Douyin, Xiaohongshu, Video Account, and Bilibili through preview first, then explicit save confirmation.
 6. Return to `/dashboard` to review updated trusted metrics. Imported metric rows must not become default future calendar cards.

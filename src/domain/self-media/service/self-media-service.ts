@@ -30,6 +30,7 @@ import type {
   CaptureMode,
   CsvImportPreset,
   CreatorPlatformDraft,
+  CreatorTopicStrategy,
   CreatorVideoDiscussionRequest,
   CreatorVideoDiscussionResult,
   CreatorVideoDraftResult,
@@ -261,12 +262,27 @@ function normalizeCreatorTitle(value: string) {
   return value.trim().replace(/\s+/g, " ").slice(0, 80);
 }
 
+function normalizeCreatorText(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
 function firstCreatorLine(value: string) {
   return value.split(/[\n。！？!?]/).map((item) => item.trim()).find(Boolean) ?? "";
 }
 
+function extractCreatorSubject(value: string) {
+  const firstLine = firstCreatorLine(value) || normalizeCreatorText(value).slice(0, 80);
+  const cleaned = firstLine
+    .replace(/^(我|我们)?(刚刚|刚|已经)?(制作|做|拍|剪辑|完成|上传|发布)?(完)?(了)?(一个|一条|这个)?(视频|短片|内容|作品)?[,，:：\s]*/i, "")
+    .replace(/^(主要|大概)?(是)?(想)?(讲|说|表达|分享|复盘|记录|关于)[的是]*[,，:：\s]*/i, "")
+    .replace(/^(内容|主题|概述)[是为]?[,，:：\s]*/i, "")
+    .trim();
+  return normalizeCreatorTitle(cleaned || firstLine || "这条视频");
+}
+
 function inferCreatorTopic(value: string) {
   if (/AI|智能体|自动化|工作流/i.test(value)) return "AI创作工作流";
+  if (/短片|剧情|故事|角色|画面|镜头/.test(value)) return "AI短片创作";
   if (/复盘|踩坑|失败|经验/.test(value)) return "创作复盘";
   if (/教程|方法|步骤|工具/.test(value)) return "工具教程";
   if (/日常|生活|记录/.test(value)) return "创作者日常";
@@ -292,11 +308,66 @@ function inferCreatorDiscussionSignals(value: string) {
   return { audience, tone, duration };
 }
 
+function uniqueShortLines(values: string[], limit: number) {
+  return [...new Set(values.map((value) => normalizeCreatorTitle(value)).filter(Boolean))].slice(0, limit);
+}
+
+function inferCreatorTopicStrategy(input: CreatorVideoIdeaRequest | CreatorVideoDiscussionRequest): CreatorTopicStrategy {
+  const brief = input.brief?.trim() ?? "";
+  const seed = `${input.title ?? ""} ${input.topic ?? ""} ${brief} ${input.scriptNotes ?? ""} ${input.materialNotes ?? ""} ${input.revisionPrompt ?? ""}`;
+  const subject = extractCreatorSubject(brief || seed);
+  const topic = normalizeCreatorTitle(input.topic || inferCreatorTopic(seed));
+  const isReview = /复盘|踩坑|失败|经验|教训|过程/.test(seed);
+  const isStory = /短片|剧情|角色|故事|世界观|镜头|画面/.test(seed);
+  const isTool = /工具|方法|步骤|教程|流程|工作流|自动化/.test(seed);
+  const resultSignal = /做完|完成|发布|上传|数据|播放|增长|涨|结果|终于/.test(seed);
+  const audiencePain = isTool
+    ? "观众想知道这套方法能不能直接照着做。"
+    : isStory
+      ? "观众需要先被情绪、设定或反差画面抓住。"
+      : isReview
+        ? "观众想少踩坑，快速知道这件事值不值得学。"
+        : "观众想在很短时间内知道这条内容和自己有什么关系。";
+  const promise = resultSignal
+    ? `用真实结果说明“${subject}”到底带来了什么。`
+    : `把“${subject}”拆成一个能被理解、收藏或转发的具体观点。`;
+  const conflict = isStory
+    ? "画面/设定要先给反差，再解释过程。"
+    : isReview
+      ? "不要只讲流水账，要先讲最大坑和最后结论。"
+      : "不要先讲工具名，要先讲观众能得到的结果。";
+  const proof = input.materialNotes
+    ? `可用素材证明：${normalizeCreatorText(input.materialNotes).slice(0, 80)}`
+    : input.scriptNotes
+      ? `可用脚本证明：${normalizeCreatorText(input.scriptNotes).slice(0, 80)}`
+      : "用成片画面、前后对比、关键步骤或数据截图做证明。";
+  const titleOptions = uniqueShortLines([
+    input.title ?? "",
+    isReview ? `${subject}，我踩过的坑都在这里` : "",
+    isStory ? `${subject}：最抓人的不是特效，是这个反差` : "",
+    isTool ? `我用${topic}把${subject}跑通了` : "",
+    resultSignal ? `${subject}之后，我发现最重要的是这一步` : "",
+    `${subject}：从想法到发布的真实复盘`,
+    `别只看结果，${subject}中间这一步最关键`
+  ], 5);
+  return {
+    coreAngle: `${topic} / ${subject}`,
+    audiencePain,
+    promise,
+    conflict,
+    proof,
+    openingHook: titleOptions[0] ?? subject,
+    titleOptions,
+    tagStrategy: uniqueShortLines([topic, isStory ? "AI短片" : "", isReview ? "创作复盘" : "", isTool ? "工具教程" : "", "自媒体"], 5)
+  };
+}
+
 function normalizeCreatorIdeaInput(input: CreatorVideoIdeaRequest | CreatorVideoDiscussionRequest): CreatorVideoIdeaRequest {
   const brief = input.brief?.trim();
   if (!brief) throw new Error("创作讨论需要先输入视频大意。");
   const seed = `${input.title ?? ""} ${input.topic ?? ""} ${brief} ${input.revisionPrompt ?? ""}`;
-  const fallbackTitle = firstCreatorLine(brief) || "新视频想法";
+  const strategy = inferCreatorTopicStrategy(input);
+  const fallbackTitle = strategy.titleOptions[0] || firstCreatorLine(brief) || "新视频想法";
   const title = normalizeCreatorTitle(input.title || fallbackTitle);
   const topic = normalizeCreatorTitle(input.topic || inferCreatorTopic(seed));
   return {
@@ -322,6 +393,7 @@ function buildCreatorPlatformDrafts(input: CreatorVideoIdeaRequest | CreatorVide
   const materialNotes = input.materialNotes?.trim();
   const revisionPrompt = normalized.revisionPrompt;
   const signals = inferCreatorDiscussionSignals(`${brief} ${scriptNotes ?? ""} ${materialNotes ?? ""} ${revisionPrompt ?? ""}`);
+  const strategy = inferCreatorTopicStrategy(normalized);
 
   return closedLoopContentPlatforms.map((platform) => {
     const config = creatorPlatformDraftAdvice[platform];
@@ -334,10 +406,13 @@ function buildCreatorPlatformDrafts(input: CreatorVideoIdeaRequest | CreatorVide
     const tags = [...new Set([topic, ...config.tags].map((item) => item.replace(/^#/, "").trim()).filter(Boolean))].slice(0, 6);
     const incentiveTagAdvice = "平台激励/创作标签建议：仅为本地内容策划建议，需发布前人工确认平台后台和实时官方活动。";
     const body = compactLines([
-      `${config.hook}：${brief}`,
+      `${config.hook}：${strategy.openingHook}`,
+      `选题策略：${strategy.promise} ${strategy.conflict}`,
+      `视频概述：${brief}`,
       revisionPrompt ? `本轮调整：${revisionPrompt}` : undefined,
       scriptNotes ? `脚本备注：${scriptNotes}` : undefined,
       materialNotes ? `素材备注：${materialNotes}` : undefined,
+      `证明点：${strategy.proof}`,
       `表达结构：${config.body}`,
       `语气/受众/时长：${signals.tone}；面向${signals.audience}；建议${signals.duration}。`,
       `标签建议：${tags.map((tag) => `#${tag}`).join(" ")}`,
@@ -358,18 +433,20 @@ function buildCreatorPlatformDrafts(input: CreatorVideoIdeaRequest | CreatorVide
 function buildCreatorVideoDiscussion(input: CreatorVideoDiscussionRequest): CreatorVideoDiscussionResult {
   const idea = normalizeCreatorIdeaInput(input);
   const signals = inferCreatorDiscussionSignals(`${idea.brief} ${idea.scriptNotes ?? ""} ${idea.materialNotes ?? ""} ${idea.revisionPrompt ?? ""}`);
+  const topicStrategy = inferCreatorTopicStrategy(idea);
   const adjustment = idea.revisionPrompt ? `本轮按“${idea.revisionPrompt}”重新收束。` : "第一轮先确认选题角度、受众和平台差异。";
   const drafts = buildCreatorPlatformDrafts(idea);
   return {
     idea,
     analysis: {
-      direction: `${idea.topic}方向：用“${idea.title}”作为主线，先给观众一个明确收益，再用过程或案例证明。${adjustment}`,
+      direction: `${idea.topic}方向：${topicStrategy.promise}${topicStrategy.conflict}${adjustment}`,
       audience: signals.audience,
       tone: signals.tone,
       duration: signals.duration,
+      topicStrategy,
       structure: [
-        "开场先说观众能得到什么，避免只讲工具或过程。",
-        "中段保留 2-3 个可拍画面或步骤，便于四个平台各自改写。",
+        `开场：${topicStrategy.openingHook}`,
+        `中段：用 2-3 个画面或步骤证明“${topicStrategy.proof}”。`,
         "结尾给一个轻行动：收藏、评论问题、或等下一条复盘。"
       ],
       risks: [

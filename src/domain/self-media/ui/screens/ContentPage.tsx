@@ -151,12 +151,26 @@ function CreatorVideoPanel({
   initialRequest?: ContentPageInitialRequest;
   onCreated: (result: CreatorVideoDraftResult) => Promise<void>;
 }) {
+  function defaultCreatorScheduleInput() {
+    if (initialRequest?.scheduledAt) return localDateTimeInputValue(initialRequest.scheduledAt);
+    const date = new Date(Date.now() + 45 * 60 * 1000);
+    const minutes = date.getMinutes();
+    if (minutes === 0 || minutes === 30) {
+      date.setSeconds(0, 0);
+    } else if (minutes < 30) {
+      date.setMinutes(30, 0, 0);
+    } else {
+      date.setHours(date.getHours() + 1, 0, 0, 0);
+    }
+    return localDateTimeInputValue(date.toISOString());
+  }
+
   const [title, setTitle] = useState("");
   const [topic, setTopic] = useState("");
   const [brief, setBrief] = useState("");
   const [scriptNotes, setScriptNotes] = useState("");
   const [materialNotes, setMaterialNotes] = useState("");
-  const [scheduledAt, setScheduledAt] = useState(() => localDateTimeInputValue(initialRequest?.scheduledAt) || "");
+  const [scheduledAt, setScheduledAt] = useState(defaultCreatorScheduleInput);
   const [acceptanceRunId] = useState(() => initialRequest?.acceptanceRunId);
   const [requestedDataDomain] = useState(() => initialRequest?.dataDomain);
   const scheduleInputRef = useRef<HTMLInputElement | null>(null);
@@ -164,7 +178,7 @@ function CreatorVideoPanel({
   const [discussion, setDiscussion] = useState<CreatorVideoDiscussionResult | null>(null);
   const [result, setResult] = useState<CreatorVideoDraftResult | null>(null);
   const [busy, setBusy] = useState<"discuss" | "save" | null>(null);
-  const [message, setMessage] = useState("输入一个大概想法，先和本地创作助手讨论，再保存四平台版本。");
+  const [message, setMessage] = useState("粘贴上下文或概述视频内容，系统会自动提取选题策略、标题、简介、标签，并默认排到今天。");
 
   function scheduleInputValue() {
     return scheduleInputRef.current?.value ?? scheduledAt;
@@ -198,7 +212,7 @@ function CreatorVideoPanel({
 
   async function discussDraft(regenerating = false) {
     setBusy("discuss");
-    setMessage(regenerating ? "正在按调整要求重新生成讨论稿..." : "正在分析方向并生成四平台讨论稿...");
+    setMessage(regenerating ? "正在按调整要求重新生成选题策略..." : "正在提取上下文，生成选题策略和四平台标题...");
     try {
       const response = await fetch("/api/self-media/creator-drafts", {
         method: "POST",
@@ -210,7 +224,7 @@ function CreatorVideoPanel({
       setDiscussion(body);
       if (!title) setTitle(body.idea.title);
       if (!topic) setTopic(body.idea.topic);
-      setMessage(regenerating ? "已按调整要求重新生成，可继续修改或保存。" : "讨论稿已生成，可调整方向后重新生成，也可以直接保存。");
+      setMessage(regenerating ? "已按调整要求重新生成，可继续修改或确认保存。" : "选题策略已生成；标题、简介和标签已自动填好，可以直接确认保存。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "创作讨论生成失败");
     } finally {
@@ -226,10 +240,10 @@ function CreatorVideoPanel({
       const requestedScheduleInput = scheduleInputValue().trim();
       const requestedScheduleIso = payload.scheduledAt;
       if (requestedScheduleInput && !requestedScheduleIso) {
-        throw new Error("未来发布时间没有识别成功，请重新选择日期和时间。");
+        throw new Error("发布时间没有识别成功，请重新选择日期和时间。");
       }
       if (requestedScheduleIso && new Date(requestedScheduleIso).getTime() <= Date.now()) {
-        throw new Error("请选择未来发布时间；过去时间不会加入发布日历。");
+        throw new Error("请选择今天稍后的发布时间；过去时间不会加入发布日历。");
       }
       const response = await fetch("/api/self-media/creator-drafts", {
         method: "POST",
@@ -278,39 +292,44 @@ function CreatorVideoPanel({
     >
       <div className="form-grid creator-video-form" id="new-video" data-testid="creator-new-video-panel">
         <label>
-          <span>标题方向</span>
-          <input className="sm-input" data-testid="creator-video-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：我用 AI 做了一条短片复盘" />
+          <span>视频上下文 / 概述</span>
+          <textarea className="sm-input" data-testid="creator-video-brief" value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="把刚做完的视频上下文粘过来，或用几句话概述：这个视频讲什么、最想让观众记住什么、有没有成片画面/数据/踩坑。" />
         </label>
         <label>
-          <span>主题</span>
-          <input className="sm-input" data-testid="creator-video-topic" value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="例如：AI短片 / 自媒体复盘 / 工具教程" />
-        </label>
-        <label>
-          <span>未来发布时间</span>
+          <span>发布日期</span>
           <input className="sm-input" data-testid="creator-video-scheduled-at" ref={scheduleInputRef} type="datetime-local" value={scheduledAt} onChange={(event) => syncScheduledAt(event.target.value)} onInput={(event) => syncScheduledAt(event.currentTarget.value)} />
         </label>
-        {schedulePreviewIsFuture && <p className="muted" data-testid="creator-video-schedule-preview">将排期到 {formatDateTime(schedulePreviewIso)}；保存后会进入发布日历。</p>}
-        {hasScheduleInput && !schedulePreviewIsFuture && <p className="muted" data-testid="creator-video-schedule-preview">请选择未来发布时间；过去时间不会进入发布日历。</p>}
-        <label>
-          <span>大致内容</span>
-          <textarea className="sm-input" data-testid="creator-video-brief" value={brief} onChange={(event) => setBrief(event.target.value)} placeholder="写几句话就行：想表达什么、给谁看、希望观众做什么。" />
-        </label>
+        {schedulePreviewIsFuture && <p className="muted" data-testid="creator-video-schedule-preview">默认排到 {formatDateTime(schedulePreviewIso)}；要改时间再手动调整。</p>}
+        {hasScheduleInput && !schedulePreviewIsFuture && <p className="muted" data-testid="creator-video-schedule-preview">请选择今天稍后的发布时间；过去时间不会进入发布日历。</p>}
         <label>
           <span>调整方向/语气/时长/受众</span>
           <textarea className="sm-input" data-testid="creator-copilot-revision" value={revisionPrompt} onChange={(event) => setRevisionPrompt(event.target.value)} placeholder="可选：例如面向新手、语气更轻松、控制在 60 秒、少讲工具多讲结果。" />
         </label>
-        <label>
-          <span>脚本备注</span>
-          <textarea className="sm-input" value={scriptNotes} onChange={(event) => setScriptNotes(event.target.value)} placeholder="可选：口播结构、关键台词、镜头顺序。" />
-        </label>
-        <label>
-          <span>素材备注</span>
-          <textarea className="sm-input" value={materialNotes} onChange={(event) => setMaterialNotes(event.target.value)} placeholder="可选：已有素材、封面方向、不能漏的信息。" />
-        </label>
+        <details className="advanced-diagnostics">
+          <summary>高级补充：手动改标题、选题、脚本和素材</summary>
+          <div className="form-grid">
+            <label>
+              <span>标题方向</span>
+              <input className="sm-input" data-testid="creator-video-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="不填则自动从概述提取" />
+            </label>
+            <label>
+              <span>主题</span>
+              <input className="sm-input" data-testid="creator-video-topic" value={topic} onChange={(event) => setTopic(event.target.value)} placeholder="不填则自动判断选题类别" />
+            </label>
+            <label>
+              <span>脚本备注</span>
+              <textarea className="sm-input" value={scriptNotes} onChange={(event) => setScriptNotes(event.target.value)} placeholder="可选：口播结构、关键台词、镜头顺序。" />
+            </label>
+            <label>
+              <span>素材备注</span>
+              <textarea className="sm-input" value={materialNotes} onChange={(event) => setMaterialNotes(event.target.value)} placeholder="可选：已有素材、封面方向、不能漏的信息。" />
+            </label>
+          </div>
+        </details>
         <div className="inline-stack">
-          <Button data-testid="creator-copilot-generate" disabled={Boolean(busy)} onClick={() => discussDraft(false)} variant="primary">分析并生成讨论稿</Button>
+          <Button data-testid="creator-copilot-generate" disabled={Boolean(busy) || !brief.trim()} onClick={() => discussDraft(false)} variant="primary">生成选题策略与四平台标题</Button>
           <Button data-testid="creator-copilot-regenerate" disabled={Boolean(busy) || !discussion} onClick={() => discussDraft(true)} variant="secondary">按调整重新生成</Button>
-          <Button data-testid="creator-video-generate" disabled={Boolean(busy)} onClick={createDraft} variant="secondary">生成并保存四平台版本</Button>
+          <Button data-testid="creator-video-generate" disabled={Boolean(busy) || !brief.trim()} onClick={createDraft} variant="secondary">确认保存并排到今天</Button>
           <a className="sm-button sm-button-secondary" href="/calendar">去日历排期</a>
         </div>
         <p className="muted">{message}</p>
@@ -333,6 +352,15 @@ function CreatorVideoPanel({
               <div><span className="muted">时长</span><strong>{discussion.analysis.duration}</strong></div>
               <div><span className="muted">发布计划</span><strong>{discussion.publishPlan.planSummary}</strong></div>
             </div>
+            <div className="metric-grid" data-testid="creator-topic-strategy">
+              <div><span className="muted">选题角度</span><strong>{discussion.analysis.topicStrategy.coreAngle}</strong></div>
+              <div><span className="muted">观众痛点</span><strong>{discussion.analysis.topicStrategy.audiencePain}</strong></div>
+              <div><span className="muted">内容承诺</span><strong>{discussion.analysis.topicStrategy.promise}</strong></div>
+              <div><span className="muted">证明点</span><strong>{discussion.analysis.topicStrategy.proof}</strong></div>
+            </div>
+            <ul>
+              {discussion.analysis.topicStrategy.titleOptions.map((item) => <li key={item}>标题候选：{item}</li>)}
+            </ul>
             <ul>
               {discussion.analysis.structure.map((item) => <li key={item}>{item}</li>)}
             </ul>

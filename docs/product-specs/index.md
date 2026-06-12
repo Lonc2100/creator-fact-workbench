@@ -70,7 +70,8 @@ This index separates active release scope from paused or diagnostic-only work. D
   [Video Account live assisted scan 129](../handoffs/MAINLINE-VIDEO-ACCOUNT-LIVE-ASSISTED-SCAN-129-worker-handoff.md),
   [Four-platform refresh workflow 130](../handoffs/MAINLINE-FOUR-PLATFORM-REFRESH-WORKFLOW-130-worker-handoff.md),
   [Creator day acceptance 131](../handoffs/MAINLINE-USABLE-CREATOR-DAY-ACCEPTANCE-131-worker-handoff.md),
-  [Usable creator v1 freeze 132](../handoffs/MAINLINE-USABLE-V1-FREEZE-AND-DELIVERY-132-worker-handoff.md).
+  [Usable creator v1 freeze 132](../handoffs/MAINLINE-USABLE-V1-FREEZE-AND-DELIVERY-132-worker-handoff.md),
+  [Context-first creator composer 133](../handoffs/MAINLINE-CONTEXT-FIRST-CREATOR-COMPOSER-133-worker-handoff.md).
 
 ## Paused / Diagnostic-Only
 
