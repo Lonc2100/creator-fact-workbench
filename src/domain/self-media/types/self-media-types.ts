@@ -1635,6 +1635,7 @@ export interface CreatorVideoDiscussionRequest {
   scheduledAt?: string;
   revisionPrompt?: string;
   previousAnalysis?: string;
+  copilotAnalysis?: string;
   acceptanceRunId?: string;
   dataDomain?: Extract<ContentDataDomain, "user_work" | "acceptance_run">;
 }
@@ -1664,6 +1665,15 @@ export interface CreatorPublishPlan {
   checklist: string[];
 }
 
+export type CreatorAssistanceSource = "ai_model" | "local_rule_fallback";
+
+export interface CreatorAssistanceMetadata {
+  source: CreatorAssistanceSource;
+  label: string;
+  model?: string;
+  fallbackReason?: "missing_model_config" | "model_request_failed" | "invalid_model_response" | "local_rule_only";
+}
+
 export interface CreatorVideoDiscussionResult {
   idea: CreatorVideoIdeaRequest;
   analysis: {
@@ -1679,6 +1689,7 @@ export interface CreatorVideoDiscussionResult {
   drafts: CreatorPlatformDraft[];
   publishPlan: CreatorPublishPlan;
   revisionPrompt?: string;
+  assistance: CreatorAssistanceMetadata;
   traceId: string;
 }
 

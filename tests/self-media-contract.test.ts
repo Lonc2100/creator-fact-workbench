@@ -14,6 +14,7 @@ import { selectDouyinCreatorCenterDetailRow, selectDouyinCreatorCenterRows, sele
 import type { AccountMetricSnapshot, DashboardSnapshot, PlatformDataHealthView, TrustedWeeklySafeReportResponse } from "../src/domain/self-media/types";
 
 const projectRoot = process.cwd();
+const creatorAiEnvKeys = ["SELF_MEDIA_AI_ASSISTANT_API_KEY", "SELF_MEDIA_AI_ASSISTANT_MODEL", "SELF_MEDIA_AI_ASSISTANT_ENDPOINT"] as const;
 
 type RealPreviewResult = {
   realPreviewRows: Array<{
@@ -25,6 +26,35 @@ type RealPreviewResult = {
     warnings: string[];
   }>;
 };
+
+function withCreatorAiEnv<T>(values: Partial<Record<typeof creatorAiEnvKeys[number], string>>, run: () => T): T {
+  const previous = new Map<typeof creatorAiEnvKeys[number], string | undefined>();
+  for (const key of creatorAiEnvKeys) {
+    previous.set(key, process.env[key]);
+    const next = values[key];
+    if (next === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = next;
+    }
+  }
+  const restore = () => {
+    for (const key of creatorAiEnvKeys) {
+      const value = previous.get(key);
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
+  try {
+    const result = run();
+    if (result && typeof (result as Promise<unknown>).finally === "function") return (result as Promise<unknown>).finally(restore) as T;
+    restore();
+    return result;
+  } catch (error) {
+    restore();
+    throw error;
+  }
+}
 
 const crcTable = Array.from({ length: 256 }, (_, index) => {
   let value = index;
@@ -6997,19 +7027,19 @@ test("publish handoff packages prepare four official-backend manual publish flow
   }
 });
 
-test("creator day workflow runs from schedule and platform drafts to handoff publish and metric match", () => {
+test("creator day workflow runs from schedule and platform drafts to handoff publish and metric match", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-creator-day-"));
   let repo: SqliteSelfMediaRepo | undefined;
   try {
     repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
     const service = new SelfMediaService(repo);
     const scheduledAt = "2026-06-06T09:00:00.000Z";
-    const discussion = service.createCreatorVideoDiscussion({
+    const discussion = await withCreatorAiEnv({}, () => service.createCreatorVideoDiscussion({
       title: "Creator daily production run",
       topic: "creator daily production",
       brief: "Schedule first, create discussion and platform versions, use handoff publishing, then recover metrics.",
       scheduledAt
-    });
+    }));
     const draft = service.createCreatorVideoDraft({
       title: discussion.idea.title,
       topic: discussion.idea.topic,
@@ -7371,11 +7401,13 @@ test("creator copilot discusses rough idea, regenerates, and saves scheduled fou
   try {
     repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
     const service = new SelfMediaService(repo);
-    const first = service.createCreatorVideoDiscussion({
+    const first = await withCreatorAiEnv({}, () => service.createCreatorVideoDiscussion({
       brief: "准备一条讲我怎么用 AI 把一周自媒体数据变成选题和脚本的短视频。",
       materialNotes: "有看板截图和一张排期表。"
-    });
+    }));
     assert.equal(first.drafts.length, 4);
+    assert.equal(first.assistance.source, "local_rule_fallback");
+    assert.equal(first.assistance.fallbackReason, "missing_model_config");
     assert.ok(first.idea.title);
     assert.ok(first.analysis.direction.includes(first.idea.topic));
     assert.ok(first.analysis.topicStrategy.coreAngle.includes(first.idea.topic));
@@ -7386,11 +7418,11 @@ test("creator copilot discusses rough idea, regenerates, and saves scheduled fou
     assert.ok(first.drafts.every((draft) => /需.*人工确认/.test(draft.incentiveTagAdvice)));
     assert.equal(repo.listContents().length, 0);
 
-    const regenerated = service.createCreatorVideoDiscussion({
+    const regenerated = await withCreatorAiEnv({}, () => service.createCreatorVideoDiscussion({
       ...first.idea,
       revisionPrompt: "面向新手，语气轻松，控制在 60 秒以内。",
       scheduledAt: "2026-06-09T12:30:00.000Z"
-    });
+    }));
     assert.ok(regenerated.analysis.tone.includes("轻松"));
     assert.ok(regenerated.analysis.duration.includes("60") || regenerated.analysis.duration.includes("90"));
     assert.ok(regenerated.drafts.some((draft) => draft.body.includes("本轮调整")));
@@ -7407,17 +7439,18 @@ test("creator copilot discusses rough idea, regenerates, and saves scheduled fou
   }
 });
 
-test("creator composer can infer topic strategy from context-only video summary", () => {
+test("creator composer can infer topic strategy from context-only video summary", async () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-context-composer-"));
   let repo: SqliteSelfMediaRepo | undefined;
   try {
     repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
     const service = new SelfMediaService(repo);
-    const discussion = service.createCreatorVideoDiscussion({
+    const discussion = await withCreatorAiEnv({}, () => service.createCreatorVideoDiscussion({
       brief: "我刚做完一条视频，讲用 AI 把成片素材整理成三条选题，里面有前后对比、失败过程和最终发布结果。",
       materialNotes: "有成片画面、排期截图和数据对比。"
-    });
+    }));
     assert.equal(discussion.drafts.length, 4);
+    assert.equal(discussion.assistance.source, "local_rule_fallback");
     assert.equal(discussion.idea.topic, "AI创作工作流");
     assert.ok(discussion.idea.title.length > 0);
     assert.ok(discussion.analysis.topicStrategy.promise.includes(discussion.idea.title) || discussion.analysis.topicStrategy.promise.includes("真实结果"));
@@ -7436,6 +7469,86 @@ test("creator composer can infer topic strategy from context-only video summary"
     assert.equal(saved.content.scheduledAt, "2026-06-12T13:30:00.000Z");
     assert.ok(repo.listPlatformVersions().every((item) => item.contentId !== saved.content.id || item.status === "scheduled"));
   } finally {
+    repo?.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("creator copilot uses configured AI assistant before local fallback", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "self-media-creator-ai-"));
+  let repo: SqliteSelfMediaRepo | undefined;
+  const originalFetch = globalThis.fetch;
+  let requestedModel = "";
+  try {
+    repo = new SqliteSelfMediaRepo(path.join(dir, "test.sqlite"));
+    const service = new SelfMediaService(repo);
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { model?: string; messages?: Array<{ content: string }> };
+      requestedModel = body.model ?? "";
+      assert.equal(body.model, "test-content-strategist");
+      assert.match(body.messages?.[1]?.content ?? "", /四个?平台/);
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              title: "AI复盘不要只讲工具",
+              topic: "AI内容策略",
+              direction: "把成片复盘改成能直接发布的四平台策略。",
+              audience: "已经做完成片但不想填表的创作者",
+              tone: "直接、具体、有复盘感",
+              duration: "60-90 秒",
+              topicStrategy: {
+                coreAngle: "AI内容策略 / 成片复盘",
+                audiencePain: "用户已经完成视频，但不知道怎么拆成各平台版本。",
+                promise: "把一个概述变成可审核的四平台发布策略。",
+                conflict: "不要再让创作者重复填标题和标签。",
+                proof: "用成片画面、排期截图和数据对比证明。",
+                openingHook: "做完视频后，最耗人的不是剪辑，是发布前这张表。",
+                titleOptions: ["AI复盘不要只讲工具", "做完视频后这样拆四个平台", "我用 AI 把概述变成发布策略"],
+                tagStrategy: ["AI内容策略", "自媒体复盘", "四平台发布"]
+              },
+              structure: ["先说痛点", "再给四平台拆解", "最后提醒人工确认标签"],
+              risks: ["平台标签和激励必须人工确认"],
+              platformDifferences: [
+                { platform: "douyin", focus: "强钩子", format: "短口播", adjustment: "先讲结果", manualCheck: "发布前人工确认活动标签。" },
+                { platform: "xiaohongshu", focus: "清单收藏", format: "经验贴", adjustment: "拆步骤", manualCheck: "发布前人工确认活动标签。" },
+                { platform: "video_account", focus: "可信观点", format: "口播", adjustment: "保留个人表达", manualCheck: "发布前人工确认活动标签。" },
+                { platform: "bilibili", focus: "完整复盘", format: "章节化视频", adjustment: "保留方法论", manualCheck: "发布前人工确认活动标签。" }
+              ],
+              drafts: [
+                { platform: "douyin", title: "AI复盘不要只讲工具", body: "模型建议：3 秒先讲结果，再给步骤。", tags: ["AI内容策略", "短视频"], coverNote: "结果对比封面", platformAdvice: "强钩子优先", incentiveTagAdvice: "仅为建议，需人工确认。" },
+                { platform: "xiaohongshu", title: "AI复盘不要只讲工具｜四平台发布", body: "模型建议：清单化写法。", tags: ["AI内容策略", "经验分享"], coverNote: "清单封面", platformAdvice: "收藏场景优先", incentiveTagAdvice: "仅为建议，需人工确认。" },
+                { platform: "video_account", title: "AI复盘不要只讲工具", body: "模型建议：观点、案例、行动。", tags: ["观点表达", "AI内容策略"], coverNote: "真人观点封面", platformAdvice: "信任建设优先", incentiveTagAdvice: "仅为建议，需人工确认。" },
+                { platform: "bilibili", title: "AI内容策略：AI复盘不要只讲工具", body: "模型建议：保留章节和方法论。", tags: ["AI工作流", "创作复盘"], coverNote: "方法论封面", platformAdvice: "中长复盘优先", incentiveTagAdvice: "仅为建议，需人工确认。" }
+              ],
+              publishPlan: { planSummary: "保存后进入今天排期，发布前人工复核。", checklist: ["确认标题", "确认封面", "确认平台标签"] }
+            })
+          }
+        }]
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+
+    const discussion = await withCreatorAiEnv({
+      SELF_MEDIA_AI_ASSISTANT_API_KEY: "test-key",
+      SELF_MEDIA_AI_ASSISTANT_MODEL: "test-content-strategist",
+      SELF_MEDIA_AI_ASSISTANT_ENDPOINT: "https://ai.example.test/v1/chat/completions"
+    }, () => service.createCreatorVideoDiscussion({
+      brief: "我做完一条 AI 创作复盘视频，想让系统拆成四个平台标题和发布建议。",
+      materialNotes: "有成片画面、排期截图和数据对比。"
+    }));
+
+    assert.equal(requestedModel, "test-content-strategist");
+    assert.equal(discussion.assistance.source, "ai_model");
+    assert.equal(discussion.assistance.model, "test-content-strategist");
+    assert.equal(discussion.idea.title, "AI复盘不要只讲工具");
+    assert.equal(discussion.analysis.topicStrategy.coreAngle, "AI内容策略 / 成片复盘");
+    assert.ok(discussion.drafts.every((draft) => draft.body.includes("模型建议")));
+
+    const saved = service.createCreatorVideoDraft({ ...discussion.idea, scheduledAt: "2026-06-14T13:30:00.000Z" });
+    assert.equal(saved.platformVersions.length, 4);
+    assert.ok(saved.content.notes.includes("creator_copilot_discussion:ai_model:test-content-strategist"));
+  } finally {
+    globalThis.fetch = originalFetch;
     repo?.close();
     rmSync(dir, { recursive: true, force: true });
   }

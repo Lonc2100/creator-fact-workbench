@@ -135,6 +135,8 @@ test("content draft review UI keeps manual review and publish confirmation expli
   assert.match(contentScreen, /视频上下文 \/ 概述/);
   assert.match(contentScreen, /粘贴上下文或概述视频内容/);
   assert.match(contentScreen, /生成选题策略与四平台标题/);
+  assert.match(contentScreen, /AI 辅助 \/ 本地回退/);
+  assert.match(contentScreen, /模型缺少配置或返回异常时使用本地规则/);
   assert.match(contentScreen, /按调整重新生成/);
   assert.match(contentScreen, /确认保存并排到今天/);
   assert.match(contentScreen, /高级补充：手动改标题、选题、脚本和素材/);

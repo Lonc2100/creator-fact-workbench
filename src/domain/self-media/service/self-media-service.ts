@@ -29,6 +29,8 @@ import type {
   CaptureConnectionStatus,
   CaptureMode,
   CsvImportPreset,
+  CreatorAssistanceMetadata,
+  CreatorPlatformDifference,
   CreatorPlatformDraft,
   CreatorTopicStrategy,
   CreatorVideoDiscussionRequest,
@@ -370,6 +372,7 @@ function normalizeCreatorIdeaInput(input: CreatorVideoIdeaRequest | CreatorVideo
   const fallbackTitle = strategy.titleOptions[0] || firstCreatorLine(brief) || "新视频想法";
   const title = normalizeCreatorTitle(input.title || fallbackTitle);
   const topic = normalizeCreatorTitle(input.topic || inferCreatorTopic(seed));
+  const copilotAnalysis = input.copilotAnalysis?.trim() || "creator_copilot_discussion:local_rule_v1";
   return {
     title,
     topic,
@@ -378,7 +381,7 @@ function normalizeCreatorIdeaInput(input: CreatorVideoIdeaRequest | CreatorVideo
     materialNotes: input.materialNotes?.trim() || undefined,
     scheduledAt: input.scheduledAt?.trim() || undefined,
     revisionPrompt: input.revisionPrompt?.trim() || undefined,
-    copilotAnalysis: "creator_copilot_discussion:local_rule_v1",
+    copilotAnalysis,
     acceptanceRunId: input.acceptanceRunId?.trim() || undefined,
     dataDomain: input.dataDomain
   };
@@ -430,7 +433,7 @@ function buildCreatorPlatformDrafts(input: CreatorVideoIdeaRequest | CreatorVide
   });
 }
 
-function buildCreatorVideoDiscussion(input: CreatorVideoDiscussionRequest): CreatorVideoDiscussionResult {
+function buildLocalCreatorVideoDiscussion(input: CreatorVideoDiscussionRequest): CreatorVideoDiscussionResult {
   const idea = normalizeCreatorIdeaInput(input);
   const signals = inferCreatorDiscussionSignals(`${idea.brief} ${idea.scriptNotes ?? ""} ${idea.materialNotes ?? ""} ${idea.revisionPrompt ?? ""}`);
   const topicStrategy = inferCreatorTopicStrategy(idea);
@@ -472,8 +475,261 @@ function buildCreatorVideoDiscussion(input: CreatorVideoDiscussionRequest): Crea
       ]
     },
     revisionPrompt: idea.revisionPrompt,
+    assistance: {
+      source: "local_rule_fallback",
+      label: "本地规则生成",
+      fallbackReason: "local_rule_only"
+    },
     traceId: createTraceId("creator-copilot")
   };
+}
+
+type CreatorAiConfig = {
+  endpoint: string;
+  apiKey: string;
+  model: string;
+};
+
+type CreatorAiPayload = {
+  title?: unknown;
+  topic?: unknown;
+  direction?: unknown;
+  audience?: unknown;
+  tone?: unknown;
+  duration?: unknown;
+  topicStrategy?: Partial<Record<keyof CreatorTopicStrategy, unknown>>;
+  structure?: unknown;
+  risks?: unknown;
+  platformDifferences?: unknown;
+  drafts?: unknown;
+  publishPlan?: unknown;
+};
+
+function creatorFallbackAssistance(fallbackReason: CreatorAssistanceMetadata["fallbackReason"], model?: string): CreatorAssistanceMetadata {
+  return {
+    source: "local_rule_fallback",
+    label: fallbackReason === "missing_model_config" ? "本地规则回退：未配置模型" : "本地规则回退",
+    model,
+    fallbackReason
+  };
+}
+
+function resolveCreatorAiConfig(): CreatorAiConfig | undefined {
+  const apiKey = process.env.SELF_MEDIA_AI_ASSISTANT_API_KEY?.trim();
+  const model = process.env.SELF_MEDIA_AI_ASSISTANT_MODEL?.trim();
+  if (!apiKey || !model) return undefined;
+  return {
+    apiKey,
+    model,
+    endpoint: process.env.SELF_MEDIA_AI_ASSISTANT_ENDPOINT?.trim() || "https://api.openai.com/v1/chat/completions"
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function aiText(value: unknown, fallback: string, maxLength: number) {
+  const text = typeof value === "string" ? normalizeCreatorText(value) : "";
+  return text ? normalizeCreatorTitle(text).slice(0, maxLength) : fallback;
+}
+
+function aiLongText(value: unknown, fallback: string, maxLength = 1200) {
+  const text = typeof value === "string" ? normalizeCreatorText(value) : "";
+  return text ? text.slice(0, maxLength) : fallback;
+}
+
+function aiStringArray(value: unknown, fallback: string[], limit: number) {
+  if (!Array.isArray(value)) return fallback;
+  const normalized = uniqueShortLines(value.filter((item): item is string => typeof item === "string"), limit);
+  return normalized.length > 0 ? normalized : fallback;
+}
+
+function parseCreatorAiJson(value: unknown): CreatorAiPayload | undefined {
+  let content: unknown;
+  if (isRecord(value) && Array.isArray(value.choices)) {
+    const first = value.choices[0];
+    if (isRecord(first) && isRecord(first.message)) content = first.message.content;
+  }
+  if (!content && isRecord(value) && typeof value.output_text === "string") content = value.output_text;
+  if (!content && isRecord(value) && Array.isArray(value.output)) {
+    const texts = value.output.flatMap((item) => {
+      if (!isRecord(item) || !Array.isArray(item.content)) return [];
+      return item.content.map((part) => isRecord(part) ? part.text : undefined).filter((part): part is string => typeof part === "string");
+    });
+    content = texts.join("\n");
+  }
+  if (typeof content !== "string") return undefined;
+  const jsonText = content.trim().startsWith("{")
+    ? content.trim()
+    : content.match(/\{[\s\S]*\}/)?.[0];
+  if (!jsonText) return undefined;
+  const parsed = JSON.parse(jsonText) as unknown;
+  return isRecord(parsed) ? parsed : undefined;
+}
+
+function creatorAiMessages(input: CreatorVideoDiscussionRequest, local: CreatorVideoDiscussionResult) {
+  return [
+    {
+      role: "system",
+      content: [
+        "You are a Chinese self-media topic strategist.",
+        "Return only strict JSON. Do not include markdown.",
+        "Create one topic strategy plus platform-specific drafts for douyin, xiaohongshu, video_account, and bilibili.",
+        "Do not claim real-time platform incentives. Keep incentive/tag advice as manual-confirmation suggestions."
+      ].join(" ")
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        schema: {
+          title: "string",
+          topic: "string",
+          direction: "string",
+          audience: "string",
+          tone: "string",
+          duration: "string",
+          topicStrategy: {
+            coreAngle: "string",
+            audiencePain: "string",
+            promise: "string",
+            conflict: "string",
+            proof: "string",
+            openingHook: "string",
+            titleOptions: ["string"],
+            tagStrategy: ["string"]
+          },
+          structure: ["string"],
+          risks: ["string"],
+          platformDifferences: [{ platform: "douyin|xiaohongshu|video_account|bilibili", focus: "string", format: "string", adjustment: "string", manualCheck: "string" }],
+          drafts: [{ platform: "douyin|xiaohongshu|video_account|bilibili", title: "string", body: "string", tags: ["string"], coverNote: "string", platformAdvice: "string", incentiveTagAdvice: "string" }],
+          publishPlan: { planSummary: "string", checklist: ["string"] }
+        },
+        input,
+        localFallback: {
+          title: local.idea.title,
+          topic: local.idea.topic,
+          topicStrategy: local.analysis.topicStrategy,
+          drafts: local.drafts
+        }
+      })
+    }
+  ];
+}
+
+async function requestCreatorAiPayload(input: CreatorVideoDiscussionRequest, local: CreatorVideoDiscussionResult, config: CreatorAiConfig): Promise<CreatorAiPayload | undefined> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const response = await fetch(config.endpoint, {
+      method: "POST",
+      headers: {
+        "authorization": `Bearer ${config.apiKey}`,
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        model: config.model,
+        temperature: 0.7,
+        response_format: { type: "json_object" },
+        messages: creatorAiMessages(input, local)
+      }),
+      signal: controller.signal
+    });
+    if (!response.ok) throw new Error(`AI assistant request failed with HTTP ${response.status}.`);
+    return parseCreatorAiJson(await response.json());
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function platformRecord<T extends { platform: string }>(value: unknown, platform: typeof closedLoopContentPlatforms[number]): Partial<T> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.find((item): item is Partial<T> => isRecord(item) && item.platform === platform);
+}
+
+function mergeCreatorAiPayload(local: CreatorVideoDiscussionResult, payload: CreatorAiPayload, config: CreatorAiConfig): CreatorVideoDiscussionResult | undefined {
+  if (!isRecord(payload.topicStrategy) && !Array.isArray(payload.drafts)) return undefined;
+  const fallbackStrategy = local.analysis.topicStrategy;
+  const strategy: CreatorTopicStrategy = {
+    coreAngle: aiText(payload.topicStrategy?.coreAngle, fallbackStrategy.coreAngle, 120),
+    audiencePain: aiLongText(payload.topicStrategy?.audiencePain, fallbackStrategy.audiencePain, 180),
+    promise: aiLongText(payload.topicStrategy?.promise, fallbackStrategy.promise, 180),
+    conflict: aiLongText(payload.topicStrategy?.conflict, fallbackStrategy.conflict, 180),
+    proof: aiLongText(payload.topicStrategy?.proof, fallbackStrategy.proof, 180),
+    openingHook: aiText(payload.topicStrategy?.openingHook, fallbackStrategy.openingHook, 100),
+    titleOptions: aiStringArray(payload.topicStrategy?.titleOptions, fallbackStrategy.titleOptions, 5),
+    tagStrategy: aiStringArray(payload.topicStrategy?.tagStrategy, fallbackStrategy.tagStrategy, 6)
+  };
+  const idea: CreatorVideoIdeaRequest = {
+    ...local.idea,
+    title: aiText(payload.title, strategy.titleOptions[0] ?? local.idea.title, 80),
+    topic: aiText(payload.topic, local.idea.topic, 50),
+    copilotAnalysis: `creator_copilot_discussion:ai_model:${config.model}`
+  };
+  const platformDifferences: CreatorPlatformDifference[] = closedLoopContentPlatforms.map((platform) => {
+    const localDifference = local.platformDifferences.find((item) => item.platform === platform);
+    const aiDifference = platformRecord<CreatorPlatformDifference>(payload.platformDifferences, platform);
+    return {
+      platform,
+      focus: aiLongText(aiDifference?.focus, localDifference?.focus ?? creatorPlatformDraftAdvice[platform].focus, 160),
+      format: aiLongText(aiDifference?.format, localDifference?.format ?? creatorPlatformDraftAdvice[platform].format, 180),
+      adjustment: aiLongText(aiDifference?.adjustment, localDifference?.adjustment ?? "按平台内容消费场景改写。", 220),
+      manualCheck: aiLongText(aiDifference?.manualCheck, "创作标签/平台活动/激励均需人工确认，不视为实时官方承诺。", 180)
+    };
+  });
+  const drafts: CreatorPlatformDraft[] = closedLoopContentPlatforms.map((platform) => {
+    const localDraft = local.drafts.find((item) => item.platform === platform);
+    const aiDraft = platformRecord<CreatorPlatformDraft>(payload.drafts, platform);
+    const fallbackDraft = localDraft ?? buildCreatorPlatformDrafts(idea).find((item) => item.platform === platform)!;
+    return {
+      platform,
+      title: aiText(aiDraft?.title, fallbackDraft.title, platform === "bilibili" ? 90 : 60),
+      body: aiLongText(aiDraft?.body, fallbackDraft.body),
+      tags: aiStringArray(aiDraft?.tags, fallbackDraft.tags, 6),
+      coverNote: aiLongText(aiDraft?.coverNote, fallbackDraft.coverNote, 180),
+      platformAdvice: aiLongText(aiDraft?.platformAdvice, fallbackDraft.platformAdvice, 220),
+      incentiveTagAdvice: aiLongText(aiDraft?.incentiveTagAdvice, fallbackDraft.incentiveTagAdvice, 180)
+    };
+  });
+  const aiPublishPlan = isRecord(payload.publishPlan) ? payload.publishPlan : undefined;
+  return {
+    ...local,
+    idea,
+    analysis: {
+      direction: aiLongText(payload.direction, local.analysis.direction, 240),
+      audience: aiText(payload.audience, local.analysis.audience, 80),
+      tone: aiText(payload.tone, local.analysis.tone, 80),
+      duration: aiText(payload.duration, local.analysis.duration, 80),
+      topicStrategy: strategy,
+      structure: aiStringArray(payload.structure, local.analysis.structure, 5),
+      risks: aiStringArray(payload.risks, local.analysis.risks, 4)
+    },
+    platformDifferences,
+    drafts,
+    publishPlan: {
+      scheduledAt: local.publishPlan.scheduledAt,
+      planSummary: aiLongText(aiPublishPlan?.planSummary, local.publishPlan.planSummary, 220),
+      checklist: aiStringArray(aiPublishPlan?.checklist, local.publishPlan.checklist, 5)
+    },
+    assistance: {
+      source: "ai_model",
+      label: "AI 模型辅助",
+      model: config.model
+    }
+  };
+}
+
+async function buildCreatorVideoDiscussion(input: CreatorVideoDiscussionRequest): Promise<CreatorVideoDiscussionResult> {
+  const local = buildLocalCreatorVideoDiscussion(input);
+  const config = resolveCreatorAiConfig();
+  if (!config) return { ...local, assistance: creatorFallbackAssistance("missing_model_config") };
+  try {
+    const payload = await requestCreatorAiPayload(input, local, config);
+    if (!payload) return { ...local, assistance: creatorFallbackAssistance("invalid_model_response", config.model) };
+    return mergeCreatorAiPayload(local, payload, config) ?? { ...local, assistance: creatorFallbackAssistance("invalid_model_response", config.model) };
+  } catch {
+    return { ...local, assistance: creatorFallbackAssistance("model_request_failed", config.model) };
+  }
 }
 
 function isTrustedRealCreatorCenterSource(source: ImportSource | "manual" | "review_metric") {
@@ -3613,7 +3869,7 @@ export class SelfMediaService {
     return { idea: updatedIdea, content, queue, traceId };
   }
 
-  createCreatorVideoDiscussion(input: CreatorVideoDiscussionRequest): CreatorVideoDiscussionResult {
+  async createCreatorVideoDiscussion(input: CreatorVideoDiscussionRequest): Promise<CreatorVideoDiscussionResult> {
     return buildCreatorVideoDiscussion(input);
   }
 

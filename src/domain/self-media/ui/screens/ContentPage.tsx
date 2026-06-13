@@ -205,6 +205,7 @@ function CreatorVideoPanel({
       scheduledAt: isoFromLocalDateTime(currentScheduledAt),
       revisionPrompt: revisionPrompt || undefined,
       previousAnalysis: discussion?.analysis.direction,
+      copilotAnalysis: discussion?.idea.copilotAnalysis,
       acceptanceRunId,
       dataDomain: requestedDataDomain ?? (acceptanceRunId ? "acceptance_run" : undefined)
     };
@@ -224,7 +225,8 @@ function CreatorVideoPanel({
       setDiscussion(body);
       if (!title) setTitle(body.idea.title);
       if (!topic) setTopic(body.idea.topic);
-      setMessage(regenerating ? "已按调整要求重新生成，可继续修改或确认保存。" : "选题策略已生成；标题、简介和标签已自动填好，可以直接确认保存。");
+      const sourceLabel = body.assistance.source === "ai_model" ? "AI 已辅助生成" : "已使用本地规则回退";
+      setMessage(regenerating ? `${sourceLabel}，并按调整要求重新生成；可继续修改或确认保存。` : `${sourceLabel}选题策略；标题、简介和标签已自动填好，可以直接确认保存。`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "创作讨论生成失败");
     } finally {
@@ -288,7 +290,7 @@ function CreatorVideoPanel({
     <Panel
       title="创作讨论"
       eyebrow="创作者工作流"
-      action={<span className="sm-badge sm-badge-info">本地规则生成</span>}
+      action={<span className={`sm-badge ${discussion?.assistance.source === "ai_model" ? "sm-badge-success" : "sm-badge-info"}`}>{discussion?.assistance.label ?? "AI 辅助 / 本地回退"}</span>}
     >
       <div className="form-grid creator-video-form" id="new-video" data-testid="creator-new-video-panel">
         <label>
@@ -333,7 +335,7 @@ function CreatorVideoPanel({
           <a className="sm-button sm-button-secondary" href="/calendar">去日历排期</a>
         </div>
         <p className="muted">{message}</p>
-        <p className="muted">平台激励/创作标签均为建议，需发布前人工确认；不会调用外部 LLM key，也不会自动发布。</p>
+        <p className="muted">平台激励/创作标签均为建议，需发布前人工确认；模型缺少配置或返回异常时使用本地规则，不会自动发布。</p>
       </div>
       {discussion && (
         <div className="creator-video-result" data-testid="creator-copilot-discussion">
@@ -343,7 +345,7 @@ function CreatorVideoPanel({
                 <p className="eyebrow">讨论结果</p>
                 <h2>内容方向分析</h2>
               </div>
-              <span className="sm-badge sm-badge-warning">需人工确认标签/激励</span>
+              <span className={`sm-badge ${discussion.assistance.source === "ai_model" ? "sm-badge-success" : "sm-badge-warning"}`}>{discussion.assistance.label}</span>
             </div>
             <p>{discussion.analysis.direction}</p>
             <div className="metric-grid">
