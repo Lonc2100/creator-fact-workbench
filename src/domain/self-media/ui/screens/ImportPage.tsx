@@ -713,7 +713,7 @@ function LoginCaptureAutoRefreshPanel({
 }
 
 function loginCaptureTriggerLabel(trigger: AuthedBrowserAutoRefreshResult["trigger"]) {
-  if (trigger === "startup") return "启动自动检查";
+  if (trigger === "startup") return "启动只读检查";
   if (trigger === "focus_return") return "登录返回提示";
   return "手动打开刷新";
 }
@@ -748,15 +748,15 @@ function loginCapturePrimaryAction(result: AuthedBrowserAutoRefreshResult) {
   if (needsLogin) {
     return {
       title: `${needsLogin.label} 需要你完成登录`,
-      detail: "请在自动打开的平台窗口完成登录或验证码；回到本页后系统会自动复查。",
+      detail: "请手动打开平台后台并完成登录、验证码或风控；回到本页后点击按钮重新预览，系统不会自动复查。",
       badge: "需登录",
       tone: "info" as const,
       href: "",
-      actionLabel: "我已登录，重新预览"
+      actionLabel: "手动打开后台并重新预览"
     };
   }
   return {
-    title: "当前没有可自动抓取的平台",
+    title: "当前没有可直接预览的平台",
     detail: "抖音和小红书支持登录后预览；视频号可由你打开助手页后扫描预览并确认保存；B站浏览器抓取暂未接入。",
     badge: "边界",
     tone: "info" as const,

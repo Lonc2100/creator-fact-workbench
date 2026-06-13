@@ -33,28 +33,28 @@ const platformCards: PlatformUpdateCard[] = [
     platform: "douyin",
     headline: "登录抓取可用",
     detail: "打开抖音创作者后台，读取作品详情或作品管理页，保存前人工确认。",
-    actionLabel: "打开抖音更新"
+    actionLabel: "展开抖音更新"
   },
   {
     key: "xiaohongshu",
     platform: "xiaohongshu",
     headline: "内容分析表格可用",
     detail: "读取小红书创作者后台内容分析表格，每行一条笔记，保存前人工确认。",
-    actionLabel: "打开小红书更新"
+    actionLabel: "展开小红书更新"
   },
   {
     key: "video_account",
     platform: "video_account",
     headline: "助手页面扫描",
     detail: "扫描视频号助手当前作品/数据列表，先看预览，再勾选批量确认保存。",
-    actionLabel: "扫描视频号助手"
+    actionLabel: "展开视频号扫描"
   },
   {
     key: "bilibili",
     platform: "bilibili",
     headline: "内容级导入可用",
     detail: "导入 B站稿件内容级数据；账号指标仍 preview-only，不进入 durable totals。",
-    actionLabel: "导入 B站数据"
+    actionLabel: "展开 B站导入"
   }
 ];
 
@@ -180,15 +180,15 @@ function refreshReason(snapshot: DashboardSnapshot, key: ImportUpdatePanelKey) {
 function refreshChecklistNextAction(key: ImportUpdatePanelKey, freshness: ImportPlatformFlowState) {
   const isFresh = freshness.label === "数据新鲜";
   if (key === "douyin") {
-    return isFresh ? "可先看数据；需要补抓时展开抖音更新。" : "打开抖音更新，登录创作者中心后回到这里重新检查/预览。";
+    return isFresh ? "可先看数据；需要补抓时展开抖音更新。" : "展开抖音更新，手动打开创作者中心后回到这里重新检查/预览。";
   }
   if (key === "xiaohongshu") {
-    return isFresh ? "可先看数据；需要补抓时展开小红书更新。" : "打开小红书更新，切到内容分析表格页后读取。";
+    return isFresh ? "可先看数据；需要补抓时展开小红书更新。" : "展开小红书更新，手动打开后台并切到内容分析表格页后读取。";
   }
   if (key === "video_account") {
-    return isFresh ? "可先看数据；有新作品时扫描视频号助手当前页。" : "打开视频号助手作品/数据列表，扫描当前页生成预览，再确认保存。";
+    return isFresh ? "可先看数据；有新作品时扫描视频号助手当前页。" : "展开视频号扫描，手动打开助手作品/数据列表后扫描当前页生成预览，再确认保存。";
   }
-  return isFresh ? "可先看数据；有新稿件时导入 B站内容级表格。" : "导入当前稿件级表格；账号指标仍 preview-only。";
+  return isFresh ? "可先看数据；有新稿件时导入 B站内容级表格。" : "展开 B站导入，上传或粘贴当前稿件级表格；账号指标仍 preview-only。";
 }
 
 function todayRefreshChecklist(snapshot: DashboardSnapshot) {

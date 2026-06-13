@@ -13,7 +13,7 @@ import type {
 export const runtime = "nodejs";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
-const blockedInputKeys = ["cookie", "token", "password", "header", "headers", "raw", "request", "response", "storage", "screenshot", "har", "trace", "credential"];
+const blockedInputKeys = ["cookie", "token", "password", "header", "headers", "authorization", "raw", "request", "response", "storage", "storageState", "screenshot", "har", "trace", "credential"];
 const captureRoutes: Partial<Record<AuthedBrowserPlatform, string>> = {
   douyin: "/api/self-media/platform-imports/browser-capture/douyin",
   xiaohongshu: "/api/self-media/platform-imports/browser-capture/xiaohongshu"
@@ -103,7 +103,7 @@ async function postCapture(origin: string, platform: AuthedBrowserPlatform, acti
   const response = await fetch(`${origin}${route}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ action, target: action === "open" ? "works_page" : undefined, userConfirmedLogin: true })
+    body: JSON.stringify({ action, target: action === "open" ? "works_page" : undefined })
   });
   const body = await response.json() as DouyinAuthedBrowserCaptureResult | XiaohongshuAuthedBrowserCaptureResult;
   return { response, body };
@@ -129,7 +129,7 @@ async function previewPlatform(origin: string, profile: AuthedBrowserProfileStat
         status: "needs_login",
         statusLabel: statusLabel("needs_login"),
         message: `${profile.label} 本机窗口未打开。`,
-        nextAction: "点击“手动打开后台并刷新”后再预览；系统不会静默保存数据。",
+        nextAction: "已停止在本页检查；点击“手动打开后台并刷新”会打开平台后台，再尝试预览。系统不会静默保存数据。",
         attemptedPreview: true,
         openedWindow: false,
         contentCount: 0,
@@ -210,8 +210,9 @@ export async function POST(request: Request) {
     const requested = body.platforms === "all" || !body.platforms
       ? null
       : new Set(body.platforms.map((item) => normalizePlatform(item)));
+    const explicitManualTrigger = body.trigger === "manual";
     const trigger = body.trigger === "startup" ? "startup" : body.trigger === "focus_return" ? "focus_return" : "manual";
-    const autoOpen = trigger === "manual" && body.autoOpen === true;
+    const autoOpen = explicitManualTrigger && body.autoOpen === true;
     const profiles = getAuthedBrowserProfileStatusView().profiles.filter((profile) => !requested || requested.has(profile.platform));
     const origin = new URL(request.url).origin;
     const results: AuthedBrowserAutoRefreshPlatformResult[] = [];
