@@ -72,6 +72,12 @@ This index separates active release scope from paused or diagnostic-only work. D
   [Creator day acceptance 131](../handoffs/MAINLINE-USABLE-CREATOR-DAY-ACCEPTANCE-131-worker-handoff.md),
   [Usable creator v1 freeze 132](../handoffs/MAINLINE-USABLE-V1-FREEZE-AND-DELIVERY-132-worker-handoff.md),
   [Context-first creator composer 133](../handoffs/MAINLINE-CONTEXT-FIRST-CREATOR-COMPOSER-133-worker-handoff.md).
+- NightOps usable closure:
+  [AI content assistant 134](../handoffs/MAINLINE-AI-CONTENT-ASSISTANT-134-worker-handoff.md),
+  [Calendar data governance 135](../handoffs/MAINLINE-CALENDAR-DATA-GOVERNANCE-135-worker-handoff.md),
+  [Nonintrusive import refresh 136](../handoffs/MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136-worker-handoff.md),
+  [Entropy governance 137](../handoffs/MAINLINE-ENTROPY-GOVERNANCE-137-worker-handoff.md),
+  [Usable nightly closure 138](../handoffs/MAINLINE-USABLE-NIGHTLY-CLOSURE-138-worker-handoff.md).
 
 ## Paused / Diagnostic-Only
 

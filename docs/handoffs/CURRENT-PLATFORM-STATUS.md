@@ -4,18 +4,65 @@ This is the compact entrypoint for future sessions. Use it before opening dozens
 
 ## NightOps Trellis Heartbeat Orchestrator
 
-Current overnight automation state as of 2026-06-14:
+Current overnight automation state as of 2026-06-14 after the 138 usable-closure verification:
 
 - NightOps state file: `docs/night-ops/state.json`.
 - State machine: `docs/night-ops/state-machine.md`.
 - Local Trellis task packages: `.trellis/tasks/night-*` (gitignored local workflow assets).
 - Heartbeat automation id: `self-media-nightops-orchestrator`, every 25 minutes.
-- Active Worker thread: `019ec1c0-ffb8-76c1-8bbf-df8c73506d8b`.
-- Active task: `MAINLINE-AI-CONTENT-ASSISTANT-134`.
+- Current closure Worker thread: `019ec218-0e94-7b90-a2e5-206a91b6fdd9`.
+- Current closure task: `MAINLINE-USABLE-NIGHTLY-CLOSURE-138`.
 
 NightOps may automatically modify code/docs, run validation, commit, and push within task scope. It must stop for login/QR/captcha/risk-control, real platform data save confirmation, file deletion, sensitive material, force push/reset, WeChat reopening, Bilibili account durable totals, or heavy-gate conflicts.
 
 Bootstrap handoff: `NIGHTOPS-TRELLIS-HEARTBEAT-ORCHESTRATOR-134-main-handoff.md`.
+Closure handoff: `MAINLINE-USABLE-NIGHTLY-CLOSURE-138-worker-handoff.md`.
+
+## 138 Usable Nightly Closure
+
+The 134-138 overnight wave closes the current daily-use baseline:
+
+| Bundle | Commit | Status | Handoff |
+| --- | --- | --- | --- |
+| AI-assisted content composer | `df341ca feat(self-media): add AI-assisted content composer` | Done | `MAINLINE-AI-CONTENT-ASSISTANT-134-worker-handoff.md` |
+| Calendar data governance | `21f5e98 fix(self-media): govern default calendar data` | Done | `MAINLINE-CALENDAR-DATA-GOVERNANCE-135-worker-handoff.md` |
+| Nonintrusive import refresh | `de866e5 fix(self-media): keep import refresh nonintrusive` | Done | `MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136-worker-handoff.md` |
+| Entropy governance scan | `8b4e735 chore(self-media): strengthen entropy governance scan` | Done | `MAINLINE-ENTROPY-GOVERNANCE-137-worker-handoff.md` |
+| Usable nightly closure | `pending final closure commit` | Done | `MAINLINE-USABLE-NIGHTLY-CLOSURE-138-worker-handoff.md` |
+
+Current usable capability:
+
+- `/dashboard` is the daily starting point for trusted four-platform content-level metrics. Latest verified trusted audit matched 34 trusted contents, 46 trusted metric snapshots, 4 trusted platforms, 1,020,345 views, and 11,074 engagement.
+- `/content` is context-first and can use an optional OpenAI-compatible assistant when configured, with local-rule fallback when the model is unavailable or invalid. Saving remains explicit and creates local user-owned content, platform versions, and schedules only after confirmation.
+- `/calendar` defaults to future user-owned schedules only. Test, acceptance, backend-log, capture, import, raw, and evidence-like rows are quarantined out of the default calendar surface; the latest live check showed 0 future default cards rather than polluted cards.
+- `/import` is nonintrusive on page load and focus return. It shows four-platform update guidance and local profile status, but does not auto-open platform windows, call save, assume login confirmation, or store login material.
+- The read-only daily path `/dashboard -> /content -> /calendar -> /import -> /dashboard` was verified live on fixed port 3200 without save/import/platform-capture POST requests, platform-domain requests, or popups.
+
+Current validation result:
+
+- `git diff --check`: PASS.
+- `npm run typecheck`: PASS.
+- `npm run test:self-media`: PASS, 160 tests.
+- `npm run test:ui-harness`: PASS, 20 tests.
+- `NEXT_DIST_DIR=.next-build-138-main npm run build`: PASS; generated `next-env.d.ts` / `tsconfig.json` side effects were restored before handoff.
+- Strict 3200 health: PASS on `http://127.0.0.1:3200/api/self-media/dashboard`.
+- Daily platform ops gate: command PASS with non-blocking `warn`; trusted dashboard audit PASS with no mismatches. Warnings are stale smoke evidence and two real-capture freshness recommendations.
+- Live read-only workflow: PASS with no write/platform-open violations. Residual dev-console risk: React reported hydration attribute mismatch warnings on Dashboard and Import; this did not block page rendering or read-only operation and should be handled by a future UI/runtime polish task.
+
+Not promised by this closure:
+
+- No silent automatic publishing.
+- No silent real-platform collection, save, or background scraping.
+- No automatic platform window opening from `/import`.
+- No WeChat Official Account / backend restoration.
+- No durable Bilibili account-level totals.
+- No saved password, cookie, token, authorization header, storageState, raw request, raw response, screenshot, HAR, trace, or platform DOM.
+
+Remaining risks:
+
+- Freshness reports recommend a new real data refresh cycle for Douyin/Xiaohongshu and show stale smoke evidence; this closure did not perform real platform save.
+- The default calendar currently has no eligible future schedules, which is acceptable for data hygiene but means the next real user schedule should be created from `/content`.
+- The React hydration attribute warnings should be investigated separately if the next UI closure requires console-clean live walkthroughs.
 
 ## 133 Context-First Creator Composer
 
