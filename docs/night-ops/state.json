@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "automationId": "self-media-night-ops-orchestrator",
   "mode": "max_autonomy_with_stop_gates",
-  "phase": "monitor",
+  "phase": "closure",
   "startedAt": "2026-06-14T00:00:00+08:00",
-  "updatedAt": "2026-06-13T17:46:40.000Z",
+  "updatedAt": "2026-06-13T18:10:23.909Z",
   "fixedDashboardUrl": "http://localhost:3200/dashboard",
-  "activeTaskId": "MAINLINE-USABLE-NIGHTLY-CLOSURE-138",
-  "activeWorkerThreadId": "019ec218-0e94-7b90-a2e5-206a91b6fdd9",
+  "activeTaskId": null,
+  "activeWorkerThreadId": null,
   "heartbeat": {
-    "enabled": true,
+    "enabled": false,
     "intervalMinutes": 25,
     "target": "current_thread"
   },
@@ -77,11 +77,13 @@
     },
     {
       "taskId": "MAINLINE-USABLE-NIGHTLY-CLOSURE-138",
-      "status": "active",
+      "status": "done",
       "trellisTaskPath": ".trellis/tasks/night-138-usable-closure",
       "handoffPath": "docs/handoffs/MAINLINE-USABLE-NIGHTLY-CLOSURE-138-worker-handoff.md",
       "summary": "Run final usable path acceptance, update status docs, commit, and push.",
-      "startedAt": "2026-06-13T17:46:14.026Z"
+      "startedAt": "2026-06-13T17:46:14.026Z",
+      "completedAt": "2026-06-13T18:10:23.909Z",
+      "commit": "ffeb7bd"
     }
   ],
   "events": [
@@ -187,6 +189,18 @@
       "message": "Created Worker thread for 138.",
       "taskId": "MAINLINE-USABLE-NIGHTLY-CLOSURE-138",
       "threadId": "019ec218-0e94-7b90-a2e5-206a91b6fdd9"
+    },
+    {
+      "at": "2026-06-13T18:10:23.909Z",
+      "type": "task_completed",
+      "message": "Completed MAINLINE-USABLE-NIGHTLY-CLOSURE-138.",
+      "taskId": "MAINLINE-USABLE-NIGHTLY-CLOSURE-138",
+      "commit": "ffeb7bd"
+    },
+    {
+      "at": "2026-06-13T18:11:00.000Z",
+      "type": "closure_verified",
+      "message": "NightOps queue is empty; final usable closure commit is on origin/main and heartbeat is disabled."
     }
   ],
   "blockers": [],
@@ -194,6 +208,7 @@
     "MAINLINE-AI-CONTENT-ASSISTANT-134",
     "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
     "MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136",
-    "MAINLINE-ENTROPY-GOVERNANCE-137"
+    "MAINLINE-ENTROPY-GOVERNANCE-137",
+    "MAINLINE-USABLE-NIGHTLY-CLOSURE-138"
   ]
 }
