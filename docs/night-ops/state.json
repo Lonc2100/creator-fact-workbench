@@ -4,10 +4,10 @@
   "mode": "max_autonomy_with_stop_gates",
   "phase": "monitor",
   "startedAt": "2026-06-14T00:00:00+08:00",
-  "updatedAt": "2026-06-13T17:22:55.000Z",
+  "updatedAt": "2026-06-13T17:46:40.000Z",
   "fixedDashboardUrl": "http://localhost:3200/dashboard",
-  "activeTaskId": "MAINLINE-ENTROPY-GOVERNANCE-137",
-  "activeWorkerThreadId": "019ec202-101f-74f3-8308-ab358d55eaf2",
+  "activeTaskId": "MAINLINE-USABLE-NIGHTLY-CLOSURE-138",
+  "activeWorkerThreadId": "019ec218-0e94-7b90-a2e5-206a91b6fdd9",
   "heartbeat": {
     "enabled": true,
     "intervalMinutes": 25,
@@ -67,18 +67,21 @@
     },
     {
       "taskId": "MAINLINE-ENTROPY-GOVERNANCE-137",
-      "status": "active",
+      "status": "done",
       "trellisTaskPath": ".trellis/tasks/night-137-entropy-governance",
       "handoffPath": "docs/handoffs/MAINLINE-ENTROPY-GOVERNANCE-137-worker-handoff.md",
       "summary": "Run code/document entropy governance without bulk deletion.",
-      "startedAt": "2026-06-13T17:22:27.513Z"
+      "startedAt": "2026-06-13T17:22:27.513Z",
+      "completedAt": "2026-06-13T17:45:56.063Z",
+      "commit": "8b4e735"
     },
     {
       "taskId": "MAINLINE-USABLE-NIGHTLY-CLOSURE-138",
-      "status": "pending",
+      "status": "active",
       "trellisTaskPath": ".trellis/tasks/night-138-usable-closure",
       "handoffPath": "docs/handoffs/MAINLINE-USABLE-NIGHTLY-CLOSURE-138-worker-handoff.md",
-      "summary": "Run final usable path acceptance, update status docs, commit, and push."
+      "summary": "Run final usable path acceptance, update status docs, commit, and push.",
+      "startedAt": "2026-06-13T17:46:14.026Z"
     }
   ],
   "events": [
@@ -163,12 +166,34 @@
       "message": "Created Worker thread for 137.",
       "taskId": "MAINLINE-ENTROPY-GOVERNANCE-137",
       "threadId": "019ec202-101f-74f3-8308-ab358d55eaf2"
+    },
+    {
+      "at": "2026-06-13T17:45:56.063Z",
+      "type": "task_completed",
+      "message": "Completed MAINLINE-ENTROPY-GOVERNANCE-137.",
+      "taskId": "MAINLINE-ENTROPY-GOVERNANCE-137",
+      "commit": "8b4e735"
+    },
+    {
+      "at": "2026-06-13T17:46:14.026Z",
+      "type": "task_selected",
+      "message": "Selected MAINLINE-USABLE-NIGHTLY-CLOSURE-138.",
+      "taskId": "MAINLINE-USABLE-NIGHTLY-CLOSURE-138",
+      "trellisTaskPath": ".trellis/tasks/night-138-usable-closure"
+    },
+    {
+      "at": "2026-06-13T17:46:40.000Z",
+      "type": "worker_thread_created",
+      "message": "Created Worker thread for 138.",
+      "taskId": "MAINLINE-USABLE-NIGHTLY-CLOSURE-138",
+      "threadId": "019ec218-0e94-7b90-a2e5-206a91b6fdd9"
     }
   ],
   "blockers": [],
   "completedTasks": [
     "MAINLINE-AI-CONTENT-ASSISTANT-134",
     "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
-    "MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136"
+    "MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136",
+    "MAINLINE-ENTROPY-GOVERNANCE-137"
   ]
 }
