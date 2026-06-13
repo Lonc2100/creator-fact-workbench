@@ -18,11 +18,33 @@ npm run scan:entropy
 扫描范围：
 
 - `git status --porcelain=v1 --untracked-files=all` 的 modified/untracked 统计；
+- `docs/night-ops/state.json` 的 `baselineDirtyPaths` 与当前 dirty worktree 对比，用于隔离已知 unrelated dirty baseline；
+- `docs/handoffs/CURRENT-PLATFORM-STATUS.md`、`docs/task-board.md` 与 NightOps active task 的状态漂移候选；
 - `docs/handoffs/` 总量、未跟踪量、未被当前状态入口引用的归档候选；
 - `docs/product-specs/` 总量、未跟踪量、未进入 `docs/product-specs/index.md` 的 spec；
 - `.local/` 文件数、体积、sqlite/db 数量、大文件/大目录和本地敏感资产；
 - `scripts/` 未跟踪、未被 package script 引用、疑似重复/过期脚本；
+- `src/app` 页面/API/layout 入口和未被 package script 引用的脚本入口候选；
+- `src/`、`scripts/`、`tests/` 的启发式重复代码块候选；
 - `.local/self-media.sqlite` 中带 demo/smoke/test/fixture/acceptance 等标记的疑似验收污染记录。
+
+## 137 NightOps 补充规则
+
+`MAINLINE-ENTROPY-GOVERNANCE-137` 将扫描器从“数量报告”扩展为“治理候选报告”。新增字段只用于决策，不自动改变仓库：
+
+- `dirtyBaseline` 只说明当前 dirty worktree 是否落在 `state.json` 已知脏底座内；未命中的路径必须由 Orchestrator 另行判断，不得顺手 stage；
+- `staleDocs` 只报告状态文档漂移，例如 `CURRENT-PLATFORM-STATUS.md` 仍指向旧 active task；修正文档需要单独状态 closure 或本任务允许范围内的精确编辑；
+- `entrypoints` 只列出未被 package script 引用、paused/diagnostic/smoke/e2e 风险入口；候选不等于无用，也不等于删除许可；
+- `codeDuplicates` 使用轻量窗口签名找重复源码块，适合提示后续 slim refactor，不替代人工判断；
+- `.local/browser-profiles/**`、`chrome-profile/**`、cookie/token/credential/raw capture 和 `.local/self-media.sqlite` 永远归入 sensitive/local-only，不进入可删候选。
+
+如果后续要更严格地做重复代码或 unused graph 分析，优先评估成熟工具：
+
+- `jscpd`：适合重复代码块扫描；
+- `knip`：适合 TypeScript/JavaScript unused files、exports、dependencies 分析；
+- `depcheck`：适合依赖层面的 unused dependency 初筛。
+
+引入这些工具前必须另开任务说明适用性、时效性、权威性、热门程度，并避免在 NightOps 中顺手改 package/lockfile。
 
 ## 子会话验收数据库规则
 
