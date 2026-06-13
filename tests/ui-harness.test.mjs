@@ -240,6 +240,7 @@ test("calendar publish confirmation stays manual and explicit", () => {
   const calendarRoute = read("src/app/calendar/page.tsx");
   const formatHelpers = read("src/domain/self-media/ui/foundations/format.ts");
   const selfMediaService = read("src/domain/self-media/service/self-media-service.ts");
+  const calendarGovernanceReport = read("scripts/calendar-data-governance-report.mjs");
   assert.match(calendarPattern, /calendar-confirm-publish/);
   assert.match(calendarPattern, /人工发布确认/);
   assert.match(calendarPattern, /只记录人工结果，便于复盘排期/);
@@ -291,6 +292,17 @@ test("calendar publish confirmation stays manual and explicit", () => {
   assert.match(selfMediaService, /function isDefaultPublishCalendarContent/);
   assert.match(selfMediaService, /function isDefaultPublishCalendarVersion/);
   assert.match(selfMediaService, /calendarHygieneTextPattern/);
+  assert.match(selfMediaService, /calendarDataGovernanceTextPattern/);
+  assert.match(selfMediaService, /isCalendarDataGovernancePollutionText/);
+  assert.match(calendarScreen, /isCalendarGovernancePollutionText/);
+  assert.match(calendarScreen, /capture\|import\|run\|raw\|rawdir\|evidence/);
+  assert.match(calendarScreen, /已隔离排期/);
+  assert.doesNotMatch(calendarScreen, /content\?\.title \?\? item\.title/);
+  assert.match(calendarGovernanceReport, /read_only_sqlite_calendar_governance_scan/);
+  assert.match(calendarGovernanceReport, /new DatabaseSync\(dbPath, \{ readOnly: true \}\)/);
+  assert.match(calendarGovernanceReport, /titleBodyScriptStored: false/);
+  assert.doesNotMatch(calendarGovernanceReport, /\b(DELETE FROM|DROP TABLE|UPDATE\s+|INSERT INTO|REPLACE INTO)\b/i);
+  assert.doesNotMatch(calendarGovernanceReport, /\b(rmSync|rmdirSync|unlinkSync|Remove-Item)\b/);
   assert.doesNotMatch(selfMediaService, /scheduledAt:\s*version\.scheduledAt\s*\?\?\s*new Date\(\)\.toISOString\(\)/);
   assert.doesNotMatch(calendarScreen, /operator_owned_work/);
   assert.match(calendarScreen, /CalendarDraftPoolPanel/);

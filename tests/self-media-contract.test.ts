@@ -7335,6 +7335,43 @@ test("default publish calendar excludes historical imports and acceptance-mislab
       status: "scheduled",
       scheduledAt: "2026-06-06T01:00:00.000Z"
     });
+    repo.upsertEntity("contents", "calendar-governance-system-log-135", {
+      id: "calendar-governance-system-log-135",
+      title: "system log capture import run raw evidence",
+      platform: "douyin",
+      status: "scheduled",
+      format: "short_video",
+      topic: "后台日志",
+      scheduledAt: "2099-06-06T09:00:00.000Z",
+      notes: "默认发布日历污染防线样例。",
+      workOwnership: "user_owned_work",
+      dataDomain: "user_work"
+    });
+    service.upsertPlatformVersion({
+      contentId: "calendar-governance-system-log-135",
+      platform: "douyin",
+      title: "system log capture import run raw evidence",
+      status: "scheduled",
+      scheduledAt: "2099-06-06T09:00:00.000Z"
+    });
+    repo.upsertEntity("contents", "calendar-governance-test-draft-135", {
+      id: "calendar-governance-test-draft-135",
+      title: "验收稿：测试稿不进默认日历",
+      platform: "xiaohongshu",
+      status: "scheduled",
+      format: "image_text",
+      topic: "日历污染",
+      scheduledAt: "2099-06-07T09:00:00.000Z",
+      workOwnership: "user_owned_work",
+      dataDomain: "user_work"
+    });
+    service.upsertPlatformVersion({
+      contentId: "calendar-governance-test-draft-135",
+      platform: "xiaohongshu",
+      title: "验收稿：测试稿不进默认日历",
+      status: "scheduled",
+      scheduledAt: "2099-06-07T09:00:00.000Z"
+    });
     repo.upsertEntity("contents", "unscheduled-user-work-092", {
       id: "unscheduled-user-work-092",
       title: "没有排期的真实草稿",
@@ -7358,6 +7395,9 @@ test("default publish calendar excludes historical imports and acceptance-mislab
     assert.equal(dashboard.calendarItems.some((item) => item.contentId === "bilibili-BV1u34y1y7hQ"), false);
     assert.equal(dashboard.calendarItems.some((item) => item.contentId === "douyin-historical-published-092"), false);
     assert.equal(dashboard.calendarItems.some((item) => item.contentId === "content-creator-6e8eafb53993"), false);
+    assert.equal(dashboard.calendarItems.some((item) => item.contentId === "calendar-governance-system-log-135"), false);
+    assert.equal(dashboard.calendarItems.some((item) => item.contentId === "calendar-governance-test-draft-135"), false);
+    assert.doesNotMatch(JSON.stringify(dashboard.calendarItems), /\b(capture|import|run|raw|evidence)\b|后台日志|系统日志|测试稿|验收稿/i);
     assert.equal(dashboard.calendarItems.filter((item) => item.contentId === realScheduled.content.id).length, 4);
   } finally {
     repo?.close();

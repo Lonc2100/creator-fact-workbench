@@ -21,6 +21,7 @@ const diagnosticPlatformFilters: Array<Platform | "all"> = ["all", "douyin", "xi
 const operatingStatusFilters: Array<PlatformVersionStatus | "all"> = ["all", "draft", "needs_review", "scheduled"];
 const diagnosticStatusFilters: Array<PlatformVersionStatus | "all"> = ["all", "draft", "needs_review", "scheduled", "published", "blocked", "failed"];
 const ledgerStatusFilters: Array<DashboardSnapshot["publishRecords"][number]["status"] | "all"> = ["all", "submitted_review", "published", "failed", "blocked", "confirmed"];
+const defaultCalendarStatuses = new Set<PlatformVersionStatus>(["draft", "needs_review", "scheduled"]);
 const pendingVersionStatuses = new Set<PlatformVersionStatus>(["draft", "needs_review"]);
 const pendingQueueStatuses = new Set<PublishQueueItem["status"]>(["draft", "needs_review", "queued"]);
 const publishRecordStatusLabels: Record<DashboardSnapshot["publishRecords"][number]["status"], string> = {
@@ -106,6 +107,14 @@ function isAcceptanceOrTestCalendarText(value: string) {
   return /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|mainline|human-mouse|calendar-real|creator day workflow|workflow)([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|AI选题计划|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估|05[0-9]|06[0-9]|07[0-2]/i.test(value);
 }
 
+function isCalendarDataGovernanceText(value: string) {
+  return /(^|[\s:/._-])(acceptance|test|testing|backend-log|backend_log|system-log|system_log|capture|import|run|raw|rawdir|evidence)([\s:/._-]|$)|后台日志|系统日志|测试稿|验收稿|测试草稿|验收草稿|历史导入|历史已发布|已发布指标数据|默认发布日历污染|日历污染/i.test(value);
+}
+
+function isCalendarGovernancePollutionText(value: string) {
+  return isAcceptanceOrTestCalendarText(value) || isCalendarDataGovernanceText(value);
+}
+
 function calendarClassificationText(
   item: DashboardSnapshot["calendarItems"][number] | undefined,
   version: ContentWorkbenchSnapshot["platformVersions"][number] | DashboardSnapshot["platformVersions"][number] | undefined,
@@ -145,7 +154,7 @@ function isDefaultSchedulingRow(
   if (!isOperatingPlatform(version.platform)) return false;
   if (!isDefaultUserWorkCalendarContent(content)) return false;
   if (row.originKind === "trusted_creator_center" && content.userExcludedFromTrustedScope) return false;
-  if (isAcceptanceOrTestCalendarText(calendarClassificationText(undefined, version, content, row))) return false;
+  if (isCalendarGovernancePollutionText(calendarClassificationText(undefined, version, content, row))) return false;
   if (row.originKind !== "trusted_creator_center" && isDiagnosticCalendarText(`${content.id} ${content.title} ${content.notes ?? ""} ${version.id} ${version.title}`)) return false;
   return true;
 }
@@ -156,7 +165,7 @@ function isAcceptanceOrTestCalendarItem(
   content: DashboardSnapshot["contents"][number] | ContentWorkbenchSnapshot["contents"][number] | undefined,
   row?: ContentWorkbenchSnapshot["contentRows"][number]
 ) {
-  return isLocalAcceptanceOrTestContent(content) || isAcceptanceOrTestCalendarText(calendarClassificationText(item, version, content, row));
+  return isLocalAcceptanceOrTestContent(content) || isCalendarGovernancePollutionText(calendarClassificationText(item, version, content, row));
 }
 
 function isOperatingCalendarItem(
@@ -171,6 +180,41 @@ function isOperatingCalendarItem(
   if (!realScheduleTime(version)) return false;
   if (!version.scheduledAt || version.publishedAt || content.publishedAt || content.status === "published") return false;
   return item.status === "draft" || item.status === "needs_review" || item.status === "scheduled";
+}
+
+function isolatedCalendarItemFromVersion(
+  row: ContentWorkbenchSnapshot["contentRows"][number],
+  version: ContentWorkbenchSnapshot["platformVersions"][number]
+): DashboardSnapshot["calendarItems"][number] | undefined {
+  if (!version.scheduledAt) return undefined;
+  const checklistValues = Object.values(version.checklist);
+  return {
+    id: `isolated-${version.id}`,
+    platformVersionId: version.id,
+    contentId: row.content.id,
+    platform: version.platform,
+    status: version.status,
+    scheduledAt: version.scheduledAt,
+    title: "已隔离排期",
+    blockers: version.failureReason ? [version.failureReason] : undefined,
+    checklistDone: checklistValues.filter(Boolean).length,
+    checklistTotal: checklistValues.length
+  };
+}
+
+function isCalendarIsolationCandidate(
+  item: DashboardSnapshot["calendarItems"][number],
+  version: DashboardSnapshot["platformVersions"][number] | ContentWorkbenchSnapshot["platformVersions"][number] | undefined,
+  content: DashboardSnapshot["contents"][number] | ContentWorkbenchSnapshot["contents"][number] | undefined,
+  row?: ContentWorkbenchSnapshot["contentRows"][number]
+) {
+  if (!content || !version || !version.scheduledAt) return false;
+  if (isAcceptanceOrTestCalendarItem(item, version, content, row)) return true;
+  if (!isOperatingPlatform(version.platform)) return true;
+  if (content.dataDomain && content.dataDomain !== "user_work") return true;
+  if (!defaultCalendarStatuses.has(version.status)) return true;
+  if (version.publishedAt || content.publishedAt || content.status === "published") return true;
+  return false;
 }
 
 function isFutureSchedule(value?: string) {
@@ -398,12 +442,10 @@ function CalendarDraftPoolPanel({
 
 function CalendarAcceptanceDataPanel({
   items,
-  versionById,
-  contentById
+  versionById
 }: {
   items: DashboardSnapshot["calendarItems"];
   versionById: Map<string, ContentWorkbenchSnapshot["platformVersions"][number]>;
-  contentById: Map<string, ContentWorkbenchSnapshot["contents"][number]>;
 }) {
   return (
     <details className="calendar-acceptance-data-pool" data-testid="calendar-acceptance-data-pool">
@@ -421,12 +463,12 @@ function CalendarAcceptanceDataPanel({
           <div className="calendar-draft-pool-grid">
             {items.slice(0, 12).map((item) => {
               const version = versionById.get(item.platformVersionId);
-              const content = contentById.get(item.contentId) ?? (version ? contentById.get(version.contentId) : undefined);
               return (
                 <article className="calendar-draft-pool-card" data-platform-version-id={item.platformVersionId} key={item.id}>
                   <PlatformBadge platform={item.platform} compact />
-                  <strong>{content?.title ?? item.title}</strong>
+                  <strong>已隔离排期</strong>
                   <small>{formatDateTime(item.scheduledAt)} · {platformVersionStatusLabels[item.status]}</small>
+                  <small>{version ? "保留在本地记录与治理报告中" : "保留在本地治理报告中"}</small>
                 </article>
               );
             })}
@@ -478,16 +520,38 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
       }),
     [contentById, current.calendarItems, platform, query, rowByContentId, status, versionById]
   );
+  const visibleVersionIds = useMemo(() => new Set(visibleItems.map((item) => item.platformVersionId)), [visibleItems]);
+  const isolatedCalendarItems = useMemo(
+    () => {
+      const itemsByVersionId = new Map<string, DashboardSnapshot["calendarItems"][number]>();
+      for (const item of current.calendarItems) {
+        if (visibleVersionIds.has(item.platformVersionId)) continue;
+        const version = versionById.get(item.platformVersionId);
+        const content = contentById.get(item.contentId) ?? (version ? contentById.get(version.contentId) : undefined);
+        const row = rowByContentId.get(item.contentId) ?? (version ? rowByContentId.get(version.contentId) : undefined);
+        if (isCalendarIsolationCandidate(item, version, content, row)) itemsByVersionId.set(item.platformVersionId, { ...item, title: "已隔离排期" });
+      }
+      for (const row of currentWorkbench.contentRows) {
+        for (const version of row.platformVersions) {
+          if (visibleVersionIds.has(version.id)) continue;
+          const item = isolatedCalendarItemFromVersion(row, version);
+          if (!item) continue;
+          if (isCalendarIsolationCandidate(item, version, row.content, row)) itemsByVersionId.set(version.id, item);
+        }
+      }
+      return [...itemsByVersionId.values()].sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+    },
+    [contentById, current.calendarItems, currentWorkbench.contentRows, rowByContentId, versionById, visibleVersionIds]
+  );
   const acceptanceCalendarItems = useMemo(
-    () => current.calendarItems.filter((item) => {
+    () => isolatedCalendarItems.filter((item) => {
       const version = versionById.get(item.platformVersionId);
       const content = contentById.get(item.contentId) ?? (version ? contentById.get(version.contentId) : undefined);
       const row = rowByContentId.get(item.contentId) ?? (version ? rowByContentId.get(version.contentId) : undefined);
-      return isAcceptanceOrTestCalendarItem(item, version, content, row);
+      return isCalendarIsolationCandidate(item, version, content, row);
     }),
-    [contentById, current.calendarItems, rowByContentId, versionById]
+    [contentById, isolatedCalendarItems, rowByContentId, versionById]
   );
-  const visibleVersionIds = useMemo(() => new Set(visibleItems.map((item) => item.platformVersionId)), [visibleItems]);
   const pendingSchedulingItems = useMemo(() => {
     const queueByContentPlatform = new Map(currentWorkbench.queue.map((item) => [`${item.contentId}:${item.platform}`, item]));
     return currentWorkbench.contentRows
@@ -692,7 +756,6 @@ export function CalendarPage({ snapshot, workbench }: { snapshot: DashboardSnaps
           }}
         />
         <CalendarAcceptanceDataPanel
-          contentById={contentById}
           items={acceptanceCalendarItems}
           versionById={versionById}
         />

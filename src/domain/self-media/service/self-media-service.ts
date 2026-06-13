@@ -739,6 +739,7 @@ function isTrustedRealCreatorCenterSource(source: ImportSource | "manual" | "rev
 const acceptanceRunTextPattern = /(^|[\s:/._-])(mainline|human-mouse|calendar-real|creator day workflow|workflow|05[0-9]|06[0-9]|07[0-2])([\s:/._-]|$)|验收|回归|测试|走查|真实鼠标|人工鼠标|浏览器烟测|创作者一天流程|信息架构回归|我最喜欢的小雏菊|小雏菊|想拍一条短视频|我的真实作品070测试|071验收测试|真实作品：六月内容计划|真实内容评估/i;
 const demoSeedTextPattern = /(^|[\s:/._-])(smoke|sample|demo|fixture|debug|seed|fake|op-save)([\s:/._-]|$)|O2|烟测|浏览器烟测|BiliOpSave/i;
 const calendarHygieneTextPattern = /默认日历只显示\s*user_work|用来确认默认日历|确认默认日历|默认日历主网格|日历验收|日历测试/i;
+const calendarDataGovernanceTextPattern = /(^|[\s:/._-])(acceptance|test|testing|backend-log|backend_log|system-log|system_log|capture|import|run|raw|rawdir|evidence)([\s:/._-]|$)|后台日志|系统日志|测试稿|验收稿|测试草稿|验收草稿|历史导入|历史已发布|已发布指标数据|默认发布日历污染|日历污染/i;
 const defaultPublishCalendarStatuses = new Set<ContentPlatformVersion["status"]>(["draft", "needs_review", "scheduled"]);
 
 function legacyTextSuggestsTestOrDemoContent(content: ContentItem | undefined, snapshot?: MetricSnapshot) {
@@ -832,13 +833,17 @@ function publishCalendarClassificationText(content: ContentItem | undefined, ver
   ].filter(Boolean).join(" ");
 }
 
+function isCalendarDataGovernancePollutionText(text: string) {
+  return acceptanceRunTextPattern.test(text) || demoSeedTextPattern.test(text) || calendarHygieneTextPattern.test(text) || calendarDataGovernanceTextPattern.test(text);
+}
+
 function isDefaultPublishCalendarContent(content: ContentItem | undefined, version?: ContentPlatformVersion) {
   if (!content) return false;
   if (content.dataDomain !== "user_work") return false;
   if (content.workOwnership !== "user_owned_work") return false;
   if (content.status === "published" || content.publishedAt) return false;
   const text = publishCalendarClassificationText(content, version);
-  if (acceptanceRunTextPattern.test(text) || demoSeedTextPattern.test(text) || calendarHygieneTextPattern.test(text)) return false;
+  if (isCalendarDataGovernancePollutionText(text)) return false;
   return true;
 }
 
