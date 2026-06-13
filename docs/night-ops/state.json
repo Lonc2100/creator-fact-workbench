@@ -4,10 +4,10 @@
   "mode": "max_autonomy_with_stop_gates",
   "phase": "monitor",
   "startedAt": "2026-06-14T00:00:00+08:00",
-  "updatedAt": "2026-06-13T16:12:13.259Z",
+  "updatedAt": "2026-06-13T16:35:42.000Z",
   "fixedDashboardUrl": "http://localhost:3200/dashboard",
-  "activeTaskId": "MAINLINE-AI-CONTENT-ASSISTANT-134",
-  "activeWorkerThreadId": "019ec1c0-ffb8-76c1-8bbf-df8c73506d8b",
+  "activeTaskId": "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
+  "activeWorkerThreadId": "019ec1d7-738d-76e3-abe0-cdf8131ccd96",
   "heartbeat": {
     "enabled": true,
     "intervalMinutes": 25,
@@ -37,18 +37,21 @@
   "queue": [
     {
       "taskId": "MAINLINE-AI-CONTENT-ASSISTANT-134",
-      "status": "active",
+      "status": "done",
       "trellisTaskPath": ".trellis/tasks/night-134-ai-content-assistant",
       "handoffPath": "docs/handoffs/MAINLINE-AI-CONTENT-ASSISTANT-134-worker-handoff.md",
       "summary": "Connect /content to a real AI-assisted topic strategy path with local-rule fallback.",
-      "startedAt": "2026-06-13T16:09:13.528Z"
+      "startedAt": "2026-06-13T16:09:13.528Z",
+      "completedAt": "2026-06-13T16:34:23.313Z",
+      "commit": "df341ca"
     },
     {
       "taskId": "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
-      "status": "pending",
+      "status": "active",
       "trellisTaskPath": ".trellis/tasks/night-135-calendar-data-governance",
       "handoffPath": "docs/handoffs/MAINLINE-CALENDAR-DATA-GOVERNANCE-135-worker-handoff.md",
-      "summary": "Prevent test, acceptance, backend log, and unrelated local draft pollution from default calendar surfaces."
+      "summary": "Prevent test, acceptance, backend log, and unrelated local draft pollution from default calendar surfaces.",
+      "startedAt": "2026-06-13T16:34:56.656Z"
     },
     {
       "taskId": "MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136",
@@ -91,8 +94,31 @@
       "message": "Created Worker thread for 134.",
       "taskId": "MAINLINE-AI-CONTENT-ASSISTANT-134",
       "threadId": "019ec1c0-ffb8-76c1-8bbf-df8c73506d8b"
+    },
+    {
+      "at": "2026-06-13T16:34:23.313Z",
+      "type": "task_completed",
+      "message": "Completed MAINLINE-AI-CONTENT-ASSISTANT-134.",
+      "taskId": "MAINLINE-AI-CONTENT-ASSISTANT-134",
+      "commit": "df341ca"
+    },
+    {
+      "at": "2026-06-13T16:34:56.656Z",
+      "type": "task_selected",
+      "message": "Selected MAINLINE-CALENDAR-DATA-GOVERNANCE-135.",
+      "taskId": "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
+      "trellisTaskPath": ".trellis/tasks/night-135-calendar-data-governance"
+    },
+    {
+      "at": "2026-06-13T16:35:42.000Z",
+      "type": "worker_thread_created",
+      "message": "Created Worker thread for 135.",
+      "taskId": "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
+      "threadId": "019ec1d7-738d-76e3-abe0-cdf8131ccd96"
     }
   ],
   "blockers": [],
-  "completedTasks": []
+  "completedTasks": [
+    "MAINLINE-AI-CONTENT-ASSISTANT-134"
+  ]
 }
