@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "automationId": "self-media-night-ops-orchestrator",
+  "mode": "max_autonomy_with_stop_gates",
+  "phase": "monitor",
+  "startedAt": "2026-06-14T00:00:00+08:00",
+  "updatedAt": "2026-06-13T16:12:13.259Z",
+  "fixedDashboardUrl": "http://localhost:3200/dashboard",
+  "activeTaskId": "MAINLINE-AI-CONTENT-ASSISTANT-134",
+  "activeWorkerThreadId": "019ec1c0-ffb8-76c1-8bbf-df8c73506d8b",
+  "heartbeat": {
+    "enabled": true,
+    "intervalMinutes": 25,
+    "target": "current_thread"
+  },
+  "baselineDirtyPaths": [
+    "docs/generated/template-doctor-report.md",
+    "scripts/smoke-self-media.mjs",
+    "src/domain/self-media/ui/screens/LeadsPage.tsx",
+    "src/domain/self-media/ui/screens/UiLabPage.tsx",
+    "tests/agent-trajectory.test.mjs",
+    "docs/handoffs/MAINLINE-AUTO-OPEN-THROTTLE-COMMIT-106-worker-handoff.md",
+    "docs/handoffs/MAINLINE-PAGE-RESPONSIBILITY-AUDIT-108-worker-handoff.md",
+    "docs/handoffs/MEDIACRAWLER-ADAPTER-AUDIT-094-worker-handoff.md",
+    "scripts/check-browser-automation.mjs"
+  ],
+  "stopGates": [
+    "login_or_qr_or_captcha_or_risk_control",
+    "real_platform_save_requires_user_confirmation",
+    "file_or_directory_delete",
+    "sensitive_material_detected",
+    "force_push_or_branch_reset",
+    "wechat_reopen",
+    "bilibili_account_metrics_durable_totals",
+    "heavy_gate_parallel_conflict"
+  ],
+  "queue": [
+    {
+      "taskId": "MAINLINE-AI-CONTENT-ASSISTANT-134",
+      "status": "active",
+      "trellisTaskPath": ".trellis/tasks/night-134-ai-content-assistant",
+      "handoffPath": "docs/handoffs/MAINLINE-AI-CONTENT-ASSISTANT-134-worker-handoff.md",
+      "summary": "Connect /content to a real AI-assisted topic strategy path with local-rule fallback.",
+      "startedAt": "2026-06-13T16:09:13.528Z"
+    },
+    {
+      "taskId": "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
+      "status": "pending",
+      "trellisTaskPath": ".trellis/tasks/night-135-calendar-data-governance",
+      "handoffPath": "docs/handoffs/MAINLINE-CALENDAR-DATA-GOVERNANCE-135-worker-handoff.md",
+      "summary": "Prevent test, acceptance, backend log, and unrelated local draft pollution from default calendar surfaces."
+    },
+    {
+      "taskId": "MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136",
+      "status": "pending",
+      "trellisTaskPath": ".trellis/tasks/night-136-nonintrusive-import-refresh",
+      "handoffPath": "docs/handoffs/MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136-worker-handoff.md",
+      "summary": "Make /import check what it can without opening platform windows or requiring user login."
+    },
+    {
+      "taskId": "MAINLINE-ENTROPY-GOVERNANCE-137",
+      "status": "pending",
+      "trellisTaskPath": ".trellis/tasks/night-137-entropy-governance",
+      "handoffPath": "docs/handoffs/MAINLINE-ENTROPY-GOVERNANCE-137-worker-handoff.md",
+      "summary": "Run code/document entropy governance without bulk deletion."
+    },
+    {
+      "taskId": "MAINLINE-USABLE-NIGHTLY-CLOSURE-138",
+      "status": "pending",
+      "trellisTaskPath": ".trellis/tasks/night-138-usable-closure",
+      "handoffPath": "docs/handoffs/MAINLINE-USABLE-NIGHTLY-CLOSURE-138-worker-handoff.md",
+      "summary": "Run final usable path acceptance, update status docs, commit, and push."
+    }
+  ],
+  "events": [
+    {
+      "at": "2026-06-14T00:00:00+08:00",
+      "type": "initialized",
+      "message": "NightOps state initialized from main-session plan."
+    },
+    {
+      "at": "2026-06-13T16:09:13.529Z",
+      "type": "task_selected",
+      "message": "Selected MAINLINE-AI-CONTENT-ASSISTANT-134.",
+      "taskId": "MAINLINE-AI-CONTENT-ASSISTANT-134",
+      "trellisTaskPath": ".trellis/tasks/night-134-ai-content-assistant"
+    },
+    {
+      "at": "2026-06-13T16:12:13.259Z",
+      "type": "worker_thread_created",
+      "message": "Created Worker thread for 134.",
+      "taskId": "MAINLINE-AI-CONTENT-ASSISTANT-134",
+      "threadId": "019ec1c0-ffb8-76c1-8bbf-df8c73506d8b"
+    }
+  ],
+  "blockers": [],
+  "completedTasks": []
+}

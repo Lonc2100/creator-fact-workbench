@@ -2,6 +2,21 @@
 
 This is the compact entrypoint for future sessions. Use it before opening dozens of historical handoffs.
 
+## NightOps Trellis Heartbeat Orchestrator
+
+Current overnight automation state as of 2026-06-14:
+
+- NightOps state file: `docs/night-ops/state.json`.
+- State machine: `docs/night-ops/state-machine.md`.
+- Local Trellis task packages: `.trellis/tasks/night-*` (gitignored local workflow assets).
+- Heartbeat automation id: `self-media-nightops-orchestrator`, every 25 minutes.
+- Active Worker thread: `019ec1c0-ffb8-76c1-8bbf-df8c73506d8b`.
+- Active task: `MAINLINE-AI-CONTENT-ASSISTANT-134`.
+
+NightOps may automatically modify code/docs, run validation, commit, and push within task scope. It must stop for login/QR/captcha/risk-control, real platform data save confirmation, file deletion, sensitive material, force push/reset, WeChat reopening, Bilibili account durable totals, or heavy-gate conflicts.
+
+Bootstrap handoff: `NIGHTOPS-TRELLIS-HEARTBEAT-ORCHESTRATOR-134-main-handoff.md`.
+
 ## 133 Context-First Creator Composer
 
 Current `/content` default creation path as of 2026-06-12:
