@@ -4,10 +4,10 @@
   "mode": "max_autonomy_with_stop_gates",
   "phase": "monitor",
   "startedAt": "2026-06-14T00:00:00+08:00",
-  "updatedAt": "2026-06-13T16:35:42.000Z",
+  "updatedAt": "2026-06-13T16:57:20.000Z",
   "fixedDashboardUrl": "http://localhost:3200/dashboard",
-  "activeTaskId": "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
-  "activeWorkerThreadId": "019ec1d7-738d-76e3-abe0-cdf8131ccd96",
+  "activeTaskId": "MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136",
+  "activeWorkerThreadId": "019ec1ea-bc66-72a3-96cc-342f2894121f",
   "heartbeat": {
     "enabled": true,
     "intervalMinutes": 25,
@@ -47,18 +47,21 @@
     },
     {
       "taskId": "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
-      "status": "active",
+      "status": "done",
       "trellisTaskPath": ".trellis/tasks/night-135-calendar-data-governance",
       "handoffPath": "docs/handoffs/MAINLINE-CALENDAR-DATA-GOVERNANCE-135-worker-handoff.md",
       "summary": "Prevent test, acceptance, backend log, and unrelated local draft pollution from default calendar surfaces.",
-      "startedAt": "2026-06-13T16:34:56.656Z"
+      "startedAt": "2026-06-13T16:34:56.656Z",
+      "completedAt": "2026-06-13T16:56:39.342Z",
+      "commit": "21f5e98"
     },
     {
       "taskId": "MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136",
-      "status": "pending",
+      "status": "active",
       "trellisTaskPath": ".trellis/tasks/night-136-nonintrusive-import-refresh",
       "handoffPath": "docs/handoffs/MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136-worker-handoff.md",
-      "summary": "Make /import check what it can without opening platform windows or requiring user login."
+      "summary": "Make /import check what it can without opening platform windows or requiring user login.",
+      "startedAt": "2026-06-13T16:56:57.441Z"
     },
     {
       "taskId": "MAINLINE-ENTROPY-GOVERNANCE-137",
@@ -115,10 +118,32 @@
       "message": "Created Worker thread for 135.",
       "taskId": "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
       "threadId": "019ec1d7-738d-76e3-abe0-cdf8131ccd96"
+    },
+    {
+      "at": "2026-06-13T16:56:39.342Z",
+      "type": "task_completed",
+      "message": "Completed MAINLINE-CALENDAR-DATA-GOVERNANCE-135.",
+      "taskId": "MAINLINE-CALENDAR-DATA-GOVERNANCE-135",
+      "commit": "21f5e98"
+    },
+    {
+      "at": "2026-06-13T16:56:57.442Z",
+      "type": "task_selected",
+      "message": "Selected MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136.",
+      "taskId": "MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136",
+      "trellisTaskPath": ".trellis/tasks/night-136-nonintrusive-import-refresh"
+    },
+    {
+      "at": "2026-06-13T16:57:20.000Z",
+      "type": "worker_thread_created",
+      "message": "Created Worker thread for 136.",
+      "taskId": "MAINLINE-NONINTRUSIVE-IMPORT-REFRESH-136",
+      "threadId": "019ec1ea-bc66-72a3-96cc-342f2894121f"
     }
   ],
   "blockers": [],
   "completedTasks": [
-    "MAINLINE-AI-CONTENT-ASSISTANT-134"
+    "MAINLINE-AI-CONTENT-ASSISTANT-134",
+    "MAINLINE-CALENDAR-DATA-GOVERNANCE-135"
   ]
 }
